@@ -1,0 +1,10 @@
+# Cedar Ridge Dental — crawler policy
+# DEFECT 2: PerplexityBot is sitewide-disallowed, blocking a required retrieval crawler.
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://cedarridgedental.example/sitemap.xml

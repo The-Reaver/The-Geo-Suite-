@@ -1,0 +1,11 @@
+# Cedar Ridge Dental
+
+> Family and cosmetic dentist in Portland, OR. Accepting new patients and most PPO plans.
+
+## Pages
+- [Home](https://cedarridgedental.example/): services, hours, and contact
+- [About](https://cedarridgedental.example/about.html): the practice and team
+
+## Contact
+- Phone: +1 (503) 555-0142
+- Address: 1200 Cedar Road, Portland, OR 97201

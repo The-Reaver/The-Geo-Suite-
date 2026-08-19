@@ -1,0 +1,33 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+
+# Node / Next.js build output (also a common secret-leak source)
+node_modules/
+.next/
+out/
+dist/
+
+# Generated / local artifacts
+generated_site/
+generated_sites/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Local design demos / scratch (not product surface)
+design_mockup_*.html
+see_it_work.py
+see_variation.py
+reports/
+

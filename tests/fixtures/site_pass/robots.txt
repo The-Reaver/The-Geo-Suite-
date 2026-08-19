@@ -1,0 +1,7 @@
+# Cedar Ridge Dental — crawler policy
+# Retrieval + user-triggered AI fetchers are allowed by design (see CRAWLER_INTELLIGENCE.md).
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://cedarridgedental.example/sitemap.xml
