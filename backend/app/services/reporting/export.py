@@ -61,6 +61,20 @@ def export_report(view: dict, fmt: str, branding: dict | None = None) -> bytes:
         from .render_html import render_report_html
 
         return render_report_html(view, branding).encode("utf-8")
+    if fmt == "pdf":
+        # 2026-08-20: this used to fall through to the plaintext branch
+        # below, returning a bytes dump with no PDF bytes in it at all --
+        # the payload's own "format" field said "pdf" while the content was
+        # a plain-text summary, exactly the kind of silent-wrong-output this
+        # codebase otherwise refuses to produce (see _assert_exportable
+        # above). No headless-render step exists in this repo yet (the
+        # comment on the html branch already says a real PDF needs one at
+        # deploy) -- raise instead of mislabeling the output. Use fmt="html"
+        # and the browser's print-to-PDF for now; a real render pipeline is
+        # a separate, larger piece of work.
+        raise NotImplementedError(
+            "PDF export isn't implemented yet -- use fmt='html' and print-to-PDF from the browser."
+        )
     payload = {
         "format": fmt,
         "view": view,
@@ -69,7 +83,7 @@ def export_report(view: dict, fmt: str, branding: dict | None = None) -> bytes:
     }
     if fmt == "json":
         return json.dumps(payload, indent=2).encode("utf-8")
-    # Minimal text export for offline tests — not a styled PDF engine.
+    # Minimal text export for genuinely unrecognized formats.
     lines = [
         f"REPORT ({fmt})",
         f"limitations: {view.get('limitations')}",

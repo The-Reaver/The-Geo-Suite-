@@ -203,6 +203,21 @@ def test_trend_splits_on_model_change():
     assert_true(len(segs[0]) == 2 and len(segs[1]) == 1, "segment lengths match")
 
 
+def test_pdf_export_raises_instead_of_mislabeling_plaintext():
+    # 2026-08-20: fmt="pdf" used to silently fall through to the same
+    # plaintext branch any unrecognized format hits, returning a bytes dump
+    # labeled "pdf" with no PDF content in it. Must raise instead of lying
+    # about what it produced.
+    view = {"metrics": {}, "limitations": ["no PDF render pipeline in this repo yet"]}
+    raised = False
+    try:
+        export_report(view, "pdf")
+    except NotImplementedError as e:
+        raised = True
+        assert_true("html" in str(e), f"error should point at the html fallback: {e}")
+    assert_true(raised, "fmt='pdf' must raise NotImplementedError, not return mislabeled plaintext")
+
+
 if __name__ == "__main__":
     test_render_requires_ci()
     test_four_statuses_not_zero()
@@ -210,4 +225,5 @@ if __name__ == "__main__":
     test_hallucination_n1_and_no_causal()
     test_m5_panels_absent_and_export()
     test_trend_splits_on_model_change()
+    test_pdf_export_raises_instead_of_mislabeling_plaintext()
     print(f"{passed}/{total} passed")
