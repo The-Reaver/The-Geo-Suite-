@@ -30,9 +30,16 @@ export type ComplianceSource = {
   sample_notes: string[];
 };
 
+export type ComplianceDetectionStatus = {
+  has_check: boolean;
+  wired_into_publish_gate: boolean;
+  note: string;
+};
+
 export type ComplianceDomain = {
   domain: string;
   sources: ComplianceSource[];
+  detection_status: ComplianceDetectionStatus | null;
 };
 
 export type ComplianceLibraryResult =

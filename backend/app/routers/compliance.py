@@ -35,6 +35,56 @@ _DOMAINS: list[tuple[str, list[dict]]] = [
     ("AI-visibility / AI-generated content", rc._AI_VISIBILITY_CITATIONS),
 ]
 
+# 2026-08-20: real, current status of automated detection per domain --
+# not aspirational, and not silent about the gaps. Kept in sync with
+# compliance_checker.py's own module docstring by hand (both are read by
+# a human, not generated from one source) since that's a short, stable
+# list, not a place worth adding indirection for.
+_DETECTION_STATUS: dict[str, dict] = {
+    "Medical marketing claims": {
+        "has_check": True,
+        "wired_into_publish_gate": True,
+        "note": (
+            "check_marketing_claims() is live in the publish gate today. "
+            "check_citation_records() (structural QA over lawyer-authored "
+            "citation records) is also built and tested but not yet wired "
+            "in -- it has nothing real to check until ratified citation "
+            "records exist, which your review would help produce."
+        ),
+    },
+    "Patient data privacy": {
+        "has_check": True,
+        "wired_into_publish_gate": True,
+        "note": "check_phi_testimonials() is live in the publish gate today.",
+    },
+    "Lead-contact compliance": {
+        "has_check": False,
+        "wired_into_publish_gate": False,
+        "note": (
+            "No automated check exists, deliberately. This repo has no "
+            "automated calling, texting, or outbound-email infrastructure "
+            "today, so there's nothing for TCPA/CAN-SPAM detection logic "
+            "to check yet. Whether/how TCPA's automated-dialing "
+            "restrictions apply to Nova's manual-dial prospecting workflow "
+            "is a real open question for your review, not something to "
+            "guess at in code."
+        ),
+    },
+    "AI-visibility / AI-generated content": {
+        "has_check": True,
+        "wired_into_publish_gate": False,
+        "note": (
+            "check_ai_claims_marketing() is built and tested -- flags "
+            "unsubstantiated AI-related marketing language (e.g. "
+            '"AI-powered" with no nearby evidence), grounded in the FTC\'s '
+            "AI-claims guidance and the real FTC v. Workado matter. Not "
+            "yet enforced in the publish gate, pending your review, same "
+            "status as citation_records above. It also applies to GEO "
+            "Suite's own report/Sales Kit copy, not just client sites."
+        ),
+    },
+}
+
 _ATOMIC_NOTES_PATH = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__), "..", "..", "..",
@@ -81,7 +131,11 @@ async def compliance_library(payload: dict = Depends(require_sales_agent)):
                 "sample_notes": [n["body"] for n in file_notes[:3]],
             })
         total += len(sources)
-        domains.append({"domain": label, "sources": sources})
+        domains.append({
+            "domain": label,
+            "sources": sources,
+            "detection_status": _DETECTION_STATUS.get(label),
+        })
 
     return {
         "domains": domains,

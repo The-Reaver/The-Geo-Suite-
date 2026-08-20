@@ -23,12 +23,19 @@ unsourced claim is labeled as such rather than filled in.
 covering raw_law/'s remaining 7 files (08, 09, 10, 11, 17, 18, 19) that had
 zero citation-list entries at all until now. Same honesty rule applies in
 reverse here: these are mapped under ai-claims-* and lead-contact-* rule
-prefixes that compliance_checker.py does not emit any findings for yet --
-there is no TCPA/CAN-SPAM consent check or AI-claims-marketing check in
-that module today. citations_for_rule() returning real data for a prefix
-with no live caller isn't dead weight -- it's ready the moment that check
-gets written, same as every other citation list here, just staged ahead of
-the code that will consume it instead of behind it.
+prefixes that compliance_checker.py did not emit any findings for yet at
+the time -- citations_for_rule() returning real data for a prefix with no
+live caller isn't dead weight, it's ready the moment that check gets
+written, same as every other citation list here, just staged ahead of the
+code that will consume it instead of behind it.
+
+2026-08-20, later the same day: compliance_checker.check_ai_claims_marketing()
+now emits real ai-claims-* findings (built and tested, not yet wired into
+audit_site()'s publish gate -- pending lawyer review, same status
+check_citation_records() already has). lead-contact-* still has no
+matching check; see compliance_checker.py's own comment on why that's a
+deliberate scoping decision, not an oversight -- no automated lead-contact
+feature exists anywhere in this repo to check against yet.
 """
 from __future__ import annotations
 
@@ -194,10 +201,16 @@ _RULE_PREFIX_MAP: dict[str, list[dict]] = {
     # authority as marketing-* findings, just checked against a structured
     # CitationRecord instead of raw page text.
     "citation-": _MARKETING_CITATIONS,
-    # 2026-08-20: no lead-contact-* or ai-claims-* finding exists in
-    # compliance_checker.py yet -- these two prefixes stage real citations
-    # ahead of the checks that will eventually emit them, same honesty
-    # tradeoff as wcag-*'s empty list above, just in the other direction.
+    # 2026-08-20: ai-claims-* now has a real caller --
+    # compliance_checker.check_ai_claims_marketing() -- though, like
+    # check_citation_records(), it's not wired into audit_site()'s publish
+    # gate yet; built for the lawyer's review first. lead-contact-* still
+    # has no matching check and, per compliance_checker.py's own comment
+    # block on this, won't get one until either a real automated lead-
+    # contact feature exists in this repo or the lawyer rules on how TCPA's
+    # automated-dialing restrictions apply to Nova's manual-dial workflow --
+    # staying staged here either way, same honesty tradeoff as wcag-*'s
+    # empty list above, just in the other direction.
     "lead-contact-": _LEAD_CONTACT_CITATIONS,
     "ai-claims-": _AI_VISIBILITY_CITATIONS,
 }

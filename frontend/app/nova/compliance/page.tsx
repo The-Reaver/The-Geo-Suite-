@@ -82,6 +82,52 @@ export default async function ComplianceLibraryPage() {
                 >
                   {domain.domain}
                 </h2>
+                {domain.detection_status ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      marginBottom: 16,
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      background: "var(--nv-surface)",
+                      border: "1px solid var(--nv-line)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: 0.5,
+                        whiteSpace: "nowrap",
+                        borderRadius: 5,
+                        padding: "2px 7px",
+                        marginTop: 1,
+                        color: domain.detection_status.wired_into_publish_gate
+                          ? "var(--nv-ok, #1a7f37)"
+                          : domain.detection_status.has_check
+                          ? "var(--nv-metal)"
+                          : "var(--nv-text3)",
+                        border: `1px solid ${
+                          domain.detection_status.wired_into_publish_gate
+                            ? "var(--nv-ok, #1a7f37)"
+                            : domain.detection_status.has_check
+                            ? "var(--nv-metal-dim)"
+                            : "var(--nv-line)"
+                        }`,
+                      }}
+                    >
+                      {domain.detection_status.wired_into_publish_gate
+                        ? "LIVE CHECK"
+                        : domain.detection_status.has_check
+                        ? "BUILT, NOT ENFORCED"
+                        : "NO AUTOMATED CHECK"}
+                    </span>
+                    <p style={{ fontSize: 12.5, color: "var(--nv-text2)", lineHeight: 1.55, margin: 0 }}>
+                      {domain.detection_status.note}
+                    </p>
+                  </div>
+                ) : null}
                 <div style={{ display: "grid", gap: 14 }}>
                   {domain.sources.map((source) => (
                     <article

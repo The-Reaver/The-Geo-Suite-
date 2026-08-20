@@ -15,10 +15,12 @@ if BACKEND not in sys.path:
 from app.services.compliance.compliance_checker import (  # noqa: E402
     audit_site,
     check_accessibility,
+    check_ai_claims_marketing,
     check_citation_records,
     check_marketing_claims,
     check_phi_testimonials,
     DEFAULT_ABSOLUTE_GUARANTEE_TERMS,
+    DEFAULT_AI_CLAIM_TERMS,
     DEFAULT_HIGH_RISK_TERMS,
 )
 from app.schemas.compliance_schemas import CitationRecord, ClaimStrength  # noqa: E402
@@ -204,6 +206,97 @@ def test_phi_named_condition_flags():
     assert "phi-identifier-in-testimonial" in rules
 
 
+def test_ai_claims_unsubstantiated_flags():
+    text = "Our platform is AI-powered and delivers results nobody else can match."
+    findings = check_ai_claims_marketing(text)
+    rules = {f["rule"] for f in findings}
+    assert "ai-claims-unsubstantiated" in rules, findings
+
+
+def test_ai_claims_with_disclosed_score_passes():
+    # Mirrors render_html.py's real _rating_line usage: "AI-Optimized" is a
+    # tier label always shown beside the actual numeric score it's derived
+    # from, not a bare assertion -- must not flag GEO Suite's own
+    # substantiated usage of its own terminology.
+    text = "Your site scored 96/100 and earned the AI-Optimized rating based on our documented audit."
+    findings = check_ai_claims_marketing(text)
+    assert findings == [], f"a score-substantiated AI claim should not flag: {findings}"
+
+
+def test_default_ai_claim_terms_documented():
+    assert "ai-powered" in DEFAULT_AI_CLAIM_TERMS
+    assert "artificial intelligence" in DEFAULT_AI_CLAIM_TERMS
+    assert isinstance(DEFAULT_AI_CLAIM_TERMS, list)
+
+
+def test_ai_claims_terms_is_parameter():
+    findings_default = check_ai_claims_marketing("This uses machine learning magic.")
+    assert findings_default == [], "unlisted term must not flag with default terms"
+    findings_custom = check_ai_claims_marketing(
+        "This uses machine learning magic.", ai_claim_terms=["machine learning magic"]
+    )
+    rules = {f["rule"] for f in findings_custom}
+    assert "ai-claims-unsubstantiated" in rules, findings_custom
+
+
+def test_ai_claims_empty_input_fails_cleanly():
+    findings = check_ai_claims_marketing("")
+    rules = {f["rule"] for f in findings}
+    assert "ai-claims-input-empty" in rules
+
+
+def test_ai_claims_findings_carry_real_legal_basis():
+    findings = check_ai_claims_marketing("Fully AI-driven, unlike any competitor.")
+    assert findings, "fixture text must actually flag to test legal_basis on it"
+    for f in findings:
+        legal_basis = regulatory_citations.citations_for_rule(f["rule"])
+        assert legal_basis, f"ai-claims-* findings must resolve real citations: {f}"
+        files = {c["file"] for c in legal_basis}
+        assert "17-ftc-v-workado-complaint.md" in files
+        assert "18-ftc-v-workado-decision-and-order.md" in files
+
+
+def test_check_ai_claims_marketing_not_wired_into_audit_site_yet():
+    # Same status as check_citation_records(): real, tested, and not yet
+    # enforced against real businesses -- audit_site() must be completely
+    # unaffected by this function existing.
+    result = audit_site(COMPLIANT_HTML, mode="publish")
+    assert result["ok"] is True
+    assert result["blocking"] == []
+    rules_seen = {f.get("rule", "") for f in result.get("blocking", [])}
+    assert not any(r.startswith("ai-claims-") for r in rules_seen)
+
+
+def test_ai_claims_check_against_geo_suites_own_real_report_html():
+    # Not a synthetic fixture: renders a real report through render_html.py
+    # (the actual module Sales Kit/reports use in production) and proves
+    # the check doesn't flag GEO Suite's own real, live "AI-Optimized"
+    # tier label -- it's substantiated by the same real score shown right
+    # next to it in the rendered document, not a bare assertion.
+    from app.services.reporting.render_html import render_report_html
+
+    view = {
+        "client": "Cedar Ridge Dental",
+        "score": 96,
+        "metrics": {},
+        "limitations": ["Sampled metrics describe controlled prompt sets, not all queries."],
+        "methodology": {"show_your_work": True},
+    }
+    html = render_report_html(view)
+    assert "AI-Optimized" in html, "fixture must actually exercise the real tier label"
+    findings = check_ai_claims_marketing(_text_from_html_for_test(html))
+    ai_findings = [f for f in findings if f["rule"] == "ai-claims-unsubstantiated"]
+    assert ai_findings == [], f"GEO Suite's own substantiated AI-Optimized label must not flag: {ai_findings}"
+
+
+def _text_from_html_for_test(html: str) -> str:
+    # compliance_checker._text_from_html is private; tests reuse the same
+    # module-level HTML parser it's built on rather than duplicating parsing
+    # logic or reaching past the module boundary.
+    from app.services.compliance.compliance_checker import _text_from_html
+    return _text_from_html(html)
+
+
 def _valid_citation_record(**overrides):
     """A clean CitationRecord for tests to override one field at a time."""
     fields = dict(
@@ -369,10 +462,13 @@ def test_all_20_raw_law_files_are_cited_exactly_once():
 
 
 def test_lead_contact_and_ai_claims_prefixes_return_real_citations():
-    # No lead-contact-* or ai-claims-* finding exists in compliance_checker.py
-    # yet (no TCPA/CAN-SPAM or AI-claims-marketing check has been written) --
-    # these citations are staged ahead of that future check, same as every
-    # other entry here, just proven reachable now rather than assumed.
+    # ai-claims-* now has a real caller (check_ai_claims_marketing(), see
+    # the tests above) -- covered directly there via real finding rules,
+    # not the placeholder rule string used below. lead-contact-* still has
+    # no matching check (see compliance_checker.py's own comment on why);
+    # its citations stay staged ahead of that future check, same as every
+    # other entry here, proven reachable via a placeholder rule string
+    # since no real finding emits one yet.
     lead_contact = regulatory_citations.citations_for_rule("lead-contact-no-consent-on-file")
     assert lead_contact, "lead-contact-* must resolve to real citations"
     assert {c["file"] for c in lead_contact} == {"08-tcpa-47-usc-227.md", "09-can-spam-act-15-usc-7704.md"}

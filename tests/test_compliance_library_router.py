@@ -54,6 +54,38 @@ def test_library_returns_all_20_sources_across_four_domains():
             assert isinstance(source["note_count"], int), "note_count must be a real int, never null/fabricated"
 
 
+def test_library_carries_real_detection_status_per_domain():
+    # 2026-08-20: proves each domain honestly reports whether an automated
+    # check exists for it and whether that check is actually enforced --
+    # not just that citations exist, which was already true before any
+    # check was written for ai-claims-*.
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.get("/compliance/library")
+    finally:
+        app.dependency_overrides.clear()
+    data = resp.json()
+    status_by_domain = {d["domain"]: d["detection_status"] for d in data["domains"]}
+
+    assert status_by_domain["Medical marketing claims"]["has_check"] is True
+    assert status_by_domain["Medical marketing claims"]["wired_into_publish_gate"] is True
+
+    assert status_by_domain["Patient data privacy"]["has_check"] is True
+    assert status_by_domain["Patient data privacy"]["wired_into_publish_gate"] is True
+
+    # The one real gap: no automated lead-contact check exists, and the
+    # response must say so plainly, not omit the field or claim otherwise.
+    assert status_by_domain["Lead-contact compliance"]["has_check"] is False
+    assert status_by_domain["Lead-contact compliance"]["wired_into_publish_gate"] is False
+    assert status_by_domain["Lead-contact compliance"]["note"]
+
+    # The new real check: built, tested, deliberately not yet enforced.
+    ai_status = status_by_domain["AI-visibility / AI-generated content"]
+    assert ai_status["has_check"] is True
+    assert ai_status["wired_into_publish_gate"] is False
+    assert ai_status["note"]
+
+
 def test_library_carries_real_vendored_note_counts():
     # 2026-08-20: proves the vendored atomic_notes.json actually reaches the
     # API, not just that the endpoint returns a well-formed empty shape.
@@ -75,6 +107,7 @@ def test_library_carries_real_vendored_note_counts():
 
 if __name__ == "__main__":
     tests = [test_library_requires_auth, test_library_returns_all_20_sources_across_four_domains,
+              test_library_carries_real_detection_status_per_domain,
               test_library_carries_real_vendored_note_counts]
     passed = 0
     for t in tests:

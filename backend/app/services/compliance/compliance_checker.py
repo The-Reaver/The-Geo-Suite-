@@ -16,6 +16,16 @@ supplies real, ratified CitationRecord content to check. Calling it today
 against an empty record list, which is the correct state until Phase 2 runs,
 returns no findings.
 
+2026-08-20: check_ai_claims_marketing() adds a real, tested check for the
+ai-claims-* citations staged in regulatory_citations.py since 2026-08-20's
+citation-mapping pass -- same not-yet-wired status as check_citation_records():
+built for the lawyer's review, not enforced against real businesses yet.
+See its own docstring for why it applies to GEO Suite's own report/Sales
+Kit copy too, not just client sites. The sibling lead-contact-* citations
+(TCPA/CAN-SPAM) deliberately have no matching check -- see the comment
+block above _PLACEHOLDER_LIMITATIONS for why: no automated calling/texting/
+email infrastructure exists anywhere in this repo to check against.
+
 2026-08-18: generalized rules learned from a real health-marketing legal
 review, encoded here as reusable logic (never as facts about the specific
 business or matter reviewed -- nothing client-specific belongs in this
@@ -593,6 +603,142 @@ def check_phi_testimonials(html: str) -> list[dict]:
                 break
 
     return findings
+
+
+# AI-related marketing terms, per the FTC's "Keep your AI claims in check"
+# guidance (raw_law/10-ftc-ai-claims-guidance.md) and the real, adjudicated
+# FTC v. Workado matter (raw_law/17-18): "artificial intelligence" is
+# treated as a marketing term a business must not overuse or abuse, the
+# same way DEFAULT_HIGH_RISK_TERMS treats unsubstantiated health claims --
+# not a neutral technical descriptor exempt from FTC Act §5's substantiation
+# requirement just because the underlying tech is real.
+DEFAULT_AI_CLAIM_TERMS: list[str] = [
+    "ai-powered",
+    "ai powered",
+    "ai-driven",
+    "ai driven",
+    "powered by ai",
+    "powered by artificial intelligence",
+    "ai-optimized",
+    "ai optimized",
+    "artificial intelligence",
+    "ai-generated",
+    "ai generated",
+]
+
+# What substantiates an AI claim in this codebase's own documents: a real,
+# disclosed score or methodology, not a bare assertion. Mirrors
+# _EVIDENCE_MARKERS' role for health claims. This is deliberately narrower
+# than _EVIDENCE_MARKERS (no generic "disclaimer"/"consult" terms, which
+# don't substantiate an AI-specific claim) -- see render_html.py's
+# _rating_line for the one real "AI-Optimized" usage in this codebase
+# today: it always sits beside the actual numeric score it's derived from.
+_AI_CLAIM_EVIDENCE_MARKERS: tuple[str, ...] = (
+    "score",
+    "audit",
+    "measured",
+    "documented",
+    "methodology",
+    "rubric",
+    "based on",
+    "assessment",
+    "evaluated",
+    "%",
+)
+
+
+def check_ai_claims_marketing(
+    text: str,
+    *,
+    ai_claim_terms: list[str] | None = None,
+) -> list[dict]:
+    """Flag AI-related marketing language lacking nearby substantiation.
+
+    Per the FTC's "Keep your AI claims in check" guidance and the real FTC
+    v. Workado enforcement matter (unsubstantiated AI-detection-accuracy
+    claims, resolved by a binding order requiring competent and reliable
+    evidence before any AI-effectiveness claim): "AI" is itself treated as
+    a marketing term that can be overused or abused, not a neutral
+    technical descriptor. This checks the same kind of text
+    check_marketing_claims() does -- and applies to GEO Suite's own
+    generated report/Sales Kit copy exactly as it would to a client's site,
+    since the "AI-Optimized" tier label (render_html.py's _rating_line) is
+    itself a real marketing claim about AI, just one this codebase already
+    backs with a disclosed score.
+
+    Structural pattern only, same as check_marketing_claims(): presence of
+    an AI-related term without a nearby evidence marker. Not a judgment
+    call on whether a given nearby marker is actually sufficient
+    substantiation -- that's the lawyer's call, the same separation this
+    module's docstring already draws for check_citation_records().
+
+    2026-08-20: built and tested, deliberately NOT called from audit_site()
+    yet, same status as check_citation_records() above -- real detection
+    logic ready for the lawyer's review, not something this codebase should
+    start enforcing against real businesses unilaterally.
+    """
+    if not (text or "").strip():
+        return [_finding(
+            "ai-claims-input-empty", "error", "text",
+            "Text input is empty; AI marketing claims cannot be assessed.",
+        )]
+
+    terms = ai_claim_terms if ai_claim_terms is not None else DEFAULT_AI_CLAIM_TERMS
+    lowered = text.lower()
+    findings: list[dict] = []
+    window = 220
+
+    for term in terms:
+        t = term.lower().strip()
+        if not t:
+            continue
+        start = 0
+        while True:
+            idx = lowered.find(t, start)
+            if idx == -1:
+                break
+            ctx_start = max(0, idx - window)
+            ctx_end = min(len(lowered), idx + len(t) + window)
+            context = lowered[ctx_start:ctx_end]
+            if not any(marker in context for marker in _AI_CLAIM_EVIDENCE_MARKERS):
+                findings.append(_finding(
+                    "ai-claims-unsubstantiated", "error", "text",
+                    f"AI-related marketing term {term!r} lacks nearby "
+                    "substantiation (a disclosed score, methodology, or "
+                    "measurement). Per FTC guidance and the FTC v. Workado "
+                    "matter, an AI claim needs the same substantiation any "
+                    "other marketing claim does.",
+                ))
+            start = idx + len(t)
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# TCPA / CAN-SPAM (lead-contact-*) -- deliberately not built as a check.
+#
+# raw_law/08-tcpa-47-usc-227.md and 09-can-spam-act-15-usc-7704.md both
+# govern automated calling/texting/commercial-email conduct: TCPA restricts
+# an "automatic telephone dialing system or an artificial or prerecorded
+# voice"; CAN-SPAM restricts commercial *email* header/subject/opt-out
+# practices. Both files' own "Why this is here" notes already say what a
+# repo-wide search confirms: this repo has zero automated-dialing, SMS, or
+# outbound-email infrastructure today (grepped for send_email/smtp/
+# sendgrid/resend/mailgun/EmailMessage and for any Twilio call/text code --
+# none exists; those features belong to the separate tool-set product this
+# repo was split out of and stay out of scope, see the repo-split plan).
+# Nova's prospecting flow surfaces a discovered lead's phone/email for a
+# human rep to act on manually; TCPA's core ATDS/prerecorded-voice
+# restrictions target automated systems, not manual human dialing, and
+# whether/how that distinction (and any state-level analog with a
+# different rule) applies to Nova's actual workflow is exactly the kind of
+# question that needs the lawyer's read, not a technical guess baked into
+# a detection function with nothing real to check today. lead-contact-*
+# citations stay staged in regulatory_citations.py, genuinely unconsumed,
+# until either a real automated lead-contact feature gets built or the
+# lawyer rules on the manual-dial question -- writing a check now would
+# mean inventing what it should look for.
+# ---------------------------------------------------------------------------
 
 
 _PLACEHOLDER_LIMITATIONS: tuple[str, ...] = (
