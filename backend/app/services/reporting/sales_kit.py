@@ -24,7 +24,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from ...core import rubric
+from ...core import pricing, rubric
 from ...schemas.site_schemas import BusinessFacts, FAQ, Rating, Service
 from ..audit_engine import run_audit
 from ..site_engine import generate_site
@@ -95,20 +95,16 @@ def _tier_html(name: str, price: int, tag: str, bullets: list[str], popular: boo
 
 
 def _pricing_html() -> str:
-    # Same real tiers as the live Nova demo (NovaShell.tsx) — one source of truth
-    # in copy, kept in sync manually since the tiers aren't yet a shared config.
+    # core/pricing.py is the one place these tiers are defined -- the same
+    # data GET /sales/pricing-tiers hands the live Nova demo, instead of two
+    # hardcoded copies kept in sync by hand.
+    tiers = "".join(
+        _tier_html(t["name"], t["price"], t["tag"], t["bullets"], popular=t["popular"])
+        for t in pricing.PRICING_TIERS
+    )
     return (
         '<section class="block"><h2>Pricing</h2><div class="kit-plans">'
-        + _tier_html("Starter", 500, "Foundational AI-search readiness", [
-            "Live AI-Search Readiness audit", f"Gap report vs. the {rubric.PUBLISH_THRESHOLD}-point publish gate",
-            "Monthly readiness re-check", "No site rebuild included"])
-        + _tier_html("Full-Service Growth", 2500, "Everything to clear the gate and stay there", [
-            f"Generated site tuned to clear the {rubric.PUBLISH_THRESHOLD}-point gate",
-            "Hosting, SSL, uptime monitoring", "Ongoing AI-visibility + local SEO optimization",
-            "Monthly compliance + readiness report", "Unlimited content updates"], popular=True)
-        + _tier_html("Growth + Social", 4500, "For practices ready to dominate online", [
-            "Everything in Full-Service Growth, plus", "YouTube, Instagram, Facebook management",
-            "Review + reputation engine", "We handle everything — send us raw content"])
+        + tiers
         + '</div><p class="kit-plan-note">Illustrative pricing — pending final sign-off.</p></section>'
     )
 

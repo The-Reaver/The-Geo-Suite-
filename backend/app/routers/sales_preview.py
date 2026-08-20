@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
 
-from app.core import rubric
+from app.core import pricing, rubric
 from app.core.permissions import require_owner, require_sales_agent, security
 from app.core.supabase_client import get_supabase_admin, get_user_client
 from app.services.audit_engine import run_audit
@@ -376,6 +376,15 @@ async def sales_kit(
         before_gaps=result.fix_list,
         before_not_measured=result.not_measured,
     ))
+
+
+@router.get("/pricing-tiers")
+async def pricing_tiers(payload: dict = Depends(require_sales_agent)):
+    """The same real tiers the Sales Kit renders (core/pricing.py), so the
+    live Nova pricing panel reads from one source instead of a second
+    hand-synced copy in TypeScript. Also hands back the publish-gate
+    threshold so the frontend doesn't hardcode "93" separately either."""
+    return {"tiers": pricing.PRICING_TIERS, "publish_threshold": rubric.PUBLISH_THRESHOLD}
 
 
 @router.post("/site-generator-example")

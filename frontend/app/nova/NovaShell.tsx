@@ -20,6 +20,7 @@ import { useEffect, useState, useTransition } from "react";
 import { discoverProspects, auditSite, saveLead, type DiscoverResult, type ProspectRow } from "./actions";
 import { syncForTheField, drainOutbox } from "./lib/fieldSync";
 import { getBrowserAccessToken } from "./lib/supabaseBrowser";
+import { fetchPricingTiers, type PricingTier } from "./lib/pricing";
 import {
   putProspects, getAllCachedProspects, putSalesKit, type CachedProspect,
   queueOutboxEntry, getAllOutboxEntries, getPendingOutboxCount, markOutboxSynced, markOutboxFailed,
@@ -72,6 +73,23 @@ const PRESENTER_SCRIPT: DemoStep[] = [
 ];
 const PRESENTER_STEP_MS = 7000;
 
+// 2026-08-20: fallback only, for when GET /sales/pricing-tiers can't be
+// reached (offline, signed out) -- backend/app/core/pricing.py is the real
+// source of truth these mirror. Kept here so the panel never just goes
+// blank, same honest-fallback pattern as SAMPLE_ROWS above.
+const FALLBACK_PRICING_TIERS: PricingTier[] = [
+  { name: "Starter", price: 500, tag: "Foundational AI-search readiness", popular: false, bullets: [
+    "Live AI-Search Readiness audit", "Gap report vs. the 93-point publish gate",
+    "Monthly readiness re-check", "No site rebuild included"] },
+  { name: "Full-Service Growth", price: 2500, tag: "Everything to clear the gate and stay there", popular: true, bullets: [
+    "Generated site tuned to clear the 93-point gate", "Hosting, SSL, uptime monitoring",
+    "Ongoing AI-visibility + local SEO optimization", "Monthly compliance + readiness report",
+    "Unlimited content updates"] },
+  { name: "Growth + Social", price: 4500, tag: "For practices ready to dominate online", popular: false, bullets: [
+    "Everything in Full-Service Growth, plus", "YouTube, Instagram, Facebook management",
+    "Review + reputation engine", "We handle everything — send us raw content"] },
+];
+
 // Parses audit_engine's fix_list format, "[Category Name, up to N pts] description",
 // into displayable parts. Falls back to the raw string if the shape ever changes —
 // never hides a real finding just because it didn't match a regex.
@@ -98,6 +116,22 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   const [businessType, setBusinessType] = useState("hyperbaric therapy");
   const [locality, setLocality] = useState("Temecula, CA");
   const [pending, startTransition] = useTransition();
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>(FALLBACK_PRICING_TIERS);
+
+  // 2026-08-20: pulls the real tiers from the backend once on mount so this
+  // panel and the Sales Kit's HTML read the same single source of truth
+  // (core/pricing.py) instead of two hand-synced copies. Falls back to
+  // FALLBACK_PRICING_TIERS (already the default state) on any failure --
+  // never a blank panel.
+  useEffect(() => {
+    let cancelled = false;
+    fetchPricingTiers().then((result) => {
+      if (!cancelled && result.ok) setPricingTiers(result.tiers);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Real, measured score (verified live this session, not fabricated — see
   // GEO_DEVELOPMENT_LOG.md 2026-08-15) — Paradise Hyperbarics scored 14/100.
@@ -911,41 +945,22 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
           ) : null}
 
           <div className="nv-plans">
-            <div className="nv-plan">
-              <div className="nv-plan-name">Starter</div>
-              <div className="nv-plan-price"><span className="nv-num">$500</span><span className="nv-plan-per">/mo</span></div>
-              <div className="nv-plan-tag">Foundational AI-search readiness</div>
-              <ul>
-                <li>Live AI-Search Readiness audit</li>
-                <li>Gap report vs. the 93-point publish gate</li>
-                <li>Monthly readiness re-check</li>
-                <li>No site rebuild included</li>
-              </ul>
-            </div>
-            <div className="nv-plan popular">
-              <div className="nv-plan-badge">Most popular</div>
-              <div className="nv-plan-name">Full-Service Growth</div>
-              <div className="nv-plan-price"><span className="nv-num">$2,500</span><span className="nv-plan-per">/mo</span></div>
-              <div className="nv-plan-tag">Everything to clear the gate and stay there</div>
-              <ul>
-                <li>Generated site tuned to clear the 93-point gate</li>
-                <li>Hosting, SSL, uptime monitoring</li>
-                <li>Ongoing AI-visibility + local SEO optimization</li>
-                <li>Monthly compliance + readiness report</li>
-                <li>Unlimited content updates</li>
-              </ul>
-            </div>
-            <div className="nv-plan">
-              <div className="nv-plan-name">Growth + Social</div>
-              <div className="nv-plan-price"><span className="nv-num">$4,500</span><span className="nv-plan-per">/mo</span></div>
-              <div className="nv-plan-tag">For practices ready to dominate online</div>
-              <ul>
-                <li>Everything in Full-Service Growth, plus</li>
-                <li>YouTube, Instagram, Facebook management</li>
-                <li>Review + reputation engine</li>
-                <li>We handle everything — send us raw content</li>
-              </ul>
-            </div>
+            {pricingTiers.map((tier) => (
+              <div key={tier.name} className={tier.popular ? "nv-plan popular" : "nv-plan"}>
+                {tier.popular ? <div className="nv-plan-badge">Most popular</div> : null}
+                <div className="nv-plan-name">{tier.name}</div>
+                <div className="nv-plan-price">
+                  <span className="nv-num">${tier.price.toLocaleString()}</span>
+                  <span className="nv-plan-per">/mo</span>
+                </div>
+                <div className="nv-plan-tag">{tier.tag}</div>
+                <ul>
+                  {tier.bullets.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
           <p className="nv-plan-note">Illustrative pricing — pending final sign-off. Compared to <span className="nv-num">$78,400</span> for the equivalent agency scope (audit + site + report).</p>
 

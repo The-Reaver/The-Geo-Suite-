@@ -321,6 +321,27 @@ def test_lead_pipeline_requires_auth():
     resp = client.post("/sales/lead-pipeline", json={"providers": []})
     assert resp.status_code in (401, 403), f"unauthenticated lead-pipeline must be rejected, got {resp.status_code}"
 
+def test_pricing_tiers_returns_the_real_single_source_of_truth():
+    # 2026-08-20: pricing used to be hardcoded identically in sales_kit.py
+    # and NovaShell.tsx, kept in sync by hand. This is the one endpoint both
+    # now read from (core/pricing.py).
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.get("/sales/pricing-tiers")
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    names = [t["name"] for t in data["tiers"]]
+    assert names == ["Starter", "Full-Service Growth", "Growth + Social"]
+    assert [t["price"] for t in data["tiers"]] == [500, 2500, 4500]
+    assert data["publish_threshold"] == 93
+
+def test_pricing_tiers_requires_auth():
+    app.dependency_overrides.clear()
+    resp = client.get("/sales/pricing-tiers")
+    assert resp.status_code in (401, 403), f"unauthenticated pricing-tiers must be rejected, got {resp.status_code}"
+
 def test_save_lead():
     # 2026-08-09 operator decision: agent_id is no longer part of the request
     # body at all — it comes from the authenticated caller's own JWT.
