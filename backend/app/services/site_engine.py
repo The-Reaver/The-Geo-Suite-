@@ -335,6 +335,60 @@ def _index_description(f: _F) -> str:
     return f"{f.business_name} is a {_human(f.subtype)} in {f.locality}, {f.region} offering {svc}."
 
 
+_STAR_FILLED = "★"
+_STAR_EMPTY = "☆"
+
+
+def _rating_html(rating: Any) -> str:
+    """The real rating already computed for JSON-LD's aggregateRating
+    (_build_jsonld above) -- was never rendered anywhere a visitor could
+    actually see it. Whole-star rounding is a visual approximation; the
+    exact numeric value is always shown right beside it, so nothing here
+    overstates the real number. Omitted entirely when there's no real
+    rating, matching _build_jsonld's own `if rating is not None` gate --
+    never a fabricated placeholder rating."""
+    if rating is None:
+        return ""
+    value = getattr(rating, "value", None)
+    count = getattr(rating, "count", None)
+    if value is None or count is None:
+        return ""
+    filled = max(0, min(5, round(value)))
+    stars = _STAR_FILLED * filled + _STAR_EMPTY * (5 - filled)
+    noun = "review" if count == 1 else "reviews"
+    return (f'<div class="rating"><span class="stars" aria-hidden="true">{stars}</span>'
+            f'{value:g} ({count} {noun})</div>')
+
+
+def _stats_band_html(f: _F, rating: Any) -> str:
+    """A trust-signal band built entirely from facts already on hand
+    (rating, service-area count) -- no new data pipeline, no invented
+    testimonial or claim. Same honesty gate as _rating_html: omitted
+    entirely when there's no real rating to show."""
+    if rating is None:
+        return ""
+    value = getattr(rating, "value", None)
+    count = getattr(rating, "count", None)
+    if value is None or count is None:
+        return ""
+    noun = "review" if count == 1 else "reviews"
+    # These fragments are all safe, fixed-vocabulary text built from numbers
+    # and literal words -- never escaped user input -- so the literal
+    # &middot; entity below can join them without _esc() double-escaping
+    # its "&" into "&amp;middot;".
+    stats = [f"{value:g} stars from {count} {noun}"]
+    area_count = len(f.service_areas or [])
+    if area_count:
+        stats.append(f"{area_count} service area{'s' if area_count != 1 else ''} covered")
+    sub = " &middot; ".join(stats)
+    return (
+        '    <div class="band">\n'
+        f'      <div>\n        <h2>Trusted across {_esc(f.locality)}</h2>\n'
+        f'        <p class="sub">{sub}</p>\n      </div>\n'
+        '    </div>'
+    )
+
+
 def _index_main(f: _F, base: str) -> str:
     human = _human(f.subtype)
     loc = f"{f.locality}, {f.region}"
@@ -342,6 +396,7 @@ def _index_main(f: _F, base: str) -> str:
     svc_names = [s.name for s in (f.services or [])]
     svc_phrase = _oxford(svc_names) if svc_names else "a full range of services"
     creds = _oxford(list(f.credentials or []))
+    rating = getattr(f, "rating", None)
 
     # --- Paragraph 1: answer-first. Opening clause is emphasized. -------------
     open_clause = f"{f.business_name} is a {human} in {loc}"
@@ -459,6 +514,8 @@ def _index_main(f: _F, base: str) -> str:
         "areas_block": areas_block if include_areas else "",
         "about_block": about_block,
         "faq_block": faq_block,
+        "rating_html": _rating_html(rating),
+        "stats_band": _stats_band_html(f, rating),
         "nav": _nav(f),
         "footer": _footer(f, base),
         "cookie": '<div id="cookie-consent" role="region" aria-label="Cookie consent">\n  <p>We use cookies to improve your experience.</p>\n  <button type="button">Accept</button>\n  <button type="button">Decline</button>\n</div>'

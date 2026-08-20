@@ -127,13 +127,22 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html.append(f'<h1>{facts.business_name} in {facts.locality}</h1>')
     html.append(blocks["p1_html"])
     html.append(blocks["p2_html"])
+    if blocks.get("rating_html"):
+        html.append(blocks["rating_html"])
     html.append('</section></div>')
-    
+
     # Services
     html.append('<div class="wrap">')
     html.append(blocks["services_block"].replace('<h2>', '<div class="section-head"><div class="k">What we do</div><h2>').replace('</h2>', '</h2></div>').replace('<ul>', '<div class="cards">').replace('</ul>', '</div>').replace('<li>', '<article class="card">').replace('</li>', '</article>'))
     html.append('</div>')
-    
+
+    # Trust band (real rating + service-area count, already computed for
+    # JSON-LD -- 2026-08-20, never rendered anywhere visible until now)
+    if blocks.get("stats_band"):
+        html.append('<div class="wrap">')
+        html.append(blocks["stats_band"])
+        html.append('</div>')
+
     # Areas
     if blocks["areas_block"]:
         html.append('<div class="wrap">')

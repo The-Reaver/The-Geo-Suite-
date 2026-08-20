@@ -185,6 +185,58 @@ def test_interior_pages_use_their_own_templates_css():
                 )
 
 
+# 2026-08-20, Site Generator robustness push Slice A: site_engine.py now
+# threads real rating_html/stats_band content into blocks -- proves every
+# template actually renders them when present, and none of the three
+# fabricates them when facts carry no rating (rating_html/stats_band are
+# empty strings in that case, mirroring site_engine.py's own gate).
+def _index_blocks(rating_html: str, stats_band: str) -> dict:
+    return {
+        "head": "<!DOCTYPE html><html><head><style></style></head>",
+        "nav": '<nav aria-label="Primary"><a href="index.html">Home</a></nav>',
+        "footer": '<footer class="site">footer</footer>',
+        "p1_html": "<p>p1</p>",
+        "p2_html": "<p>p2</p>",
+        "services_block": "<h2>Services</h2><ul><li>Item</li></ul>",
+        "areas_block": "",
+        "about_block": "<section><h2>About</h2></section>",
+        "faq_block": "",
+        "rating_html": rating_html,
+        "stats_band": stats_band,
+        "cookie": '<div id="cookie-consent"></div>',
+    }
+
+
+def test_rating_and_stats_band_render_across_all_templates():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    blocks = _index_blocks(
+        '<div class="rating"><span class="stars" aria-hidden="true">★★★★★</span>4.9 (218 reviews)</div>',
+        '<div class="band"><div><h2>Trusted across Austin</h2></div></div>',
+    )
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert 'class="rating"' in html, f"{tmpl.name} dropped the rating block"
+        assert 'class="stars"' in html, f"{tmpl.name} dropped the star markup"
+        assert 'class="band"' in html, f"{tmpl.name} dropped the trust band"
+
+
+def test_rating_and_stats_band_omitted_when_blank():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    blocks = _index_blocks("", "")
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert 'class="rating"' not in html, f"{tmpl.name} must not fabricate a rating block when none is given"
+        assert 'class="band"' not in html, f"{tmpl.name} must not fabricate a trust band when none is given"
+
+
 # ---------------------------------------------------------------------------
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

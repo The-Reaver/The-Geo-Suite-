@@ -24,6 +24,8 @@ CSS_BASE = """
   
   .visual{position:relative;height:420px;border-radius:26px;background:var(--grad);box-shadow:var(--shadow-lg);overflow:hidden}
   @media(max-width:860px){.hero-in{grid-template-columns:1fr;gap:40px}.visual{height:300px}}
+  .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px;margin-top:24px}
+  .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
 
   section{padding:78px 0}
   .head{max-width:58ch;margin:0 auto 46px;text-align:center}
@@ -57,14 +59,23 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html.append(f'<h1>{facts.business_name}</h1>')
     html.append(blocks["p1_html"])
     html.append(blocks["p2_html"])
+    if blocks.get("rating_html"):
+        html.append(blocks["rating_html"])
     html.append('</div>')
     html.append('<div class="visual" aria-hidden="true"></div>') # The visual
     html.append('</div>')
-    
+
     html.append('<div class="wrap"><div class="grid3">')
     html.append(blocks["services_block"].replace('<ul>', '').replace('</ul>', '').replace('<li>', '<div class="svc">').replace('</li>', '</div>'))
     html.append('</div></div>')
-    
+
+    # Trust band (real rating + service-area count, already computed for
+    # JSON-LD -- 2026-08-20, never rendered anywhere visible until now)
+    if blocks.get("stats_band"):
+        html.append('<div class="wrap">')
+        html.append(blocks["stats_band"])
+        html.append('</div>')
+
     if blocks["areas_block"]:
         html.append('<div class="wrap">')
         html.append(blocks["areas_block"])

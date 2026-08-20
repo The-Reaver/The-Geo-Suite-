@@ -205,6 +205,42 @@ def test_no_dead_font_references():
     assert not os.path.exists(os.path.join(d, "assets", "fonts")), "no fonts dir should be created if nothing real is vendored into it"
 
 
+# 12. Site Generator robustness push, Slice A: the real rating already
+#     computed for JSON-LD's aggregateRating (_build_jsonld) used to be
+#     the only place it appeared -- .rating/.stars CSS existed, unused, in
+#     every template. Proves the number is now actually visible in the
+#     rendered body, not just machine-readable, and that the trust band
+#     reflects the real facts (locality, rating, review count).
+def test_rating_is_visibly_rendered_not_just_in_jsonld():
+    d = _gen(_dentist())
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert 'class="rating"' in html, "the real rating must render somewhere visible, not only in JSON-LD"
+    assert 'class="stars"' in html
+    # Isolate everything after the JSON-LD <script> block to prove the
+    # number is visible in the rendered body, not just inside the
+    # machine-readable block sharing the same digits.
+    body = html.split("</script>")[-1]
+    assert "4.9" in body, "the numeric rating value must be visible in the rendered body"
+    assert "218" in body, "the real review count must be visible in the rendered body"
+    assert 'class="band"' in html, "a real rating must produce a visible trust band"
+    assert "Trusted across Portland" in html, "the trust band must use the business's real locality"
+
+
+def test_rating_omitted_entirely_when_none():
+    # No fabricated placeholder rating, ever -- same honesty gate
+    # _build_jsonld's own aggregateRating already applies.
+    facts = BusinessFacts(
+        business_name="No Rating Yet LLC", subtype="GeneralContractor",
+        street="1 First St", locality="Boise", region="ID",
+        postal_code="83701", telephone="+1-208-555-0100",
+        domain="noratingyet.example")
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert 'class="rating"' not in html, "must never fabricate a rating when there isn't one"
+    assert 'class="stars"' not in html
+    assert 'class="band"' not in html, "the trust band is rating-gated -- no rating means no band"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 

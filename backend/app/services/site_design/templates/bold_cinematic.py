@@ -17,6 +17,8 @@ CSS_BASE = """
 
   .hero{position:relative;background:var(--dark);color:#fff;padding:150px 0 110px;text-align:center;}
   .hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(44px,7vw,84px);letter-spacing:-.02em;line-height:1.02}
+  .rating{display:inline-flex;align-items:center;gap:9px;color:rgba(255,255,255,.82);font-size:15px;margin-top:28px}
+  .stars{color:var(--gold);letter-spacing:3px;font-size:18px}
 
   section{padding:96px 0}
   .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px}
@@ -42,16 +44,25 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html.append('<section class="hero"><div class="wrap">')
     html.append(f'<h1>{facts.business_name}</h1>')
     html.append(blocks["p1_html"])
+    if blocks.get("rating_html"):
+        html.append(blocks["rating_html"])
     html.append('</div></section>')
-    
+
     html.append('<section class="wrap">')
     html.append(blocks["p2_html"])
     html.append('</section>')
-    
+
     html.append('<section class="wrap"><div class="grid3">')
     html.append(blocks["services_block"].replace('<ul>', '').replace('</ul>', '').replace('<li>', '<div class="svc">').replace('</li>', '</div>'))
     html.append('</div></section>')
-    
+
+    # Trust band (real rating + service-area count, already computed for
+    # JSON-LD -- 2026-08-20, never rendered anywhere visible until now)
+    if blocks.get("stats_band"):
+        html.append('<section class="wrap">')
+        html.append(blocks["stats_band"])
+        html.append('</section>')
+
     if blocks["areas_block"]:
         html.append('<section class="wrap">')
         html.append(blocks["areas_block"])
