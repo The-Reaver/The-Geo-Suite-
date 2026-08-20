@@ -768,7 +768,14 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
           <div className="nv-item soon" aria-disabled="true"><Icon d="M6 3h9l5 5v13H6z" extra="M9 13h7M9 17h7" />Reports <span className="nv-soon">Soon</span></div>
           <div className="nv-sec">Sales Floor</div>
           <div className="nv-item active"><Icon d="M18 18l-4-4" extra="M4 11a7 7 0 1014 0 7 7 0 00-14 0" />Prospecting <span className="nv-tag">Live</span></div>
-          <div className="nv-item soon" aria-disabled="true"><Icon d="M4 5h16M4 12h10M4 19h6" />Pipeline <span className="nv-soon">Soon</span></div>
+          {/* 2026-08-20, Pipeline slice 2: real page at /nova/pipeline
+              (GET /sites/pipeline) -- every prospect actually persisted via
+              the "Save to Pipeline" button (slice 1), not the ephemeral
+              demo state. Same honest "Live" tag pattern as Compliance
+              Library above. */}
+          <a className="nv-item source" href="/nova/pipeline">
+            <Icon d="M4 5h16M4 12h10M4 19h6" />Pipeline <span className="nv-tag">Live</span>
+          </a>
           {/* 2026-08-16: real minimal build for the investor demo — an audited
               prospect (readiness != null) can open its Sales Kit; before that,
               same honest "Soon" state as the other unwired items. */}

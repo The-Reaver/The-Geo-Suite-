@@ -27,6 +27,7 @@ def audit_result_to_row(site_id: Any, result: AuditResult, *, trigger: str, buil
 class AuditResultsRepository(Protocol):
     def save(self, site_id: Any, result: AuditResult, *, trigger: str, build_id: Any = None) -> dict: ...
     def latest(self, site_id: Any) -> dict | None: ...
+    def list_latest_per_site(self) -> list[dict]: ...
 
 
 class InMemoryAuditResultsRepository:
@@ -46,6 +47,17 @@ class InMemoryAuditResultsRepository:
         if not site_rows:
             return None
         return sorted(site_rows, key=lambda r: r.get("run_at", ""), reverse=True)[0]
+
+    def list_latest_per_site(self) -> list[dict]:
+        # Pipeline slice 2: the Pipeline list page's data source. One row
+        # per distinct site_id -- its most recent audit -- newest first.
+        by_site: dict[str, dict] = {}
+        for row in self._rows:
+            sid = row.get("site_id", "")
+            current = by_site.get(sid)
+            if current is None or row.get("run_at", "") > current.get("run_at", ""):
+                by_site[sid] = row
+        return sorted(by_site.values(), key=lambda r: r.get("run_at", ""), reverse=True)
 
 
 class SupabaseAuditResultsRepository:
@@ -91,3 +103,25 @@ class SupabaseAuditResultsRepository:
         if not data:
             return None
         return data[0]
+
+    def list_latest_per_site(self) -> list[dict]:
+        # Pipeline slice 2: the Pipeline list page's data source. postgrest's
+        # fluent query builder has no DISTINCT ON, so this fetches every row
+        # newest-first and dedupes by site_id in Python, keeping the first
+        # (newest) occurrence -- correct at today's real scale (a handful of
+        # saved prospects), and a real, deliberate simplification: if
+        # audit_results genuinely grows past what's comfortable to fetch
+        # whole, that's the trigger to replace this with a DISTINCT ON query
+        # or a materialized view, not a reason to build one pre-emptively.
+        db = self._get_client()
+        res = db.table("audit_results").select("*").order("run_at", desc=True).execute()
+        data = getattr(res, "data", None) or []
+        seen: set[str] = set()
+        latest: list[dict] = []
+        for row in data:
+            sid = row.get("site_id", "")
+            if sid in seen:
+                continue
+            seen.add(sid)
+            latest.append(row)
+        return latest

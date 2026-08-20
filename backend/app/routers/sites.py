@@ -73,6 +73,19 @@ def get_site_repos():
     return (_CONTENT_REPO, _SCHEMA_REPO, _OPT_REPO, _AUDIT_REPO)
 
 
+class PipelineSite(BaseModel):
+    site_id: str
+    business_name: Optional[str] = None
+    city: Optional[str] = None
+    score: Optional[int] = None
+    passed: Optional[bool] = None
+    run_at: Optional[str] = None
+
+
+class PipelineListResponse(BaseModel):
+    sites: list[PipelineSite]
+
+
 class AuditRequest(BaseModel):
     facts: BusinessFacts
     # Optional Core Web Vitals field data (LCP seconds, INP ms, CLS). When
@@ -211,3 +224,56 @@ def trigger_audit(
             ) from exc
 
     return AuditResponse(score=result.normalized_score, passed=result.passed, breakdown=breakdown)
+
+
+def _prospects_by_id(site_ids: list[str]) -> dict[str, dict]:
+    """business_name/city for a Pipeline list come from prospects, not the
+    pipeline tables -- audit_results/content_pages/etc deliberately carry no
+    business-identifying columns of their own (they're audit/content
+    records, not a sites table). Works because Pipeline slice 1 reuses the
+    prospect's own id as site_id, so this is a real join, not a guess.
+    Degrades to an empty map (business_name/city show as None, never
+    fabricated) on any failure -- unconfigured client, network error, or
+    otherwise -- rather than raising: the site_id/score/passed/run_at a
+    caller actually needs are already known from audit_results by this
+    point, so a prospects lookup failure shouldn't 500 the whole list over
+    what's genuinely an enrichment, not the core data."""
+    if not site_ids:
+        return {}
+    from ..core.supabase_client import get_supabase_admin
+
+    try:
+        db = get_supabase_admin()
+        res = db.table("prospects").select("id,business_name,city").in_("id", site_ids).execute()
+        data = getattr(res, "data", None) or []
+        return {row["id"]: row for row in data}
+    except Exception:
+        logger.exception("Pipeline list: prospects lookup failed, showing site_id-only rows")
+        return {}
+
+
+@router.get("/pipeline", response_model=PipelineListResponse)
+def list_pipeline(payload: dict = Depends(require_sales_agent)):
+    """The real Pipeline list: every site actually persisted through
+    /{site_id}/audit (Pipeline slice 1's "Save to Pipeline" button), not
+    the ephemeral demo state Nova otherwise shows. Newest save first."""
+    _, _, _, audit_repo = get_site_repos()
+    latest = audit_repo.list_latest_per_site()
+    if not latest:
+        return PipelineListResponse(sites=[])
+
+    prospects = _prospects_by_id([row.get("site_id", "") for row in latest])
+
+    sites = []
+    for row in latest:
+        sid = row.get("site_id", "")
+        prospect = prospects.get(sid)
+        sites.append(PipelineSite(
+            site_id=sid,
+            business_name=prospect.get("business_name") if prospect else None,
+            city=prospect.get("city") if prospect else None,
+            score=row.get("score"),
+            passed=row.get("passed"),
+            run_at=row.get("run_at"),
+        ))
+    return PipelineListResponse(sites=sites)

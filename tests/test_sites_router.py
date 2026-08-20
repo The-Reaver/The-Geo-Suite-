@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.core.permissions import require_sales_agent
 import app.services.site_pipeline as site_pipeline
+import app.routers.sites as sites_router
 
 client = TestClient(app)
 
@@ -122,6 +123,75 @@ def test_unauthenticated_caller_is_rejected():
     assert resp.status_code in (401, 403), f"an unauthenticated caller must be rejected, got {resp.status_code}"
 
 
+# --- Pipeline slice 2: GET /sites/pipeline -----------------------------
+
+def test_pipeline_list_empty_when_nothing_saved():
+    sites_router._AUDIT_REPO._rows.clear()
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.get("/sites/pipeline")
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["sites"] == []
+
+
+def test_pipeline_list_requires_auth():
+    app.dependency_overrides.clear()
+    resp = client.get("/sites/pipeline")
+    assert resp.status_code in (401, 403), f"an unauthenticated caller must be rejected, got {resp.status_code}"
+
+
+def test_pipeline_list_newest_first_and_degrades_prospect_lookup():
+    # The real gap this covers: a prospects lookup against this test env's
+    # placeholder Supabase host must degrade to site_id-only rows (never
+    # fabricate a business_name/city), not 500 the whole list.
+    sites_router._AUDIT_REPO._rows.clear()
+    sites_router._AUDIT_REPO._rows.append({
+        "site_id": "66666666-6666-6666-6666-666666666666", "score": 80, "passed": False,
+        "run_at": "2026-08-19T10:00:00+00:00", "trigger": "manual",
+    })
+    sites_router._AUDIT_REPO._rows.append({
+        "site_id": "77777777-7777-7777-7777-777777777777", "score": 96, "passed": True,
+        "run_at": "2026-08-20T10:00:00+00:00", "trigger": "owner_publish",
+    })
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.get("/sites/pipeline")
+    finally:
+        app.dependency_overrides.clear()
+        sites_router._AUDIT_REPO._rows.clear()
+
+    assert resp.status_code == 200, resp.text
+    sites = resp.json()["sites"]
+    assert len(sites) == 2
+    assert sites[0]["site_id"] == "77777777-7777-7777-7777-777777777777", "newest run_at must sort first"
+    assert sites[0]["score"] == 96
+    assert sites[0]["passed"] is True
+    assert sites[0]["business_name"] is None, "unreachable prospects lookup must degrade, not fabricate a name"
+
+
+def test_pipeline_list_shows_only_latest_audit_per_site():
+    sites_router._AUDIT_REPO._rows.clear()
+    sid = "88888888-8888-8888-8888-888888888888"
+    sites_router._AUDIT_REPO._rows.append({
+        "site_id": sid, "score": 70, "passed": False, "run_at": "2026-08-18T10:00:00+00:00", "trigger": "manual",
+    })
+    sites_router._AUDIT_REPO._rows.append({
+        "site_id": sid, "score": 95, "passed": True, "run_at": "2026-08-20T10:00:00+00:00", "trigger": "manual",
+    })
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.get("/sites/pipeline")
+    finally:
+        app.dependency_overrides.clear()
+        sites_router._AUDIT_REPO._rows.clear()
+
+    sites = resp.json()["sites"]
+    assert len(sites) == 1, "must dedupe to the latest audit per site, not list every historical run"
+    assert sites[0]["score"] == 95
+
+
 if __name__ == "__main__":
     test_publish_generates_and_audits_only_once()
     print("PASS  test_publish_generates_and_audits_only_once")
@@ -129,3 +199,11 @@ if __name__ == "__main__":
     print("PASS  test_sales_agent_role_can_publish_not_just_owner")
     test_unauthenticated_caller_is_rejected()
     print("PASS  test_unauthenticated_caller_is_rejected")
+    test_pipeline_list_empty_when_nothing_saved()
+    print("PASS  test_pipeline_list_empty_when_nothing_saved")
+    test_pipeline_list_requires_auth()
+    print("PASS  test_pipeline_list_requires_auth")
+    test_pipeline_list_newest_first_and_degrades_prospect_lookup()
+    print("PASS  test_pipeline_list_newest_first_and_degrades_prospect_lookup")
+    test_pipeline_list_shows_only_latest_audit_per_site()
+    print("PASS  test_pipeline_list_shows_only_latest_audit_per_site")
