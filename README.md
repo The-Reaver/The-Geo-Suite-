@@ -30,4 +30,4 @@ project — no shared tenancy with the tool-set product this was split from.
 
 Copy `.env.example` to `.env` at the repo root (backend) and
 `frontend/.env.local.example` to `frontend/.env.local` (frontend), then
-fill in real Supabase values for project `e7e387ee-65f4-4b5a-9b14-c8e665f79d29`.
+fill in real Supabase values for project `lhzxmvjwqllmnqecfxpm`.
