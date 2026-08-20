@@ -163,6 +163,39 @@ def test_audit_site_from_facts_end_to_end():
     assert r.passed is True and r.normalized_score >= 90
 
 
+# 10. No declared-but-never-written assets. generate_site() used to point
+#     LocalBusiness.image, Organization.logo, and og:image at assets/photo.jpg
+#     and assets/logo.png -- files it never wrote, a real 404 on every
+#     generated site. logo.svg is now real; the (non-existent) photo
+#     reference is gone rather than pointing at a placeholder pretending to
+#     be this business's own photo.
+def test_no_dead_asset_references_and_logo_is_real():
+    d = _gen(_dentist())
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert "photo.jpg" not in html, "no real photo exists; must not declare one"
+    assert "logo.png" not in html, "the old, never-written logo path must be gone"
+    assert "og:image" not in html, "no og:image without a real raster image to point it at"
+    m = re.search(r'"logo":\s*"([^"]+)"', html)
+    assert m, "Organization.logo must be present"
+    logo_rel = m.group(1).replace(_base_url_for(_dentist()), "").lstrip("/")
+    assert logo_rel == "assets/logo.svg"
+    logo_path = os.path.join(d, "assets", "logo.svg")
+    assert os.path.exists(logo_path), "the declared logo file must actually exist on disk"
+    svg = open(logo_path, encoding="utf-8").read()
+    assert svg.strip().startswith("<svg"), "logo.svg must be a real SVG document"
+    assert "Cedar Ridge Dental" in svg, "logo must be labeled for the actual business (aria-label)"
+
+
+def test_logo_differs_between_businesses():
+    dentist_svg = open(os.path.join(_gen(_dentist()), "assets", "logo.svg"), encoding="utf-8").read()
+    plumber_svg = open(os.path.join(_gen(_plumber()), "assets", "logo.svg"), encoding="utf-8").read()
+    assert dentist_svg != plumber_svg, "identical logos for different businesses is the same stub defect #2 guards against"
+
+
+def _base_url_for(facts) -> str:
+    return f"https://{facts.domain}"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
