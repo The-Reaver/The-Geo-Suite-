@@ -4,36 +4,26 @@ TypePairing = collections.namedtuple("TypePairing", [
     "name", "display_family", "body_family", "css"
 ])
 
-# For now, we stub the actual URLs to point to `/assets/fonts/` locally to pass the audit,
-# and use the system font stack as the immediate fallback.
-# In a real deployed environment, the static asset pipeline copies these .woff2 files.
+# 2026-08-20: this used to point @font-face src at /assets/fonts/*.woff2 --
+# files no code anywhere in this repo ever writes, a dead reference (404)
+# on every generated site, waiting on a "static asset pipeline" that was
+# never built. No such pipeline exists (confirmed: no font-vendoring code
+# anywhere in this codebase), so rather than keep declaring local files
+# that don't exist, load the same real families from Google Fonts' CSS API
+# -- a live, working, standard approach for a generated site with no build
+# step of its own, not a placeholder. @import must be the first rule in a
+# stylesheet; this string is always injected first by
+# templates/__init__.py::_inject_css, so that holds.
 
-CSS_INTER_INTER = """
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/assets/fonts/inter-regular.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/assets/fonts/inter-semibold.woff2') format('woff2');
-}
-"""
+CSS_INTER_INTER = (
+    "@import url('https://fonts.googleapis.com/css2"
+    "?family=Inter:wght@400;600&display=swap');"
+)
 
-CSS_FRAUNCES_INTER = CSS_INTER_INTER + """
-@font-face {
-  font-family: 'Fraunces';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/assets/fonts/fraunces-semibold.woff2') format('woff2');
-}
-"""
+CSS_FRAUNCES_INTER = (
+    "@import url('https://fonts.googleapis.com/css2"
+    "?family=Fraunces:wght@600&family=Inter:wght@400;600&display=swap');"
+)
 
 T_INTER = TypePairing(
     "Inter",

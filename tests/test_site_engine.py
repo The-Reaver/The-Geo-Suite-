@@ -192,6 +192,19 @@ def test_logo_differs_between_businesses():
     assert dentist_svg != plumber_svg, "identical logos for different businesses is the same stub defect #2 guards against"
 
 
+# 11. No dead font references. typography.py used to declare @font-face src
+#     pointing at /assets/fonts/*.woff2 -- files no code ever wrote, a dead
+#     reference on every generated site waiting on a "static asset pipeline"
+#     that was never built. Now loads the same families from Google Fonts'
+#     real, live CSS API instead of a local path nothing produces.
+def test_no_dead_font_references():
+    d = _gen(_dentist())
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert "assets/fonts" not in html, "must not reference a local font path nothing writes"
+    assert ".woff2" not in html, "must not declare a local woff2 file that doesn't exist on disk"
+    assert not os.path.exists(os.path.join(d, "assets", "fonts")), "no fonts dir should be created if nothing real is vendored into it"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 
