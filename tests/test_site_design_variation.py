@@ -76,14 +76,37 @@ def test_variation_across_businesses():
     templates_seen = set()
     palettes_seen = set()
 
+    # No has_photos here on purpose -- that field doesn't exist on the real
+    # BusinessFacts schema (see test_bold_cinematic_is_reachable_for_real_facts
+    # below for why that matters), so this must prove variation under the
+    # same shape of facts select_theme() actually gets in production.
     for name, domain, subtype in businesses:
-        f = _F(business_name=name, domain=domain, subtype=subtype, has_photos=True)
+        f = _F(business_name=name, domain=domain, subtype=subtype)
         theme = engine.select_theme(f)
         templates_seen.add(str(theme.template))
         palettes_seen.add(theme.palette.name)
 
     assert len(templates_seen) >= 3, f"Expected >= 3 templates, got {len(templates_seen)}: {templates_seen}"
     assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
+
+
+# 2026-08-20: has_photos is not a field on the real BusinessFacts schema and
+# is never set anywhere in the real backend -- only ever True in test
+# fixtures. select_theme() used to gate template choice on it, so every real,
+# production-generated site silently took the "no photos" branch and never
+# reached bold_cinematic, no matter what business it was generating for.
+# This proves bold_cinematic is genuinely reachable now, using facts shaped
+# exactly like what select_theme() gets for a real site (no has_photos at
+# all), not facts hand-crafted to exercise a code path that never runs live.
+def test_bold_cinematic_is_reachable_for_real_facts():
+    found = False
+    for i in range(200):
+        f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+        theme = engine.select_theme(f)
+        if theme.template.name == "Bold Cinematic":
+            found = True
+            break
+    assert found, "Bold Cinematic must be reachable for facts with no has_photos field at all"
 
 
 def test_generate_site_with_variations():

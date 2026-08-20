@@ -22,18 +22,23 @@ def compute_seed(facts: Any) -> int:
 
 def select_theme(facts: Any) -> Theme:
     seed = compute_seed(facts)
-    
+
     palette = palettes.palette_for(getattr(facts, "subtype", ""), seed)
     type_pairing = typography.typography_for(seed)
-    
-    has_photos = getattr(facts, "has_photos", False)
-    if has_photos:
-        template = TEMPLATES[seed % len(TEMPLATES)]
-        hero_style = "photo-led"
-    else:
-        # Bias towards minimal/gradient
-        minimal_templates = [editorial_minimal.TemplateEditorialMinimal, split_modern.TemplateSplitModern]
-        template = minimal_templates[seed % len(minimal_templates)]
-        hero_style = "gradient"
-        
+
+    # 2026-08-20: this used to gate template choice on facts.has_photos --
+    # a field that doesn't exist on the real BusinessFacts schema and is
+    # never set anywhere in the real backend (only ever True in test
+    # fixtures). That meant every real, production-generated site took the
+    # `else` branch and bold_cinematic was never actually reachable, no
+    # matter what business it was generating for. No real photo-ingestion
+    # pipeline exists in this codebase, so there's no honest signal to gate
+    # on -- select from all three templates unconditionally so the visual
+    # variety they were built for is real, not theoretical. hero_style
+    # stays "gradient" (the only value any template's CSS actually renders
+    # differently for) until a real photo pipeline exists to justify a
+    # "photo-led" hero.
+    template = TEMPLATES[seed % len(TEMPLATES)]
+    hero_style = "gradient"
+
     return Theme(template=template, palette=palette, typography=type_pairing, hero_style=hero_style)
