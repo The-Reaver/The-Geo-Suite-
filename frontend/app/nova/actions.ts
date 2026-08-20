@@ -49,6 +49,15 @@ export type ProspectRow = {
   domain?: string;
   ratingValue?: number;
   ratingCount?: number;
+  // 2026-08-20, Pipeline slice 1: prospect_source.py already computes this
+  // per candidate (normalize_place()'s inferred_practice_type, from the
+  // discovered listing's own categories) and discover_and_rank() already
+  // returns it -- it was being fetched and dropped, same class of gap the
+  // other fields on this type were added to close. Explicitly "inferred,"
+  // not confirmed -- may be "" when the source has no matching category.
+  // Needed for Save to Pipeline: BusinessFacts.subtype is what selects the
+  // generated site's schema.org @type, palette, and typography.
+  businessType?: string;
 };
 
 export type DiscoverResult = {
@@ -150,6 +159,7 @@ export async function discoverProspects(query: DiscoverQuery): Promise<DiscoverR
         domain: domain || undefined,
         ratingValue,
         ratingCount,
+        businessType: String(c?.inferred_practice_type ?? "") || undefined,
       };
     });
 
@@ -281,5 +291,115 @@ export async function saveLead(params: {
     return { ok: true, prospectId, reason: "ok" };
   } catch (err) {
     return { ok: false, prospectId: null, reason: isTimeoutError(err) ? "timeout" : "unreachable" };
+  }
+}
+
+export type SaveToPipelineResult = {
+  ok: boolean;
+  score: number | null;
+  passed: boolean;
+  reason: string;
+  fixList?: string[];
+};
+
+/**
+ * Pipeline slice 1: persist the currently-audited prospect for real, via
+ * POST /sites/{site_id}/audit (routers/sites.py -- generates a fresh site
+ * from these facts, audits and compliance-gates it, and on a pass calls
+ * site_pipeline.generate_and_store()). Reuses the prospect's own existing
+ * id (minted by saveLead/POST /sales/lead) as site_id, rather than
+ * inventing a separate identity for "the same business, but persisted."
+ *
+ * Every BusinessFacts field this sends comes from data Nova already
+ * carries on hero -- nothing invented to fill a gap. A field the caller
+ * doesn't have (e.g. businessType, when discovery had no matching
+ * category) goes through as "", which the backend schema accepts; that
+ * degrades the generated site's schema.org @type/theme selection but
+ * never fabricates a fact.
+ *
+ * On failure this route can genuinely mean the generated site itself
+ * didn't clear the publish gate (400, with a real score + fix_list) or
+ * failed the compliance gate (400, with a real score + blocking list) --
+ * both are surfaced, not collapsed into a generic error, same honesty
+ * pattern as auditSite/saveLead above.
+ */
+export async function saveToPipeline(params: {
+  siteId: string;
+  businessName: string;
+  businessType?: string;
+  street?: string;
+  locality?: string;
+  region?: string;
+  postalCode?: string;
+  telephone?: string;
+  domain?: string;
+  ratingValue?: number;
+  ratingCount?: number;
+}): Promise<SaveToPipelineResult> {
+  const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supaKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supaUrl || !supaKey)
+    return { ok: false, score: null, passed: false, reason: "supabase-not-configured" };
+
+  try {
+    const cookieStore = cookies();
+    const supabase = createServerClient(supaUrl, supaKey, {
+      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+    });
+    const { data: sessionData, error } = await supabase.auth.getSession();
+    if (error || !sessionData.session)
+      return { ok: false, score: null, passed: false, reason: "not-signed-in" };
+
+    const facts: Record<string, unknown> = {
+      business_name: params.businessName,
+      subtype: params.businessType || "",
+      street: params.street || "",
+      locality: params.locality || "",
+      region: params.region || "",
+      postal_code: params.postalCode || "",
+      telephone: params.telephone || "",
+      domain: params.domain || "",
+    };
+    if (params.ratingValue != null) {
+      facts.rating = { value: params.ratingValue, count: params.ratingCount ?? 0 };
+    }
+
+    const res = await fetchWithTimeout(`${API_BASE_URL}/sites/${params.siteId}/audit`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ facts }),
+      cache: "no-store",
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      // sites.py raises HTTPException(detail={message, score, fix_list |
+      // blocking}) on a real gate failure -- FastAPI nests that under
+      // "detail", not top-level.
+      const detail = data?.detail;
+      return {
+        ok: false,
+        score: typeof detail?.score === "number" ? detail.score : null,
+        passed: false,
+        reason: detail?.message || `backend-${res.status}`,
+        fixList: Array.isArray(detail?.fix_list) ? detail.fix_list : undefined,
+      };
+    }
+
+    return {
+      ok: true,
+      score: typeof data?.score === "number" ? data.score : null,
+      passed: Boolean(data?.passed),
+      reason: "ok",
+    };
+  } catch (err) {
+    return {
+      ok: false, score: null, passed: false,
+      reason: isTimeoutError(err) ? "timeout" : "unreachable",
+    };
   }
 }

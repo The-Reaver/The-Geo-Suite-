@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from uuid import UUID
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-from ..core.permissions import require_owner
+from ..core.permissions import require_sales_agent
 from ..core.rubric import PUBLISH_THRESHOLD
 from ..services import audit_engine, site_pipeline
 from ..services.site_engine import generate_site
@@ -106,10 +106,17 @@ def _supplemental_findings(rule_prefix: str, failures: list) -> list:
 def trigger_audit(
     req: AuditRequest,
     site_id: str = Path(...),
-    payload: dict = Depends(require_owner),
+    payload: dict = Depends(require_sales_agent),
 ):
     """Generate the site from confirmed facts, run the AI-Search Readiness audit,
     and refuse to publish below the threshold.
+
+    2026-08-20, Pipeline slice 1: widened from require_owner to
+    require_sales_agent, matching every other sales-floor route
+    (sales_preview.py's own require_sales_agent docstring). This route is
+    Nova's real "Save to Pipeline" persist path -- gating it to owner-only
+    meant no actual field rep could ever use it, only an owner account.
+    owner/admin keep full access, same as before.
 
     The site and audit engines are real (Sprint days 3-8). This route returns a
     genuine score derived from the generated artifacts. It still refuses to

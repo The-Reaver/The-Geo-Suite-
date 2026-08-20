@@ -21,16 +21,21 @@ for key, value in PLACEHOLDER_ENV.items():
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import app
-from app.core.permissions import require_owner
+from app.core.permissions import require_sales_agent
 import app.services.site_pipeline as site_pipeline
 
 client = TestClient(app)
 
 _TEST_OWNER_ID = "11111111-1111-1111-1111-111111111111"
+_TEST_AGENT_ID = "22222222-2222-2222-2222-222222222222"
 
 
 def _fake_owner():
     return {"sub": _TEST_OWNER_ID, "app_metadata": {"role": "owner"}}
+
+
+def _fake_sales_agent():
+    return {"sub": _TEST_AGENT_ID, "app_metadata": {"role": "sales_agent"}}
 
 
 _GOOD_FACTS = {
@@ -77,7 +82,7 @@ def test_publish_generates_and_audits_only_once():
         calls["run_audit"] += 1
         return real_run_audit(*args, **kwargs)
 
-    app.dependency_overrides[require_owner] = _fake_owner
+    app.dependency_overrides[require_sales_agent] = _fake_owner
     try:
         with patch.object(site_pipeline, "generate_site", side_effect=counting_generate_site), \
              patch.object(site_pipeline, "run_audit", side_effect=counting_run_audit):
@@ -97,6 +102,30 @@ def test_publish_generates_and_audits_only_once():
     assert calls["run_audit"] == 0, "generate_and_store must reuse the caller's already-computed audit, not re-audit"
 
 
+# 2026-08-20, Pipeline slice 1: this route used to be require_owner-only --
+# Nova's real field reps log in as sales_agent, so nothing in the app could
+# actually call its own "Save to Pipeline" persist path. Proves a
+# sales_agent-role caller (not just owner) gets a real 200, not a 403.
+def test_sales_agent_role_can_publish_not_just_owner():
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.post("/sites/44444444-4444-4444-4444-444444444444/audit", json={"facts": _GOOD_FACTS})
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["passed"] is True
+
+
+def test_unauthenticated_caller_is_rejected():
+    app.dependency_overrides.clear()
+    resp = client.post("/sites/55555555-5555-5555-5555-555555555555/audit", json={"facts": _GOOD_FACTS})
+    assert resp.status_code in (401, 403), f"an unauthenticated caller must be rejected, got {resp.status_code}"
+
+
 if __name__ == "__main__":
     test_publish_generates_and_audits_only_once()
     print("PASS  test_publish_generates_and_audits_only_once")
+    test_sales_agent_role_can_publish_not_just_owner()
+    print("PASS  test_sales_agent_role_can_publish_not_just_owner")
+    test_unauthenticated_caller_is_rejected()
+    print("PASS  test_unauthenticated_caller_is_rejected")

@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
-import { discoverProspects, auditSite, saveLead, type DiscoverResult, type ProspectRow } from "./actions";
+import { discoverProspects, auditSite, saveLead, saveToPipeline, type DiscoverResult, type ProspectRow } from "./actions";
 import { syncForTheField, drainOutbox } from "./lib/fieldSync";
 import { getBrowserAccessToken } from "./lib/supabaseBrowser";
 import { fetchPricingTiers, type PricingTier } from "./lib/pricing";
@@ -149,6 +149,9 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     // Mode steps, same as url/locality above.
     region?: string; street?: string; postalCode?: string; telephone?: string;
     domain?: string; ratingValue?: number; ratingCount?: number;
+    // 2026-08-20, Pipeline slice 1: carried through from ProspectRow.businessType
+    // so Save to Pipeline can send a real subtype instead of always "".
+    businessType?: string;
   }>({
     name: "Paradise Hyperbarics",
     score: 14,
@@ -161,6 +164,13 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   // against a double-submit; leadSaved gives it a persistent "Saved" state
   // rather than reverting once hero.prospectId is set.
   const [savingLead, setSavingLead] = useState(false);
+  // Pipeline slice 1: "Save to Pipeline" state. pipelineResult holds the
+  // last real outcome (score/passed/fixList on a gate failure) so the UI
+  // can show *why* a save didn't go through, not just that it didn't.
+  const [savingToPipeline, setSavingToPipeline] = useState(false);
+  const [pipelineResult, setPipelineResult] = useState<
+    { ok: true; score: number | null } | { ok: false; score: number | null; reason: string; fixList?: string[] } | null
+  >(null);
   // Presenter Mode state — see PRESENTER_SCRIPT above.
   const [presenting, setPresenting] = useState(false);
   const [presentIdx, setPresentIdx] = useState(0);
@@ -285,6 +295,7 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
           url: row.url, locality: row.locality,
           region: row.region, street: row.street, postalCode: row.postalCode, telephone: row.telephone,
           domain: row.domain, ratingValue: row.ratingValue, ratingCount: row.ratingCount,
+          businessType: row.businessType,
         });
       } else {
         setActionError(reasonToMessage(a.reason));
@@ -316,6 +327,39 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
         setHero((h) => ({ ...h, prospectId: result.prospectId! }));
       } else {
         setActionError(reasonToMessage(result.reason));
+      }
+    });
+  }
+
+  // Pipeline slice 1: persist the currently-audited prospect for real
+  // (POST /sites/{site_id}/audit -> site_pipeline.generate_and_store()),
+  // reusing hero.prospectId (minted by saveLeadAsProspect above) as
+  // site_id. Requires both a saved lead AND a real audit, matching the
+  // same "save a lead first" / "audit first" honesty this shell already
+  // applies to every other gated action.
+  function saveToPipelineAction() {
+    if (!hero.prospectId || !hero.url || savingToPipeline) return;
+    setSavingToPipeline(true);
+    setPipelineResult(null);
+    startTransition(async () => {
+      const result = await saveToPipeline({
+        siteId: hero.prospectId!,
+        businessName: hero.name,
+        businessType: hero.businessType,
+        street: hero.street,
+        locality: hero.locality,
+        region: hero.region,
+        postalCode: hero.postalCode,
+        telephone: hero.telephone,
+        domain: hero.domain,
+        ratingValue: hero.ratingValue,
+        ratingCount: hero.ratingCount,
+      });
+      setSavingToPipeline(false);
+      if (result.ok) {
+        setPipelineResult({ ok: true, score: result.score });
+      } else {
+        setPipelineResult({ ok: false, score: result.score, reason: result.reason, fixList: result.fixList });
       }
     });
   }
@@ -918,6 +962,51 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
                     Saves to this device immediately, even with zero signal. Syncs the next time you
                     press "Sync for the field" or reconnect.
                   </p>
+                  {/* Pipeline slice 1: needs a real audit (hero.url) on top of
+                      the saved-prospect gate this whole branch already sits
+                      behind -- a lead saved without ever being audited has no
+                      facts yet worth generating a site from. */}
+                  {hero.url ? (
+                    <div className="nv-pipeline">
+                      <button
+                        className="nv-btn"
+                        type="button"
+                        onClick={saveToPipelineAction}
+                        disabled={savingToPipeline}
+                      >
+                        {savingToPipeline
+                          ? "Saving to Pipeline…"
+                          : pipelineResult?.ok
+                          ? "Saved to Pipeline — save again"
+                          : "Save to Pipeline"}
+                      </button>
+                      {pipelineResult ? (
+                        pipelineResult.ok ? (
+                          <p className="nv-customize-hint">
+                            Saved. Generated site scored {pipelineResult.score ?? "—"}/100 and is now
+                            persisted, not just shown in this session.
+                          </p>
+                        ) : (
+                          <p className="nv-customize-hint">
+                            {/* Known short reason codes (not-signed-in, timeout, ...) get the
+                                friendly AUDIT_REASONS copy; a real gate-failure message from the
+                                backend (e.g. "Audit scored 85; publish threshold is 93.") is
+                                already a full sentence and shown as-is, not re-wrapped. */}
+                            Didn't save: {AUDIT_REASONS[pipelineResult.reason] ? reasonToMessage(pipelineResult.reason) : pipelineResult.reason}
+                            {pipelineResult.score != null ? ` (scored ${pipelineResult.score}/100)` : ""}
+                            {pipelineResult.fixList && pipelineResult.fixList.length
+                              ? ` — top gap: ${pipelineResult.fixList[0]}`
+                              : ""}
+                          </p>
+                        )
+                      ) : (
+                        <p className="nv-customize-hint">
+                          Generates a real site from this prospect's facts and persists it, so it
+                          survives past this session instead of only living here.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               ) : hero.url ? (
                 <div className="nv-customize">
