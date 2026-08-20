@@ -8,6 +8,23 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+
+# Dockerfile builds on Railway are isolated from the host environment by
+# design -- setting NEXT_PUBLIC_* as service variables does NOT expose them
+# to this RUN step on its own. Next.js inlines process.env.NEXT_PUBLIC_*
+# into the client bundle at build time, so without this ARG/ENV pair the
+# build silently falls back to lib/supabaseClient.ts's placeholder host,
+# which is exactly what shipped on this repo's first two "fixed" deploys
+# (surfaced live as a browser "failed to fetch" on /login).
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_APP_NAME
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+    NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+
 RUN npm run build
 
 FROM node:20-slim

@@ -60,11 +60,32 @@ set on the Railway service, and hitting `/login` failed with a browser
 client bundle at **build time**, not runtime — `lib/supabaseClient.ts`'s
 placeholder fallback (`https://placeholder-project.supabase.co`) got baked
 into the shipped JS, so every browser call actually tried to reach that
-fake host. Setting the real variables on the Railway service is not enough
-by itself: because "Redeploy" reuses the old image (previous gotcha), the
-service has to go through an actual fresh build — via a real `git push` —
-for the new values to get compiled in. Same applies to the backend's
-`FRONTEND_ORIGIN`/Supabase vars in spirit, though those are read at
-runtime (`config.py`, plain `os.environ`), so a container restart is
-enough there; it's specifically `NEXT_PUBLIC_*` build-time inlining that
-needs a fresh build.
+fake host. Fixing this took two steps, not one:
+
+1. Setting the real variables on the Railway service and forcing a fresh
+   build (`git push`, per the Redeploy-reuses-old-image gotcha above) —
+   this alone was **not enough** and still shipped `/login` broken.
+2. The actual missing piece: **Dockerfile builds on Railway are isolated
+   from the host environment by design.** Railway service variables are
+   not automatically visible inside `docker build`, even when they're set
+   and even on a genuinely fresh build — a Dockerfile has to opt in with
+   an explicit `ARG` (matching the variable name) plus an `ENV` to make it
+   visible to the `RUN npm run build` step's own process environment,
+   since Docker's `ARG` alone does not persist as a real env var readable
+   via `process.env` in Node. `frontend/Dockerfile`'s build stage now
+   declares `ARG`/`ENV` for all four `NEXT_PUBLIC_*` vars used at build
+   time; Railway auto-supplies matching-named service variables as build
+   args once the Dockerfile asks for them, no extra config needed.
+   (`backend/Dockerfile` doesn't need this: FastAPI reads config from
+   `os.environ` at runtime, not at build time, so backend vars only ever
+   needed to be set on the service, not threaded through the build.)
+
+Verified locally (no Docker daemon in the dev sandbox, so this was
+verified by exporting the same vars before `npm run build` rather than an
+actual `docker build`): with the vars present, both the real Supabase URL
+and the placeholder fallback string exist in the output bundle (the
+placeholder is just the ternary's unreached other branch, harmless) — but
+critically, `process.env.NEXT_PUBLIC_*` gets inlined to the *real* value
+Next.js's compiler substitutes at every reference, including in the
+client-side JS chunk actually shipped to the browser for `/login`. Without
+the vars, only the placeholder string exists anywhere in the build.
