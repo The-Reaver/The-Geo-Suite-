@@ -53,3 +53,18 @@ A plain "Redeploy" also reuses the previous build/image rather than
 pulling the latest commit — see `Stag-GEO-Platform/RAILWAY_ENV_MANIFEST.md`
 gotcha #4 for the full writeup. A real `git push` to `main` is what
 reliably triggers a fresh build here.
+
+The frontend's initial deploy went out with zero `NEXT_PUBLIC_*` variables
+set on the Railway service, and hitting `/login` failed with a browser
+"failed to fetch" error. Next.js inlines `NEXT_PUBLIC_*` values into the
+client bundle at **build time**, not runtime — `lib/supabaseClient.ts`'s
+placeholder fallback (`https://placeholder-project.supabase.co`) got baked
+into the shipped JS, so every browser call actually tried to reach that
+fake host. Setting the real variables on the Railway service is not enough
+by itself: because "Redeploy" reuses the old image (previous gotcha), the
+service has to go through an actual fresh build — via a real `git push` —
+for the new values to get compiled in. Same applies to the backend's
+`FRONTEND_ORIGIN`/Supabase vars in spirit, though those are read at
+runtime (`config.py`, plain `os.environ`), so a container restart is
+enough there; it's specifically `NEXT_PUBLIC_*` build-time inlining that
+needs a fresh build.
