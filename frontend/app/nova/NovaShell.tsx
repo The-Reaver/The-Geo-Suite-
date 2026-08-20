@@ -105,7 +105,17 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   // lifted 2026-08-16 (independent re-verification passed cleanly), but
   // rubric.AI_SEARCH_READINESS_CLAIMS_PAUSED stays true for a separate,
   // still-open reason: the category weights have no cited empirical source.
-  const [hero, setHero] = useState<{ name: string; score: number; preliminary: boolean; gap?: string; gaps?: string[]; prospectId?: string; url?: string; locality?: string }>({
+  const [hero, setHero] = useState<{
+    name: string; score: number; preliminary: boolean; gap?: string; gaps?: string[];
+    prospectId?: string; url?: string; locality?: string;
+    // 2026-08-20: carried through from ProspectRow so Site Generator can
+    // build the currently-audited prospect's real BusinessFactsReq instead
+    // of always the illustrative fixture -- see the "Site Generator" nav
+    // link below. Absent for the fixed opening demo state and Presenter
+    // Mode steps, same as url/locality above.
+    region?: string; street?: string; postalCode?: string; telephone?: string;
+    domain?: string; ratingValue?: number; ratingCount?: number;
+  }>({
     name: "Paradise Hyperbarics",
     score: 14,
     preliminary: true,
@@ -236,7 +246,12 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
       if (a.ok && a.score != null) {
         const s = a.score;
         setRows((prev) => prev.map((r, j) => (j === i ? { ...r, readiness: s } : r)));
-        setHero({ name: row.name, score: s, preliminary: a.preliminary, gap: a.gaps[0], gaps: a.gaps, url: row.url, locality: row.locality });
+        setHero({
+          name: row.name, score: s, preliminary: a.preliminary, gap: a.gaps[0], gaps: a.gaps,
+          url: row.url, locality: row.locality,
+          region: row.region, street: row.street, postalCode: row.postalCode, telephone: row.telephone,
+          domain: row.domain, ratingValue: row.ratingValue, ratingCount: row.ratingCount,
+        });
       } else {
         setActionError(reasonToMessage(a.reason));
       }
@@ -385,6 +400,30 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   const heroScore = Math.min(100, Math.max(0, hero.score));
   const gaugeOffset = GAUGE_C * (1 - heroScore / 100);
   const belowGate = hero.score < 93;
+
+  // 2026-08-20: Site Generator used to always open the illustrative fixture,
+  // even with a real, just-audited prospect on screen -- the demo's most
+  // visible "wait, that's not the business we just looked at" moment.
+  // hero.url only gets set by a real auditRow() call (or a loaded/cached
+  // real prospect), never by the fixed opening state or a Presenter Mode
+  // step, so gating on it here means those two stay on the guaranteed-good
+  // illustrative fallback exactly as before -- only a genuinely audited
+  // prospect gets its own real facts sent through.
+  const siteGeneratorHref = (() => {
+    if (!hero.url) return "/nova/site-generator";
+    const domain = hero.domain || hero.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const params = new URLSearchParams();
+    params.set("businessName", hero.name);
+    if (domain) params.set("domain", domain);
+    if (hero.street) params.set("street", hero.street);
+    if (hero.locality) params.set("locality", hero.locality);
+    if (hero.region) params.set("region", hero.region);
+    if (hero.postalCode) params.set("postalCode", hero.postalCode);
+    if (hero.telephone) params.set("telephone", hero.telephone);
+    if (hero.ratingValue != null) params.set("ratingValue", String(hero.ratingValue));
+    if (hero.ratingCount != null) params.set("ratingCount", String(hero.ratingCount));
+    return `/nova/site-generator?${params.toString()}`;
+  })();
 
   // Restore Focus Mode so a demo opens where the operator left it.
   useEffect(() => {
@@ -628,10 +667,17 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
             <Icon d="M12 20V10M6 20v-4M18 20V6" />The Fix <span className="nv-tag">Live</span>
           </button>
           {/* 2026-08-16: wired to the real, already-built backend
-              (POST /sales/preview -> site_engine.generate_site()) that just
-              had never been connected to the Nova UI. Opens the real
-              generated site, not a summary about it. */}
-          <a className="nv-item" href="/nova/site-generator" target="_blank" rel="noreferrer">
+              (site_engine.generate_site()) that just had never been
+              connected to the Nova UI. Opens the real generated site, not a
+              summary about it.
+              2026-08-20: was always calling the illustrative-example route
+              regardless of what was on screen -- the demo's most visible
+              "that's not the business we just audited" moment. siteGeneratorHref
+              (above) now carries the real audited prospect's facts as query
+              params when one is selected; route.ts posts those to the real
+              /sales/preview endpoint instead, falling back to the
+              illustrative fixture only when no real prospect is in context. */}
+          <a className="nv-item" href={siteGeneratorHref} target="_blank" rel="noreferrer">
             <Icon d="M9 12l2 2 4-4" extra="M12 3a9 9 0 100 18 9 9 0 000-18" />Site Generator <span className="nv-tag">Live</span>
           </a>
           <div className="nv-item soon" aria-disabled="true"><Icon d="M6 3h9l5 5v13H6z" extra="M9 13h7M9 17h7" />Reports <span className="nv-soon">Soon</span></div>

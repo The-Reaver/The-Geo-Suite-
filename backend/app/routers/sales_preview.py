@@ -18,6 +18,7 @@ from app.core.permissions import require_owner, require_sales_agent, security
 from app.core.supabase_client import get_supabase_admin, get_user_client
 from app.services.audit_engine import run_audit
 from app.services.dashboard_panels import build_lead_pipeline, render_lead_pipeline_html
+from app.schemas.site_schemas import FAQ, Rating
 from app.services.preview import generate_preview
 from app.services.sales.preview_delivery import (
     create_preview as issue_preview_delivery,
@@ -111,6 +112,15 @@ class ReportRequest(BaseModel):
     client_name: str = ""
     price: Optional[float] = None
 
+# 2026-08-20: BusinessFactsReq used to have no rating/same_as/faqs at all, so
+# a real prospect's facts could never reach generate_preview() with enough
+# substance to score fairly -- see site_generator_example()'s docstring below
+# for why that gap existed. Added the three fields the site engine and
+# ILLUSTRATIVE_HBOT_EXAMPLE (a real BusinessFacts instance) already carry,
+# reusing site_schemas.py's own Rating/FAQ types rather than redefining them.
+# Every other field keeps its existing default so this stays backward
+# compatible with the partial payloads test_sales_preview.py already sends
+# (e.g. test_create_preview_requires_auth posts only business_name).
 class BusinessFactsReq(BaseModel):
     business_name: str
     subtype: str = ""
@@ -120,6 +130,9 @@ class BusinessFactsReq(BaseModel):
     telephone: str = ""
     postal_code: str = ""
     domain: str = ""
+    rating: Optional[Rating] = None
+    same_as: List[str] = []
+    faqs: List[FAQ] = []
 
 class RankLeadsRequest(BaseModel):
     providers: List[Dict[str, Any]]
@@ -376,13 +389,14 @@ async def site_generator_example(
     the investor/conference demo.
 
     Reuses `sales_kit.ILLUSTRATIVE_HBOT_EXAMPLE` — the same illustrative
-    fixture the Sales Kit's "after" example uses — rather than routing
-    through the narrower public `/preview` contract (`BusinessFactsReq` has
-    no `rating`/`same_as`/`faqs` fields, so a real generated site through
-    that path scores lower not because the generator is worse, but because
-    the request schema can't carry the facts that would raise it). Keeping
-    both demo surfaces consistent with the same real fixture and real score,
-    rather than two different numbers for the same claim."""
+    fixture the Sales Kit's "after" example uses — as a reliable, zero-input
+    fallback: no live prospect data required, always the same real, cached
+    score. `BusinessFactsReq` (below) has since gained `rating`/`same_as`/
+    `faqs`, so a rep with an already-audited prospect selected should call
+    `/preview` with that prospect's real facts instead and get their actual
+    generated site, not this fixture — the frontend picks between the two
+    (see frontend/app/nova/site-generator/route.ts). This route stays as the
+    guaranteed-good path for when no real prospect is in context yet."""
     from app.services.reporting.sales_kit import ILLUSTRATIVE_HBOT_EXAMPLE
     from app.services.site_engine import generate_site
 

@@ -238,6 +238,43 @@ def test_create_preview_success_as_sales_agent():
         f"a sales_agent-role caller must reach this route, got {resp.status_code}: {resp.text}"
 
 
+def test_create_preview_carries_rating_and_faqs_into_the_real_site():
+    # 2026-08-20: BusinessFactsReq used to have no rating/same_as/faqs, so a
+    # real prospect's own facts could never raise its generated site's score
+    # -- only the fixed illustrative fixture could. Proves the fields
+    # actually reach the rendered HTML, not just that a request carrying
+    # them doesn't crash.
+    payload = {
+        "business_name": "Test Biz",
+        "subtype": "Plumber",
+        "locality": "NY",
+        "region": "NY",
+        "street": "123 Main",
+        "telephone": "555-0000",
+        "postal_code": "10001",
+        "domain": "test.com",
+        "rating": {"value": 4.8, "count": 213},
+        "same_as": ["https://www.google.com/maps/place/test-biz"],
+        "faqs": [{"question": "Do you offer emergency service?", "answer": "Yes, 24/7 dispatch."}],
+    }
+    app.dependency_overrides[require_sales_agent] = _fake_owner
+    try:
+        resp = client.post("/sales/preview", json=payload)
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+        view_resp = client.get(resp.json()["preview_url"])
+        assert view_resp.status_code == 200
+        html = view_resp.text
+        assert '"ratingValue": "4.8"' in html, "the real rating must reach the JSON-LD, not be silently dropped"
+        assert '"reviewCount": "213"' in html
+        assert "www.google.com/maps/place/test-biz" in html, "same_as must reach the JSON-LD sameAs list"
+        assert "Do you offer emergency service?" in html, "faqs must render as real visible content"
+        assert "Yes, 24/7 dispatch." in html
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200, \
+        f"a sales_agent-role caller must reach this route, got {resp.status_code}: {resp.text}"
+
+
 def test_create_preview_requires_auth():
     # 2026-08-09 GEO Brain Trust Presentation Mode review, Sentinel finding:
     # this route carried zero authentication. No dependency override here.

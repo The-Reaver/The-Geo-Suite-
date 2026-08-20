@@ -34,6 +34,21 @@ export type ProspectRow = {
   // discovered-but-not-yet-saved Prospecting search result or the sample
   // rows. Customization (the note/gap picker) needs a real id to attach to.
   id?: string;
+  // 2026-08-20: the backend's /prospecting/discover response already
+  // carries these (prospect_source.py's "discovered" dict) -- they were
+  // being fetched and dropped. Needed to send Site Generator this
+  // prospect's real facts instead of always the illustrative fixture, the
+  // same class of thrown-away-real-data gap "The Fix" had. Every field
+  // stays optional and honestly absent when a directory pull genuinely
+  // can't know it (e.g. faqs/same_as never come from Places-style
+  // discovery) -- never fabricated to fill a gap.
+  region?: string;
+  street?: string;
+  postalCode?: string;
+  telephone?: string;
+  domain?: string;
+  ratingValue?: number;
+  ratingCount?: number;
 };
 
 export type DiscoverResult = {
@@ -111,6 +126,16 @@ export async function discoverProspects(query: DiscoverQuery): Promise<DiscoverR
       const domain = String(d.domain ?? "").trim();
       const website = String(d.website ?? "").trim();
       const url = domain ? `https://${domain}` : website;
+      // The Places-style source is provider-agnostic (prospect_source.py's own
+      // docstring) and unconfigured in every environment this was built
+      // against, so "rating" here has never been exercised against a real
+      // provider response -- handle both a {value, count} object (this
+      // codebase's own Rating shape) and a bare number defensively, rather
+      // than assuming one and silently dropping the other.
+      const rating = d.rating;
+      const ratingValue =
+        typeof rating === "number" ? rating : typeof rating?.value === "number" ? rating.value : undefined;
+      const ratingCount = typeof rating?.count === "number" ? rating.count : undefined;
       return {
         name: String(d.name ?? "Unknown"),
         locality: String(d.locality ?? ""),
@@ -118,6 +143,13 @@ export async function discoverProspects(query: DiscoverQuery): Promise<DiscoverR
         status: tier === "INCOMPLETE" ? "Incomplete" : String(tier),
         confirm: needs.length ? needs.join(" · ") : "—",
         url,
+        region: String(d.region ?? "") || undefined,
+        street: String(d.street ?? "") || undefined,
+        postalCode: String(d.postal_code ?? "") || undefined,
+        telephone: String(d.telephone ?? "") || undefined,
+        domain: domain || undefined,
+        ratingValue,
+        ratingCount,
       };
     });
 
