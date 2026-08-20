@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routers import auth, clients, compliance, sites, sales_preview, prospecting
+from .routers import auth, clients, compliance, reports, sites, sales_preview, prospecting
 from .routes import health
 
 app = FastAPI(title="GEO Suite")
@@ -18,6 +18,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(clients.router)
 app.include_router(compliance.router)
+app.include_router(reports.router)
 app.include_router(sites.router)
 app.include_router(sales_preview.router)
 app.include_router(prospecting.router)
