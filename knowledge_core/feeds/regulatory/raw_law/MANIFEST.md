@@ -82,9 +82,32 @@ unchanged files (80 notes) and wrote only the 6 genuinely new/corrected notes (5
 file 20). 5 bad notes (4 CCPA fragments, 1 mis-cited §2052/§87897 note) removed directly from
 Supabase. Final count: 91 notes, all still `draft`.
 
+## 2026-08-20 — the 91 notes are now vendored into this repo
+
+This repo (`the-geo-suite-`) never had a live connection to the Supabase project the 91 notes above
+actually live in — that ingestion ran against the pre-split monorepo's own deployment, a different
+project than this repo's own `lhzxmvjwqllmnqecfxpm`. The real `SUPABASE_DB_URL` for the ingesting
+project wasn't recoverable from any committed file in either repo, and restoring the one plausible
+paused-project candidate found via the Supabase API hit the account's 2-active-project free-tier
+limit. The operator queried the real table directly and pasted the raw `INSERT` statement; parsed
+into **`atomic_notes.json`** in this same folder rather than replayed against a live database (this
+repo's own Supabase project has no `kc_notes` table, and adding one is a separate architecture
+decision, not part of vendoring existing content).
+
+88 of the 91 notes matched cleanly to a file in this folder by exact source URL (file 10's own header
+above already predicted zero notes from it — confirmed). **3 notes did not match any file here** —
+all three cite `https://www.fda.gov/consumers/consumer-updates/hyperbaric-oxygen-therapy-get-facts`,
+a URL no file in this folder contains or references anywhere. That FDA "Get the Facts" consumer page
+was apparently part of the original ingestion's source set but its own raw_law file was never staged
+in this folder (04's own file covers a different FDA URL, the letter to health care providers). Real,
+honest gap — recorded in `atomic_notes.json`'s `orphaned_notes`, not silently dropped. Adding a 21st
+raw_law file for that URL, if the operator wants it, is separate follow-up work.
+
 ## Next
 
 - Pull the 5 uningested FTC blog post URLs surfaced in file 19, especially "Watching the detectives"
   (July 2023) — directly on-topic for AI-detection-tool marketing claims.
 - Run the good-faith-adversarial-review skill against files 15/16/20's new content before lawyer
   handoff — not yet done for this specific fix.
+- Stage the FDA "Get the Facts" consumer page as its own raw_law file — 3 real, already-ingested
+  notes exist for it (`atomic_notes.json`'s `orphaned_notes`) with nowhere to attach in this repo yet.

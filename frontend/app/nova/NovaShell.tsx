@@ -674,10 +674,17 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
         <div className="nv-rule" />
         <nav>
           <div className="nv-sec">Source of Truth</div>
-          <div className="nv-item source">
+          {/* 2026-08-20: was a plain unclickable <div> with a hardcoded,
+              fake "3 pending" badge -- no page, no route, no backend
+              endpoint behind it at all. Real page now at /nova/compliance
+              (GET /compliance/library), matching the honest "Live" tag
+              pattern The Fix/Site Generator/Sales Kit already use rather
+              than a count this component would have to fetch just to
+              render the sidebar. */}
+          <a className="nv-item source" href="/nova/compliance">
             <Icon d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z" extra="M9 12l2 2 4-4" />
-            Compliance Library <span className="nv-tag">3 pending</span>
-          </div>
+            Compliance Library <span className="nv-tag">Live</span>
+          </a>
           <div className="nv-sec">Engine · fed by the Library</div>
           {/* 2026-08-09 GEO Brain Trust review, Amaya/Celestina/Jasiah finding:
               these items looked clickable but did nothing. Not yet wired to a
