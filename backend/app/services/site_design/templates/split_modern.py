@@ -81,17 +81,32 @@ def render_index(facts, base_url, theme, blocks) -> str:
     
     return "\n".join(html)
 
+# 2026-08-20: interior pages used to delegate to editorial_minimal's own
+# render_service/about/privacy -- which calls *editorial_minimal's own*
+# _apply_css/CSS_BASE internally, not this module's. A "Split Modern" home
+# page linked to About/Privacy/every service page rendered in Editorial
+# Minimal's CSS entirely, not just a similar layout -- a real, visible
+# theme break on every click past the homepage. Now built from this
+# template's own _apply_css and its own wrap/section conventions (the same
+# ones render_index already uses for about_block/faq_block), so the whole
+# site stays inside one theme.
 def render_service(facts, base_url, theme, blocks) -> str:
-    from .editorial_minimal import render_service as rs
-    return rs(facts, base_url, theme, blocks)
+    head = _apply_css(blocks["head"], theme)
+    html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', blocks["nav"],
+            '  <main id="main">', '    <section class="wrap"><article>']
+    html.append(blocks["content"])
+    html.append('    </article></section>')
+    html.append('  </main>')
+    html.append(blocks["footer"])
+    html.append(blocks["cookie"])
+    html.append('</body></html>')
+    return "\n".join(html)
 
 def render_about(facts, base_url, theme, blocks) -> str:
-    from .editorial_minimal import render_about as ra
-    return ra(facts, base_url, theme, blocks)
+    return render_service(facts, base_url, theme, blocks)
 
 def render_privacy(facts, base_url, theme, blocks) -> str:
-    from .editorial_minimal import render_privacy as rp
-    return rp(facts, base_url, theme, blocks)
+    return render_service(facts, base_url, theme, blocks)
 
 TemplateSplitModern = Template("Split Modern", render_index, render_service, render_about, render_privacy)
 

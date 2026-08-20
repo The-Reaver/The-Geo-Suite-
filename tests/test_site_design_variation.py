@@ -17,6 +17,7 @@ if BACKEND not in sys.path:
 
 from app.services.site_engine import generate_site
 from app.services.site_design import engine, palettes
+from app.services.site_design.engine import Theme
 
 
 def _F(**kwargs):
@@ -112,6 +113,53 @@ def test_generate_site_with_variations():
         with open(os.path.join(tmp, "index.html")) as fh:
             html = fh.read()
             assert "Acme Plumbing" in html, "Business name missing from HTML"
+
+
+# 2026-08-20: split_modern/bold_cinematic's render_service (and, through it,
+# render_about/render_privacy) used to import and call editorial_minimal's
+# own render_service directly -- which injects *editorial_minimal's own*
+# CSS_BASE via its own _apply_css, not the calling template's. A "Split
+# Modern" or "Bold Cinematic" home page linked to every interior page
+# rendered in Editorial Minimal's CSS entirely, a real theme break on every
+# click past the homepage, not just "less varied." Forces each template
+# directly (bypassing hash-based selection) rather than hunting for facts
+# that happen to hash to each one.
+# Genuinely unique to each template's own CSS_BASE -- editorial_minimal and
+# split_modern both legitimately use the `header.site` selector, so that
+# string can't distinguish them; verified unique via grep before picking.
+_CSS_MARKER = {
+    "editorial_minimal": ".call-btn",
+    "split_modern": ".hero-in",
+    "bold_cinematic": "header.nav",
+}
+
+
+def test_interior_pages_use_their_own_templates_css():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100")
+    blocks = {
+        "head": "<!DOCTYPE html><html><head><style></style></head>",
+        "nav": '<nav aria-label="Primary"><a href="index.html">Home</a></nav>',
+        "footer": '<footer class="site">footer</footer>',
+        "content": "<h1>Test Service</h1><p>content</p>",
+        "cookie": '<div id="cookie-consent"></div>',
+    }
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        for page_fn, page_name in ((tmpl.render_service, "service"), (tmpl.render_about, "about"),
+                                    (tmpl.render_privacy, "privacy")):
+            html = page_fn(f, "https://acme.com", theme, blocks)
+            own_marker = _CSS_MARKER[tmpl.name.lower().replace(" ", "_")]
+            assert own_marker in html, f"{tmpl.name}'s {page_name} page missing its own CSS marker {own_marker!r}"
+            for other_name, other_marker in _CSS_MARKER.items():
+                if other_marker == own_marker:
+                    continue
+                assert other_marker not in html, (
+                    f"{tmpl.name}'s {page_name} page leaked {other_name}'s CSS marker {other_marker!r} "
+                    "-- interior pages must stay in their own theme"
+                )
 
 
 # ---------------------------------------------------------------------------
