@@ -90,6 +90,22 @@ Next.js's compiler substitutes at every reference, including in the
 client-side JS chunk actually shipped to the browser for `/login`. Without
 the vars, only the placeholder string exists anywhere in the build.
 
+## Pipeline persistence
+
+`POST /sites/{id}/audit` (routers/sites.py) generates a site, audits it, and
+-- if it passes -- persists it via `site_pipeline.generate_and_store()`.
+"Persists" only means something real once the backend service has
+`GEO_USE_SUPABASE_SITE_REPOS=1` set: without it, `get_site_repos()` falls
+back to module-level in-memory singletons, which don't survive a redeploy.
+Setting it to `1` requires the four tables in
+`supabase/migrations/20260820160000_site_pipeline_tables.sql` to actually
+be applied first (`content_pages`, `schema_records`, `optimization_files`,
+`audit_results` -- deliberately deferred in the original schema migration
+until this became "a real, current requirement"). Same pattern as the
+sibling `GEO_USE_SUPABASE_CLIENT_STORE` flag in `client_store.py`: not in
+`.env.example` (that file only documents vars `config.py` itself reads),
+set directly as a Railway service variable instead.
+
 ## Auth: password reset
 
 `/forgot-password` calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: "<frontend-origin>/reset-password" })`;
