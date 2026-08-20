@@ -114,17 +114,22 @@ async def weekly_digest(request: ClientWindowRequest, payload: dict = Depends(re
 @router.post("/export")
 async def export(request: ExportRequest, payload: dict = Depends(require_sales_agent)):
     """fmt='html' is real (branded, print-ready). fmt='json' is real. fmt='pdf'
-    raises NotImplementedError -- no real PDF-rendering pipeline exists in
-    this repo yet (use fmt='html' and print-to-PDF). _assert_exportable's
-    honesty refusals (empty limitations, sampled metrics missing CI bounds)
-    run before any format branch, so no format can skip them."""
+    is a real render (WeasyPrint over the same branded HTML, see export.py's
+    own comment on why no headless browser is needed for it).
+    _assert_exportable's honesty refusals (empty limitations, sampled
+    metrics missing CI bounds) run before any format branch, so no format
+    can skip them."""
     try:
         content = export_report(request.view, request.fmt, request.branding)
     except NotImplementedError as e:
         raise HTTPException(status_code=501, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    media_type = {"html": "text/html", "json": "application/json"}.get(request.fmt, "text/plain")
+    media_type = {
+        "html": "text/html",
+        "json": "application/json",
+        "pdf": "application/pdf",
+    }.get(request.fmt, "text/plain")
     from fastapi.responses import Response
 
     return Response(content=content, media_type=media_type)

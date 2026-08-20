@@ -10,9 +10,17 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# System deps some wheels (e.g. psycopg, cryptography) may need to build.
+# System deps some wheels (e.g. psycopg, cryptography) may need to build,
+# plus the Pango stack WeasyPrint needs at runtime for real PDF export
+# (reporting/export.py's fmt="pdf") and a real font so rendered text isn't
+# tofu/boxes -- verified against WeasyPrint's actual native bindings
+# (cffi -> pango/pangoft2/fontconfig/harfbuzz/gobject only; no cairo or
+# gdk-pixbuf needed since v53), not the older, heavier dependency list.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .

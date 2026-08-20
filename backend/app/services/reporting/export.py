@@ -55,26 +55,26 @@ def _assert_exportable(view: dict) -> None:
 def export_report(view: dict, fmt: str, branding: dict | None = None) -> bytes:
     _assert_exportable(view)
     if fmt == "html":
-        # Branded, charted, print-ready document (GEO Brain Trust item 7). A
-        # headless print step at deploy turns this into the client-facing PDF;
-        # the honesty refusals above run first, so no format can skip them.
+        # Branded, charted, print-ready document (GEO Brain Trust item 7).
+        # The honesty refusals above run first, so no format can skip them.
         from .render_html import render_report_html
 
         return render_report_html(view, branding).encode("utf-8")
     if fmt == "pdf":
-        # 2026-08-20: this used to fall through to the plaintext branch
-        # below, returning a bytes dump with no PDF bytes in it at all --
-        # the payload's own "format" field said "pdf" while the content was
-        # a plain-text summary, exactly the kind of silent-wrong-output this
-        # codebase otherwise refuses to produce (see _assert_exportable
-        # above). No headless-render step exists in this repo yet (the
-        # comment on the html branch already says a real PDF needs one at
-        # deploy) -- raise instead of mislabeling the output. Use fmt="html"
-        # and the browser's print-to-PDF for now; a real render pipeline is
-        # a separate, larger piece of work.
-        raise NotImplementedError(
-            "PDF export isn't implemented yet -- use fmt='html' and print-to-PDF from the browser."
-        )
+        # 2026-08-20: this used to raise NotImplementedError -- there was no
+        # real render pipeline in this repo. The branded report HTML
+        # (render_html.py) is pure static markup with inline-SVG charts and
+        # no <script>/canvas -- no JS execution is needed to lay it out, so
+        # a full headless browser (Playwright/Chromium) isn't required
+        # either; WeasyPrint renders real HTML+CSS straight to PDF bytes
+        # with a much smaller, well-known Debian dependency (just the Pango
+        # stack -- verified against this package's actual native bindings,
+        # not guessed) than a browser would add to the production image.
+        from .render_html import render_report_html
+        from weasyprint import HTML
+
+        html = render_report_html(view, branding)
+        return HTML(string=html).write_pdf()
     payload = {
         "format": fmt,
         "view": view,

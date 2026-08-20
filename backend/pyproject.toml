@@ -28,6 +28,11 @@ dependencies = [
   "python-dotenv>=1.0,<2.0",
   "pyjwt[crypto]>=2.8,<3.0",
   "requests>=2.31,<3.0",
+  # Renders reporting/render_html.py's static HTML+CSS (inline-SVG charts,
+  # no JS) straight to real PDF bytes for /reports/export's fmt="pdf".
+  # Needs the Pango stack as a system dependency at runtime -- see
+  # Dockerfile.
+  "weasyprint>=69,<70",
 ]
 
 [project.optional-dependencies]

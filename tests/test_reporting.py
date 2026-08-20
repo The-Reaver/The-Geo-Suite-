@@ -203,19 +203,40 @@ def test_trend_splits_on_model_change():
     assert_true(len(segs[0]) == 2 and len(segs[1]) == 1, "segment lengths match")
 
 
-def test_pdf_export_raises_instead_of_mislabeling_plaintext():
-    # 2026-08-20: fmt="pdf" used to silently fall through to the same
-    # plaintext branch any unrecognized format hits, returning a bytes dump
-    # labeled "pdf" with no PDF content in it. Must raise instead of lying
-    # about what it produced.
-    view = {"metrics": {}, "limitations": ["no PDF render pipeline in this repo yet"]}
+def test_pdf_export_produces_a_real_pdf():
+    # 2026-08-20: fmt="pdf" used to raise NotImplementedError -- no render
+    # pipeline existed. WeasyPrint now renders the same branded HTML
+    # fmt="html" produces straight to real PDF bytes (no headless browser
+    # needed; see export.py's own comment). Proves real PDF structure, not
+    # just "didn't crash" or "returned some bytes."
+    view = {
+        "client": "North Loop Chiropractic",
+        "score": 93,
+        "metrics": {
+            "share_of_voice": {
+                "name": "Share of voice", "value": 0.42, "ci_lower": 0.31,
+                "ci_upper": 0.53, "n": 120, "status": "MEASURED", "kind": "sampled",
+            },
+        },
+        "limitations": ["Sampled metrics describe controlled prompt sets, not all queries."],
+        "methodology": {"show_your_work": True},
+    }
+    content = export_report(view, "pdf")
+    assert_true(isinstance(content, bytes), "pdf export returns bytes")
+    assert_true(content.startswith(b"%PDF-"), "pdf export must produce a real PDF, not a mislabeled dump")
+    assert_true(b"%%EOF" in content, "pdf export must produce a structurally complete PDF")
+    assert_true(len(content) > 2000, "pdf export must not be a blank/near-empty document")
+
+
+def test_pdf_export_still_refuses_dishonest_view():
+    # The honesty gate must still run before any format branch, pdf included.
     raised = False
     try:
-        export_report(view, "pdf")
-    except NotImplementedError as e:
+        export_report({"metrics": {}, "limitations": []}, "pdf")
+    except ValueError as e:
         raised = True
-        assert_true("html" in str(e), f"error should point at the html fallback: {e}")
-    assert_true(raised, "fmt='pdf' must raise NotImplementedError, not return mislabeled plaintext")
+        assert_true("limitations" in str(e), f"empty limitations refused: {e}")
+    assert_true(raised, "fmt='pdf' must still refuse an empty limitations block")
 
 
 if __name__ == "__main__":
@@ -225,5 +246,6 @@ if __name__ == "__main__":
     test_hallucination_n1_and_no_causal()
     test_m5_panels_absent_and_export()
     test_trend_splits_on_model_change()
-    test_pdf_export_raises_instead_of_mislabeling_plaintext()
+    test_pdf_export_produces_a_real_pdf()
+    test_pdf_export_still_refuses_dishonest_view()
     print(f"{passed}/{total} passed")

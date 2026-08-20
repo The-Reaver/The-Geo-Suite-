@@ -113,7 +113,12 @@ def test_alerts_hallucination_fires_at_n1_and_is_causal_language_free():
         assert banned not in by_type["hallucination"]["body"]
 
 
-def test_export_html_and_pdf_not_implemented():
+def test_export_html_and_pdf_both_real():
+    # 2026-08-20: fmt="pdf" used to be an honest 501 -- no render pipeline
+    # existed. It's a real render now (WeasyPrint over the same branded
+    # HTML the fmt="html" branch produces); proves the real HTTP path
+    # returns real PDF bytes with the right content-type, not just that
+    # export_report() does in isolation.
     _authed()
     view = {"metrics": {}, "limitations": ["controlled sample"]}
     try:
@@ -123,7 +128,9 @@ def test_export_html_and_pdf_not_implemented():
         app.dependency_overrides.clear()
     assert html_resp.status_code == 200, html_resp.text
     assert "text/html" in html_resp.headers["content-type"]
-    assert pdf_resp.status_code == 501, "fmt=pdf must be an honest 501, not a mislabeled 200"
+    assert pdf_resp.status_code == 200, pdf_resp.text
+    assert "application/pdf" in pdf_resp.headers["content-type"]
+    assert pdf_resp.content.startswith(b"%PDF-"), "fmt=pdf must return real PDF bytes, not a mislabeled 200"
 
 
 def test_export_refuses_empty_limitations():
