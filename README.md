@@ -89,3 +89,17 @@ critically, `process.env.NEXT_PUBLIC_*` gets inlined to the *real* value
 Next.js's compiler substitutes at every reference, including in the
 client-side JS chunk actually shipped to the browser for `/login`. Without
 the vars, only the placeholder string exists anywhere in the build.
+
+## Auth: password reset
+
+`/forgot-password` calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: "<frontend-origin>/reset-password" })`;
+`/reset-password` is where the emailed link lands and where the user sets
+a new password. Supabase rejects (silently falls back to the project's
+default Site URL) any `redirectTo` that isn't on that project's Auth →
+URL Configuration → **Redirect URLs** allow-list — add both
+`https://the-geo-suite-frontend-production.up.railway.app/reset-password`
+(prod) and `http://localhost:3000/reset-password` (local dev) there for
+project `lhzxmvjwqllmnqecfxpm`. This is dashboard-only config, not
+exposed through any Supabase MCP tool used in this repo's setup — an
+operator step, same as the other Supabase dashboard values documented
+above.
