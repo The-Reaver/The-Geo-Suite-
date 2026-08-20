@@ -8,13 +8,13 @@ import { supabase } from "@/lib/supabaseClient";
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // 2026-08-16: /nova had no auth gate and no way back to it after login --
-  // a direct link to /nova (e.g. a bookmarked field-sales URL) always
-  // redirected to /dashboard on sign-in, a dead end for that flow. Only
-  // accept a same-origin relative path (must start with "/", reject
+  // Only accept a same-origin relative path (must start with "/", reject
   // "//host" protocol-relative URLs) so this can't become an open redirect.
+  // Default lands on /nova -- this repo's actual working surface. The
+  // tool-set product this was split out of defaulted here to /dashboard,
+  // which doesn't exist in this repo.
   const rawNext = searchParams.get("next");
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/nova";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -98,20 +98,12 @@ export default function LoginForm() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label
-                htmlFor="login-password"
-                className="block text-sm font-medium text-slate-700 dark:text-slate-300"
-              >
-                Password
-              </label>
-              <Link
-                href="/reset-password"
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            <label
+              htmlFor="login-password"
+              className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
+            >
+              Password
+            </label>
             <div className="relative">
               <input
                 id="login-password"

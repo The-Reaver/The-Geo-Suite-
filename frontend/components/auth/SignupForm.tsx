@@ -91,10 +91,9 @@ export default function SignupForm() {
         return;
       }
 
-      // New accounts have no base subscription yet. Send them to the card
-      // step, which creates the $19 base subscription and then lands them on
-      // the dashboard.
-      router.push("/subscribe");
+      // This repo has no billing step -- land straight on Nova, the
+      // working GEO Suite surface.
+      router.push("/nova");
     } catch (err) {
       const message =
         err instanceof Error
@@ -113,8 +112,7 @@ export default function SignupForm() {
           Create your account
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          You become the owner of your business account. Your 19 dollar base
-          fee covers unlimited team seats.
+          You become the owner of your business account.
         </p>
       </div>
 

@@ -1,7 +1,7 @@
 // frontend/app/login/page.tsx
-// Login page for the client dashboard. Renders the shared LoginForm component
-// inside a centered card layout. The form itself handles Supabase auth calls
-// through frontend/lib/supabaseClient.ts and redirects on success.
+// Login page for GEO Suite. Renders the shared LoginForm component inside a
+// centered card layout. The form itself handles Supabase auth calls through
+// frontend/lib/supabaseClient.ts and redirects to Nova on success.
 
 import type { Metadata } from "next"
 import { Suspense } from "react"
@@ -10,7 +10,7 @@ import LoginForm from "@/components/auth/LoginForm"
 
 export const metadata: Metadata = {
   title: "Log in",
-  description: "Log in to your account to manage your team and tools.",
+  description: "Log in to your GEO Suite account.",
 }
 
 export default function LoginPage() {
@@ -26,9 +26,9 @@ export default function LoginPage() {
               aria-hidden="true"
               className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white"
             >
-              S
+              G
             </span>
-            <span>Studio</span>
+            <span>GEO Suite</span>
           </Link>
         </div>
 
@@ -38,7 +38,7 @@ export default function LoginPage() {
               Welcome back
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Log in with your email and password to open your dashboard.
+              Log in with your email and password to continue.
             </p>
           </div>
 
@@ -56,16 +56,11 @@ export default function LoginPage() {
                 Create your account
               </Link>
             </p>
-            <p className="mt-2">
-              Joining a team? Use the invitation link from your email to accept
-              your invite.
-            </p>
           </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
           Your first signup creates the account and makes you the owner.
-          Invited teammates join as staff.
         </p>
       </div>
     </main>

@@ -4,8 +4,7 @@ import SignupForm from "../../components/auth/SignupForm";
 
 export const metadata: Metadata = {
   title: "Create your account",
-  description:
-    "Sign up to create your client account. Your first signup makes you the owner, and your $19 base fee covers unlimited seats.",
+  description: "Sign up to create your GEO Suite account.",
 };
 
 export default function SignupPage() {
@@ -22,27 +21,26 @@ export default function SignupPage() {
               aria-hidden="true"
               className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500 text-base font-bold"
             >
-              S
+              G
             </span>
-            Stagline
+            GEO Suite
           </Link>
         </div>
 
         <div className="max-w-md">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight">
-            Start your account and bring your whole team with you.
+            Start your account.
           </h1>
           <p className="mt-4 text-slate-300">
-            Your first signup creates the account and makes you the owner. You
-            invite your staff by email, and your $19 base fee covers unlimited
-            seats.
+            Your first signup creates your business account and makes you its
+            owner.
           </p>
 
           <ul className="mt-8 space-y-4">
             {[
               "You become the owner on signup",
-              "Invite unlimited staff at no extra cost",
-              "Only you control billing and paid tools",
+              "Every finding is labeled documented or hypothesis",
+              "Your data stays scoped to your account with row level security",
             ].map((item) => (
               <li key={item} className="flex items-start gap-3">
                 <span
@@ -66,10 +64,6 @@ export default function SignupPage() {
             ))}
           </ul>
         </div>
-
-        <p className="text-xs text-slate-500">
-          Your data stays scoped to your account with row level security.
-        </p>
       </section>
 
       {/* Form panel */}
@@ -85,9 +79,9 @@ export default function SignupPage() {
                 aria-hidden="true"
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-base font-bold text-white"
               >
-                S
+                G
               </span>
-              Stagline
+              GEO Suite
             </Link>
           </div>
 
@@ -113,11 +107,6 @@ export default function SignupPage() {
               </Link>
             </p>
           </div>
-
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Joining a team? Ask your owner for an invitation email and your
-            invite link will bring you in as staff.
-          </p>
         </div>
       </section>
     </main>
