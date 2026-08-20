@@ -18,6 +18,17 @@ wcag-* (accessibility) rules intentionally have no entries: no ADA/WCAG
 legal-text file has been through the same real-retrieval process as the 20
 files here, so none is cited, matching this project's own rule that an
 unsourced claim is labeled as such rather than filled in.
+
+2026-08-20: added _AI_VISIBILITY_CITATIONS and _LEAD_CONTACT_CITATIONS,
+covering raw_law/'s remaining 7 files (08, 09, 10, 11, 17, 18, 19) that had
+zero citation-list entries at all until now. Same honesty rule applies in
+reverse here: these are mapped under ai-claims-* and lead-contact-* rule
+prefixes that compliance_checker.py does not emit any findings for yet --
+there is no TCPA/CAN-SPAM consent check or AI-claims-marketing check in
+that module today. citations_for_rule() returning real data for a prefix
+with no live caller isn't dead weight -- it's ready the moment that check
+gets written, same as every other citation list here, just staged ahead of
+the code that will consume it instead of behind it.
 """
 from __future__ import annotations
 
@@ -120,6 +131,61 @@ _PHI_CITATIONS: list[dict] = [
     },
 ]
 
+_LEAD_CONTACT_CITATIONS: list[dict] = [
+    {
+        "law": "TCPA — Telephone Consumer Protection Act",
+        "citation": "47 U.S.C. §227(b)(1)",
+        "file": "08-tcpa-47-usc-227.md",
+        "source_url": "https://www.law.cornell.edu/uscode/text/47/227",
+        "relevance": "Restricts autodialed/prerecorded calls and texts to cell phones without prior express consent -- directly relevant once outbound lead-contact features text or call a prospect.",
+    },
+    {
+        "law": "CAN-SPAM Act",
+        "citation": "15 U.S.C. §7704(a)",
+        "file": "09-can-spam-act-15-usc-7704.md",
+        "source_url": "https://www.law.cornell.edu/uscode/text/15/7704",
+        "relevance": "Prohibits false or misleading header information and deceptive subject lines in commercial email -- relevant to any outbound lead-contact email.",
+    },
+]
+
+_AI_VISIBILITY_CITATIONS: list[dict] = [
+    {
+        "law": 'FTC Business Guidance — "Keep your AI claims in check"',
+        "citation": "FTC Business Blog (Feb. 2023)",
+        "file": "10-ftc-ai-claims-guidance.md",
+        "source_url": "https://www.ftc.gov/business-guidance/blog/2023/02/keep-your-ai-claims-check",
+        "relevance": "FTC staff guidance applying FTC Act §5's unfair-or-deceptive standard specifically to AI marketing claims; secondary to the Workado matter (files 17-18) per that file's own note -- a real, adjudicated matter is a stronger source than blog commentary.",
+    },
+    {
+        "law": "NIST AI Risk Management Framework (AI RMF 1.0)",
+        "citation": "NIST AI RMF 1.0",
+        "file": "11-nist-ai-rmf.md",
+        "source_url": "https://www.nist.gov/itl/ai-risk-management-framework",
+        "relevance": "Voluntary, non-binding federal AI-governance reference framework, not a source of legal liability on its own -- cited as context, not authority.",
+    },
+    {
+        "law": "FTC v. Workado, LLC (f/k/a Content At Scale AI) — Complaint",
+        "citation": "FTC Docket No. C-4822 (File No. 232-3092)",
+        "file": "17-ftc-v-workado-complaint.md",
+        "source_url": "https://www.ftc.gov/legal-library/browse/cases-proceedings/2323092-content-scale-ai",
+        "relevance": "Real FTC enforcement action alleging unsubstantiated AI-detection-accuracy claims -- allegation only, not an adjudicated finding (Workado neither admitted nor denied); directly analogous to any AI-accuracy claim GEO Suite or a client makes.",
+    },
+    {
+        "law": "FTC v. Workado, LLC (f/k/a Content At Scale AI) — Decision and Order",
+        "citation": "FTC Docket No. C-4822 (File No. 232-3092)",
+        "file": "18-ftc-v-workado-decision-and-order.md",
+        "source_url": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-DecisionandOrder.pdf",
+        "relevance": "The binding order resolving the Workado matter: no representation about AI-detection effectiveness without competent and reliable substantiating evidence -- the general FTC Act §5 standard applied concretely to an AI-accuracy claim.",
+    },
+    {
+        "law": 'FTC Comment to the U.S. Copyright Office, "Artificial Intelligence and Copyright"',
+        "citation": "U.S. Copyright Office Docket No. 2023-6",
+        "file": "19-ftc-comment-copyright-office-ai.md",
+        "source_url": "https://www.ftc.gov/system/files/ftc_gov/pdf/p241200_ftc_comment_to_copyright_office.pdf",
+        "relevance": "FTC's own stated position that there is no AI exemption from existing consumer-protection law -- broader competition/policy framing, not a new binding rule.",
+    },
+]
+
 _RULE_PREFIX_MAP: dict[str, list[dict]] = {
     "marketing-": _MARKETING_CITATIONS,
     "phi-": _PHI_CITATIONS,
@@ -128,6 +194,12 @@ _RULE_PREFIX_MAP: dict[str, list[dict]] = {
     # authority as marketing-* findings, just checked against a structured
     # CitationRecord instead of raw page text.
     "citation-": _MARKETING_CITATIONS,
+    # 2026-08-20: no lead-contact-* or ai-claims-* finding exists in
+    # compliance_checker.py yet -- these two prefixes stage real citations
+    # ahead of the checks that will eventually emit them, same honesty
+    # tradeoff as wcag-*'s empty list above, just in the other direction.
+    "lead-contact-": _LEAD_CONTACT_CITATIONS,
+    "ai-claims-": _AI_VISIBILITY_CITATIONS,
 }
 
 

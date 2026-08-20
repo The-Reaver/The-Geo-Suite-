@@ -22,6 +22,7 @@ from app.services.compliance.compliance_checker import (  # noqa: E402
     DEFAULT_HIGH_RISK_TERMS,
 )
 from app.schemas.compliance_schemas import CitationRecord, ClaimStrength  # noqa: E402
+from app.services.compliance import regulatory_citations  # noqa: E402
 
 
 COMPLIANT_HTML = """<!DOCTYPE html>
@@ -346,6 +347,44 @@ def test_accessibility_findings_have_no_fabricated_legal_basis():
             "No real ADA/WCAG source file exists in raw_law/ yet; "
             "accessibility findings must not get an invented citation."
         )
+
+
+def test_all_20_raw_law_files_are_cited_exactly_once():
+    # 2026-08-20: 7 of the 20 raw_law/ files (08, 09, 10, 11, 17, 18, 19) had
+    # zero citation-list entries anywhere until this fix. Guards two failure
+    # modes at once: a file silently falling out of coverage again, and the
+    # file-16-style bug (documented in raw_law/MANIFEST.md, already fixed
+    # once) where one file ends up cited under two different headers.
+    all_citations = (
+        regulatory_citations._MARKETING_CITATIONS
+        + regulatory_citations._PHI_CITATIONS
+        + regulatory_citations._LEAD_CONTACT_CITATIONS
+        + regulatory_citations._AI_VISIBILITY_CITATIONS
+    )
+    cited_files = [c["file"] for c in all_citations]
+    expected = {f"{n:02d}-" for n in range(1, 21)}
+    seen_prefixes = {f[:3] for f in cited_files}
+    assert seen_prefixes == expected, f"missing or extra file numbers: {expected - seen_prefixes} / {seen_prefixes - expected}"
+    assert len(cited_files) == len(set(cited_files)), "a raw_law file must not be cited under two different headers"
+
+
+def test_lead_contact_and_ai_claims_prefixes_return_real_citations():
+    # No lead-contact-* or ai-claims-* finding exists in compliance_checker.py
+    # yet (no TCPA/CAN-SPAM or AI-claims-marketing check has been written) --
+    # these citations are staged ahead of that future check, same as every
+    # other entry here, just proven reachable now rather than assumed.
+    lead_contact = regulatory_citations.citations_for_rule("lead-contact-no-consent-on-file")
+    assert lead_contact, "lead-contact-* must resolve to real citations"
+    assert {c["file"] for c in lead_contact} == {"08-tcpa-47-usc-227.md", "09-can-spam-act-15-usc-7704.md"}
+
+    ai_claims = regulatory_citations.citations_for_rule("ai-claims-unsubstantiated-accuracy")
+    assert ai_claims, "ai-claims-* must resolve to real citations"
+    ai_files = {c["file"] for c in ai_claims}
+    assert "17-ftc-v-workado-complaint.md" in ai_files
+    assert "18-ftc-v-workado-decision-and-order.md" in ai_files
+    for c in lead_contact + ai_claims:
+        assert c["citation"], f"citation missing statute/reg cite: {c}"
+        assert c["file"], f"citation missing source file: {c}"
 
 
 def _run_all():
