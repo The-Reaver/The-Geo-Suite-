@@ -1,7 +1,7 @@
 import logging
 import os
+import pathlib
 import tempfile
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from uuid import UUID
@@ -136,8 +136,15 @@ def trigger_audit(
     """
     UUID(str(site_id))  # validate the id at the boundary
 
+    # 2026-08-20: this used to generate_site()+run_audit() here to decide
+    # pass/fail, then call site_pipeline.generate_and_store() below -- which
+    # unconditionally called generate_site()+run_audit() again on a *second*
+    # fresh temp dir. Every single successful publish paid for both twice.
+    # The temp dir now stays alive through the persist call so
+    # generate_and_store can reuse this same generation and audit result
+    # instead of silently redoing both.
     with tempfile.TemporaryDirectory(prefix="geo_audit_") as tmp:
-        out = Path(tmp)
+        out = pathlib.Path(tmp)
         generate_site(req.facts, out)
         result = audit_engine.run_audit(out, cwv=req.cwv)
         breakdown = audit_engine.result_to_breakdown(result)
@@ -171,27 +178,29 @@ def trigger_audit(
                 },
             )
 
-    content_repo, schema_repo, opt_repo, audit_repo = get_site_repos()
-    try:
-        site_pipeline.generate_and_store(
-            site_id,
-            req.facts,
-            content_repo=content_repo,
-            schema_repo=schema_repo,
-            opt_repo=opt_repo,
-            audit_repo=audit_repo,
-            cwv=req.cwv,
-            trigger="owner_publish",
-        )
-    except Exception as exc:
-        logger.exception("Site %s passed both gates but failed to persist", site_id)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": "Site passed the audit and compliance gates but could not be "
-                "saved. Nothing was published. Try again or contact support.",
-                "score": result.normalized_score,
-            },
-        ) from exc
+        content_repo, schema_repo, opt_repo, audit_repo = get_site_repos()
+        try:
+            site_pipeline.generate_and_store(
+                site_id,
+                req.facts,
+                content_repo=content_repo,
+                schema_repo=schema_repo,
+                opt_repo=opt_repo,
+                audit_repo=audit_repo,
+                cwv=req.cwv,
+                trigger="owner_publish",
+                site_dir=out,
+                audit_result=result,
+            )
+        except Exception as exc:
+            logger.exception("Site %s passed both gates but failed to persist", site_id)
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "message": "Site passed the audit and compliance gates but could not be "
+                    "saved. Nothing was published. Try again or contact support.",
+                    "score": result.normalized_score,
+                },
+            ) from exc
 
     return AuditResponse(score=result.normalized_score, passed=result.passed, breakdown=breakdown)

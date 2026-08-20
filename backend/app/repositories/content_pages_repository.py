@@ -3,7 +3,14 @@ Content pages persistence.
 """
 from typing import Protocol, Any
 
-_VALID_PAGE_TYPES = {"home", "service", "faq", "about"}
+# "privacy" and "accessibility" match the real pages generate_site() writes
+# (privacy.html, accessibility.html) -- before this they had no valid
+# page_type of their own and got silently mislabeled "about" by
+# site_pipeline.py's old fallback branch. "faq" stays even though
+# generate_site() never writes a standalone FAQ page (FAQs render as a
+# section of index.html) -- removing it would be a behavior change to a
+# public-shaped constant with no evidence it's actually unused elsewhere.
+_VALID_PAGE_TYPES = {"home", "service", "faq", "about", "privacy", "accessibility"}
 _VALID_STATUSES = {"draft", "in_review", "approved", "published"}
 
 def page_to_row(site_id: Any, *, slug: str, title: str, page_type: str, body_json: Any, status: str = "draft", version: int = 1) -> dict:
