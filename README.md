@@ -31,3 +31,25 @@ project — no shared tenancy with the tool-set product this was split from.
 Copy `.env.example` to `.env` at the repo root (backend) and
 `frontend/.env.local.example` to `frontend/.env.local` (frontend), then
 fill in real Supabase values for project `lhzxmvjwqllmnqecfxpm`.
+
+## Railway gotchas
+
+Both `backend/` and `frontend/` ship a `railway.json` naming `Dockerfile`
+as the builder. That alone is not enough — 2026-08-20, both services in
+this repo's Railway project came up on **Railpack**, not Dockerfile,
+despite `source.repo` correctly pointing at this repo. The frontend
+service also still carried `privateNetworkEndpoint: "stag-platform"`, a
+leftover from whatever it was connected to before this repo existed.
+Railway's per-service builder setting overrides the repo's own
+`railway.json` and doesn't get corrected just by repointing `Source` at a
+new repo. Fix: explicitly set each service's Dockerfile path via the
+Railway dashboard (Settings → Build → Builder → Dockerfile) or API
+(`update-service` with `dockerfilePath: "Dockerfile"`) — do this any time
+a service's source repo changes, don't assume the config file alone wins.
+Same root cause `Stag-GEO-Platform`'s own Dockerfiles already document;
+it recurred here on a brand-new service, not just a long-lived one.
+
+A plain "Redeploy" also reuses the previous build/image rather than
+pulling the latest commit — see `Stag-GEO-Platform/RAILWAY_ENV_MANIFEST.md`
+gotcha #4 for the full writeup. A real `git push` to `main` is what
+reliably triggers a fresh build here.
