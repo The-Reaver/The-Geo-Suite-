@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import httpx
 import ipaddress
+import shutil
 import socket
 import tempfile
 import time
@@ -27,6 +28,23 @@ from app.services.sales.preview_delivery import (
 )
 
 router = APIRouter(prefix="/sales", tags=["sales"])
+
+
+def _read_html_pages(out_dir: Path) -> dict:
+    """Every real page site_engine.generate_site() wrote to out_dir --
+    index.html, about.html, privacy.html, accessibility.html, and one
+    service-*.html per service -- for issue_preview_delivery() to capture
+    and serve, not just index.html.
+
+    2026-08-20 bug fix: generate_site() always wrote a full real multi-page
+    site with working internal nav links between those pages, but both
+    call sites below used to read only index.html back out before the
+    source directory was discarded -- every nav link a rep or prospect
+    clicked on the previewed homepage 404'd. See
+    preview_delivery.py's own module docstring for the serving side of
+    this fix.
+    """
+    return {p.name: p.read_text(encoding="utf-8") for p in sorted(out_dir.glob("*.html"))}
 
 # --- SSRF guard for /audit-current --------------------------------------
 # 2026-08-08 GEO Brain Trust review, Sentinel finding 1: this route fetched
@@ -413,9 +431,9 @@ async def site_generator_example(
         out = Path(tmpdir)
         generate_site(ILLUSTRATIVE_HBOT_EXAMPLE, out)
         result = run_audit(out)  # not homepage_only — real robots.txt/sitemap.xml exist here
-        html = (out / "index.html").read_text(encoding="utf-8")
+        pages = _read_html_pages(out)
 
-    delivery = issue_preview_delivery({"html": html})
+    delivery = issue_preview_delivery({"pages": pages})
     if not delivery.get("ok"):
         raise HTTPException(
             status_code=delivery.get("status_code", 403),
@@ -476,10 +494,18 @@ async def create_preview(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    index_path = Path(result.out_dir) / "index.html"
-    html = index_path.read_text(encoding="utf-8") if index_path.exists() else ""
+    # generate_preview() (services/preview.py) creates result.out_dir with
+    # tempfile.mkdtemp(), not a `with TemporaryDirectory()` block, so nothing
+    # ever cleaned it up -- every call leaked a real directory on disk.
+    # Reading every page before removing it, in the same pass that fixes
+    # the 404 bug (only index.html used to get captured at all), closes
+    # both issues together rather than leaving a known leak beside code
+    # already being rewritten.
+    out_path = Path(result.out_dir)
+    pages = _read_html_pages(out_path)
+    shutil.rmtree(out_path, ignore_errors=True)
 
-    delivery = issue_preview_delivery({"html": html})
+    delivery = issue_preview_delivery({"pages": pages})
     if not delivery.get("ok"):
         raise HTTPException(
             status_code=delivery.get("status_code", 403),
@@ -502,9 +528,22 @@ async def create_preview(
     }
 
 
+def _serve_preview(preview_id: str, request: Request, *, page: str | None = None) -> HTMLResponse:
+    status = preview_status(preview_id, page=page)
+    if not status.get("ok"):
+        raise HTTPException(
+            status_code=status.get("status_code", 404),
+            detail=status.get("reason", "not found"),
+        )
+
+    record_open(preview_id, {"user_agent": request.headers.get("user-agent", "")})
+
+    return HTMLResponse(content=status["render"], headers=status.get("headers") or {})
+
+
 @router.get("/preview/{preview_id}")
 async def view_preview(preview_id: str, request: Request):
-    """Serve a previously issued preview link.
+    """Serve a previously issued preview link's homepage.
 
     Deliberately NOT behind require_owner, unlike every other route in this
     file: this is the one link in the whole flow a prospect with no STAG
@@ -521,16 +560,24 @@ async def view_preview(preview_id: str, request: Request):
     per-caller limiter used on /audit-current doesn't apply cleanly to an
     unauthenticated route and would need its own design.
     """
-    status = preview_status(preview_id)
-    if not status.get("ok"):
-        raise HTTPException(
-            status_code=status.get("status_code", 404),
-            detail=status.get("reason", "not found"),
-        )
+    return _serve_preview(preview_id, request)
 
-    record_open(preview_id, {"user_agent": request.headers.get("user-agent", "")})
 
-    return HTMLResponse(content=status["render"], headers=status.get("headers") or {})
+@router.get("/preview/{preview_id}/page/{page_name}")
+async def view_preview_page(preview_id: str, page_name: str, request: Request):
+    """Serve any other page of a previously issued preview — about.html,
+    privacy.html, accessibility.html, any service-*.html.
+
+    2026-08-20 bug fix: generate_site() always wrote a full, real
+    multi-page site with real internal nav links between those pages, but
+    view_preview() above only ever served index.html -- every one of those
+    links 404'd for a rep or prospect clicking through the previewed
+    homepage. Same auth posture as view_preview (unauthenticated, the
+    preview_id itself is the access control) and the same expiry/watermark
+    handling, since it's the same preview, just a different page of it.
+    """
+    return _serve_preview(preview_id, request, page=page_name)
+
 
 @router.post("/rank-leads")
 async def rank_prospect_leads(

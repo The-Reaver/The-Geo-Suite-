@@ -6,6 +6,7 @@ No IP / precise geo stored. Compliance gate before issue.
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 import uuid
 from typing import Any
@@ -16,11 +17,13 @@ from ..compliance.compliance_checker import audit_site
 _PREVIEWS: dict[str, dict[str, Any]] = {}
 
 DEFAULT_EXPIRES_H = 48
+DEFAULT_URL_PREFIX = "/sales/preview"
 WATERMARK_TEXT = "PREVIEW — NOT LIVE — DO NOT INDEX"
 ROBOTS_HEADER = "noindex, nofollow"
 HTTP_GONE = 410
 HTTP_OK = 200
 HTTP_FORBIDDEN = 403
+HTTP_NOT_FOUND = 404
 
 
 def _now() -> float:
@@ -32,14 +35,63 @@ def clear_preview_store() -> None:
     _PREVIEWS.clear()
 
 
+def _rewrite_internal_links(html: str, *, preview_id: str, url_prefix: str, filenames: list[str]) -> str:
+    """Rewrite site_engine.py's own flat-filename internal links
+    (href="about.html", href="index.html#faq", ...) to absolute
+    preview-scoped URLs.
+
+    2026-08-20 bug fix: generate_site() always wrote a full, real
+    multi-page site (index/about/privacy/accessibility/every service page)
+    with real, working nav links between them -- but this module only ever
+    captured and served index.html, so every one of those links 404'd for
+    a rep or prospect. Those hrefs are relative and correct for a real
+    deployed site (each page really does sit next to its siblings), but
+    once every page is served from a shared
+    /sales/preview/{preview_id}/page/{filename} path instead of its own
+    directory, the same relative href no longer resolves to the right
+    place -- so it's rewritten to an absolute preview-scoped URL instead,
+    per page, at issue time.
+    """
+    for filename in filenames:
+        target = f"{url_prefix}/{preview_id}/page/{filename}"
+
+        def _replace(match: "re.Match[str]", _target: str = target) -> str:
+            fragment = match.group(1) or ""
+            return f'href="{_target}{fragment}"'
+
+        html = re.sub(rf'href="{re.escape(filename)}(#[^"]*)?"', _replace, html)
+    return html
+
+
 def create_preview(
     site_artifact: dict,
     *,
+    url_prefix: str = DEFAULT_URL_PREFIX,
     expires_h: int = DEFAULT_EXPIRES_H,
     clock: float | None = None,
 ) -> dict:
-    """Issue a preview link after compliance screening."""
-    html = site_artifact.get("html") or ""
+    """Issue a preview link after compliance screening.
+
+    site_artifact carries "pages": {filename: raw_html}, with "index.html"
+    required -- that's the page the compliance gate below screens, same as
+    when this only ever handled one page. Every other page in "pages" is
+    stored too and becomes servable through the /page/{filename} sub-route
+    (routers/sales_preview.py's view_preview_page), with internal nav links
+    rewritten to point there (see _rewrite_internal_links above) instead of
+    404ing.
+
+    Back-compat: a caller still passing the old single-page {"html": ...}
+    shape gets it treated as {"pages": {"index.html": ...}} -- no known
+    caller does this anymore (both routers/sales_preview.py call sites
+    pass "pages" now), but this keeps the function itself from silently
+    breaking on the old shape rather than refusing clearly.
+    """
+    pages = site_artifact.get("pages")
+    if not pages and site_artifact.get("html"):
+        pages = {"index.html": site_artifact["html"]}
+    pages = pages or {}
+
+    html = pages.get("index.html") or ""
     if not html.strip():
         return {
             "ok": False,
@@ -92,6 +144,17 @@ def create_preview(
     issued = clock if clock is not None else _now()
     expires_at = issued + max(1, int(expires_h)) * 3600
     token = hashlib.sha256(preview_id.encode("utf-8")).hexdigest()[:16]
+
+    filenames = list(pages.keys())
+    pages_watermarked = {
+        filename: (
+            f"<!-- {WATERMARK_TEXT} -->\n"
+            f"<meta name=\"robots\" content=\"{ROBOTS_HEADER}\">\n"
+            f"{_rewrite_internal_links(content, preview_id=preview_id, url_prefix=url_prefix, filenames=filenames)}"
+        )
+        for filename, content in pages.items()
+    }
+
     record = {
         "preview_id": preview_id,
         "token": token,
@@ -103,11 +166,8 @@ def create_preview(
             "X-Robots-Tag": ROBOTS_HEADER,
         },
         "robots_txt_disallow": "/preview/",
-        "html_watermarked": (
-            f"<!-- {WATERMARK_TEXT} -->\n"
-            f"<meta name=\"robots\" content=\"{ROBOTS_HEADER}\">\n"
-            f"{html}"
-        ),
+        "html_watermarked": pages_watermarked.get("index.html", ""),
+        "pages_watermarked": pages_watermarked,
         "opens": [],
         "open_count": 0,
         # Never store clinic production host as preview host.
@@ -165,8 +225,17 @@ def record_open(preview_id: str, request_meta: dict | None = None) -> dict:
     }
 
 
-def preview_status(preview_id: str, *, clock: float | None = None) -> dict:
-    """Return status; past expiry → 410 Gone and no body render."""
+def preview_status(preview_id: str, *, page: str | None = None, clock: float | None = None) -> dict:
+    """Return status; past expiry → 410 Gone and no body render.
+
+    page=None (or "index.html") returns the homepage, unchanged from before
+    this module handled more than one page. Any other real filename
+    create_preview() actually captured for this preview_id is servable too
+    (routers/sales_preview.py's view_preview_page). An unknown page name on
+    a real, unexpired preview returns its own 404, distinct from an unknown
+    preview_id, so a caller can tell "this preview doesn't exist" from
+    "this preview exists but has no page by that name."
+    """
     record = _PREVIEWS.get(preview_id)
     if record is None:
         return {"ok": False, "status_code": 404, "reason": "unknown preview_id"}
@@ -179,6 +248,17 @@ def preview_status(preview_id: str, *, clock: float | None = None) -> dict:
             "render": None,
             "expired": True,
         }
+
+    page_name = page or "index.html"
+    pages = record.get("pages_watermarked") or {}
+    render = pages.get(page_name)
+    if render is None:
+        return {
+            "ok": False,
+            "status_code": HTTP_NOT_FOUND,
+            "reason": f"this preview has no page named {page_name!r}",
+        }
+
     return {
         "ok": True,
         "status_code": HTTP_OK,
@@ -186,7 +266,7 @@ def preview_status(preview_id: str, *, clock: float | None = None) -> dict:
         "open_count": record["open_count"],
         "headers": record["headers"],
         "watermark": record["watermark"],
-        "render": record["html_watermarked"],
+        "render": render,
         "expired": False,
         "reason": "preview active",
     }

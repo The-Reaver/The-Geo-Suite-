@@ -8,6 +8,7 @@ BACKEND = os.path.join(PROJ, "backend")
 if BACKEND not in sys.path:
     sys.path.insert(0, BACKEND)
 
+import re
 import uuid
 from unittest.mock import patch, MagicMock
 
@@ -273,6 +274,159 @@ def test_create_preview_carries_rating_and_faqs_into_the_real_site():
         app.dependency_overrides.clear()
     assert resp.status_code == 200, \
         f"a sales_agent-role caller must reach this route, got {resp.status_code}: {resp.text}"
+
+
+def test_preview_internal_nav_links_actually_resolve():
+    # 2026-08-20 bug fix: generate_site() always wrote a full, real
+    # multi-page site (index/about/privacy/accessibility) with real internal
+    # nav links between those pages, but preview_delivery.py only ever
+    # captured and served index.html -- every one of those links 404'd for a
+    # rep or prospect clicking through the previewed homepage. This proves
+    # the fix by actually following the served links, not just asserting a
+    # page dict shape. BusinessFactsReq has no `services` field, so this
+    # path can't prove service-page resolution -- that's covered by
+    # test_site_generator_example_internal_nav_links_resolve below, against
+    # the illustrative fixture, which does have real services.
+    payload = {
+        "business_name": "Test Biz",
+        "subtype": "Plumber",
+        "locality": "NY",
+        "region": "NY",
+        "street": "123 Main",
+        "telephone": "555-0000",
+        "postal_code": "10001",
+        "domain": "test.com",
+    }
+    app.dependency_overrides[require_sales_agent] = _fake_owner
+    try:
+        resp = client.post("/sales/preview", json=payload)
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+        home = client.get(resp.json()["preview_url"])
+        assert home.status_code == 200
+
+        hrefs = re.findall(r'href="(/sales/preview/[^"]+/page/[^"]+)"', home.text)
+        assert hrefs, "expected at least one rewritten /page/ nav link on the homepage"
+        # About/Privacy/Accessibility are always written by generate_site(),
+        # even with no services on this facts shape.
+        targets = {h.rsplit("/", 1)[-1] for h in hrefs}
+        assert "about.html" in targets
+        assert "privacy.html" in targets
+        assert "accessibility.html" in targets
+
+        for href in set(hrefs):
+            page_resp = client.get(href)
+            assert page_resp.status_code == 200, \
+                f"internal nav link {href} must resolve, got {page_resp.status_code}"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_site_generator_example_internal_nav_links_resolve():
+    # Same guard as the real-facts test above, against the illustrative
+    # fixture, whose homepage carries the same About/Privacy/Accessibility
+    # nav links. Also proves service-*.html pages -- which generate_site()
+    # writes to disk but never links to from the homepage nav (confirmed by
+    # reading site_engine.py directly: the services section renders <li>
+    # name/description only, no per-service href) -- are still individually
+    # servable through the new /page/ route now that every page the
+    # generator writes is captured, not just index.html. The real-facts path above
+    # can't prove this at all (BusinessFactsReq has no services field, so it
+    # never generates service pages in the first place).
+    app.dependency_overrides[require_owner] = _fake_owner
+    try:
+        resp = client.post("/sales/site-generator-example", json={})
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+        home = client.get(resp.json()["preview_url"])
+        assert home.status_code == 200
+
+        hrefs = re.findall(r'href="(/sales/preview/[^"]+/page/[^"]+)"', home.text)
+        assert hrefs, "expected at least one rewritten /page/ nav link on the homepage"
+        targets = {h.rsplit("/", 1)[-1] for h in hrefs}
+        assert "about.html" in targets
+        assert "privacy.html" in targets
+        assert "accessibility.html" in targets
+
+        for href in set(hrefs):
+            page_resp = client.get(href)
+            assert page_resp.status_code == 200, \
+                f"internal nav link {href} must resolve, got {page_resp.status_code}"
+
+        # Not linked from the homepage, but still a real page generate_site()
+        # wrote for this fixture -- must resolve when fetched directly.
+        preview_id = resp.json()["preview_id"]
+        service_resp = client.get(f"/sales/preview/{preview_id}/page/service-hyperbaric-oxygen-therapy.html")
+        assert service_resp.status_code == 200, \
+            f"a real service page must resolve when fetched directly, got {service_resp.status_code}"
+        assert "Hyperbaric Oxygen Therapy" in service_resp.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_preview_unknown_page_name_returns_404():
+    # A valid, unexpired preview_id with a fabricated page name must return a
+    # real, distinct 404 -- not a crash, and not silently falling back to
+    # index.html.
+    payload = {
+        "business_name": "Test Biz",
+        "subtype": "Plumber",
+        "locality": "NY",
+        "region": "NY",
+        "street": "123 Main",
+        "telephone": "555-0000",
+        "postal_code": "10001",
+        "domain": "test.com",
+    }
+    app.dependency_overrides[require_sales_agent] = _fake_owner
+    try:
+        resp = client.post("/sales/preview", json=payload)
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+        preview_id = resp.json()["preview_id"]
+    finally:
+        app.dependency_overrides.clear()
+
+    bad_resp = client.get(f"/sales/preview/{preview_id}/page/does-not-exist.html")
+    assert bad_resp.status_code == 404, \
+        f"an unknown page name on a real preview_id must 404, got {bad_resp.status_code}"
+
+
+def test_preview_tempdir_is_cleaned_up_after_read():
+    # generate_preview() (services/preview.py) builds its site under
+    # tempfile.mkdtemp(prefix="preview_"), with no corresponding cleanup --
+    # every real call to /sales/preview leaked a directory on disk. Proves
+    # the shutil.rmtree() fix in create_preview() actually runs, against a
+    # real path that existed before cleanup, not a mocked-away one.
+    payload = {
+        "business_name": "Test Biz",
+        "subtype": "Plumber",
+        "locality": "NY",
+        "region": "NY",
+        "street": "123 Main",
+        "telephone": "555-0000",
+        "postal_code": "10001",
+        "domain": "test.com",
+    }
+    captured = {}
+    real_rmtree = sales_preview.shutil.rmtree
+
+    def spy_rmtree(path, *args, **kwargs):
+        captured["path"] = str(path)
+        captured["existed_before_cleanup"] = os.path.exists(path)
+        return real_rmtree(path, *args, **kwargs)
+
+    app.dependency_overrides[require_sales_agent] = _fake_owner
+    try:
+        with patch.object(sales_preview.shutil, "rmtree", side_effect=spy_rmtree):
+            resp = client.post("/sales/preview", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200, resp.text
+    assert captured.get("existed_before_cleanup") is True, \
+        "rmtree must be called on a directory that actually existed -- proves it's cleaning up the real tempdir, not a no-op"
+    assert "preview_" in captured.get("path", ""), \
+        "must be cleaning up generate_preview()'s own preview_-prefixed mkdtemp directory"
+    assert not os.path.exists(captured["path"]), \
+        "the tempdir must actually be gone after the request completes"
 
 
 def test_create_preview_requires_auth():
