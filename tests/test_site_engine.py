@@ -482,6 +482,137 @@ def test_highlights_content_is_real_and_correctly_gated():
     assert "Preventive cleanings" in hl4
 
 
+# 2026-08-21, Opus 5 review round 2 of Slice 2: the original test above
+# never exercised the escaping path, the credentials-truncated-to-2
+# boundary, or plural/singular area-count wording -- mutation-proven:
+# removing _esc() entirely, widening creds[:2] to creds[:9], and changing
+# "s if area_count != 1" to a hardcoded "s" all passed the full suite
+# clean. Each gets its own targeted test below.
+def test_highlights_escapes_html_in_service_and_credential_names():
+    payload = '<img src=x onerror=alert(1)>"'
+    facts = _dentist().model_copy(update={
+        "services": [Service(name=payload, description="A real description.")],
+        "credentials": [payload],
+    })
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    hl = _highlights_span(html)
+    # "onerror=" as literal text is expected and fine once escaped -- the
+    # real check is that no live "<img" TAG (an unescaped opening angle
+    # bracket immediately followed by the tag name) reached the page.
+    assert "<img" not in hl, "unescaped markup reached the highlights component"
+    assert "&lt;img" in hl, "the service/credential name must still be visibly present, just escaped"
+    assert hl.count("&lt;img") == 2, "both the service name and the credential must be escaped"
+
+
+def test_highlights_credentials_truncated_to_first_two():
+    facts = _dentist().model_copy(update={
+        "credentials": ["Alpha Certification", "Beta License", "Gamma Accreditation"]
+    })
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    hl = _highlights_span(html)
+    assert "Alpha Certification" in hl and "Beta License" in hl
+    assert "Gamma Accreditation" not in hl, "more than 2 credentials must be truncated, not all listed"
+
+
+def test_highlights_area_count_singular_vs_plural():
+    one_area = _dentist().model_copy(update={"service_areas": ["Portland"]})
+    d = _gen(one_area)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    hl = _highlights_span(html)
+    assert "1 area served" in hl, "exactly one area must use singular wording"
+    assert "1 areas served" not in hl
+
+    two_areas = _dentist().model_copy(update={"service_areas": ["Portland", "Beaverton"]})
+    d2 = _gen(two_areas)
+    html2 = open(os.path.join(d2, "index.html"), encoding="utf-8").read()
+    hl2 = _highlights_span(html2)
+    assert "2 areas served" in hl2, "more than one area must use plural wording"
+
+
+def test_highlights_services_boundary_exactly_three_vs_four():
+    three = _dentist().model_copy(update={"services": [
+        Service(name=f"Svc {i}", description="A real description.") for i in range(3)
+    ]})
+    d = _gen(three)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    hl = _highlights_span(html)
+    assert "Svc 0" in hl and "Svc 1" in hl and "Svc 2" in hl, "exactly 3 services must still be listed by name"
+    assert "3 services offered" not in hl
+
+    four = _dentist().model_copy(update={"services": [
+        Service(name=f"Svc {i}", description="A real description.") for i in range(4)
+    ]})
+    d2 = _gen(four)
+    html2 = open(os.path.join(d2, "index.html"), encoding="utf-8").read()
+    hl2 = _highlights_span(html2)
+    assert "4 services offered" in hl2, "4 services must cross over to the count summary"
+    assert "Svc 0" not in hl2
+
+
+def test_highlights_has_real_list_aria_roles_and_accessible_name():
+    d = _gen(_dentist())
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    m = re.search(r'<div class="highlights"([^>]*)>', html)
+    assert m, "a real highlights div must render"
+    container_attrs = m.group(1)
+    assert 'role="list"' in container_attrs, "the highlights container must carry role=list"
+    assert 'aria-label="Highlights"' in container_attrs, "the highlights container must have an accessible name"
+    hl = _highlights_span(html)
+    assert hl.count('role="listitem"') == hl.count("<span"), (
+        "every highlight item must carry role=listitem, matching the container's role=list"
+    )
+
+
+def test_highlights_clips_unbounded_service_and_credential_names():
+    # Service/credential names are free text with no length cap on
+    # BusinessFacts -- an adversarially long name must not be allowed to
+    # inflate this component's word count without bound, since that
+    # measurably erodes the audit rubric's emphasis-density headroom.
+    long_name = "A Very Long And Overly Descriptive Service Name That Goes On And On"
+    facts = _dentist().model_copy(update={
+        "services": [Service(name=long_name, description="A real description.")],
+        "credentials": ["An Equally Long And Overly Descriptive Professional Credential Title"],
+    })
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    hl = _highlights_span(html)
+    for span in re.findall(r'<span role="listitem">(.*?)</span>', hl, re.S):
+        assert len(span) <= 61, f"highlight item not clipped, {len(span)} chars: {span!r}"
+    assert "…" in hl, "a clipped item must end with an ellipsis, not be silently cut off"
+
+
+# 2026-08-21, Opus 5 review of Slice 2: p1_html's <p> tag never carried
+# class="lede" -- 7 of the 9 templates style the hero paragraph
+# EXCLUSIVELY through a ".hero .lede"/".hero p.lede" CSS rule, so it
+# matched nothing on any real generated page, ever. The hero paragraph
+# rendered at each template's default wide `.wrap` measure (up to
+# 1120px) instead of the intended ~52ch narrow reading width and muted
+# color -- the actual "shorter, more scannable lede" this slice exists to
+# deliver never took visual effect. Checked against REAL per-template
+# render_index output (design_engine.TEMPLATES, same facts, real blocks
+# from _index_main -- not the synthetic _index_blocks() fixture other
+# design-variation tests use, since that fixture hardcodes a classless
+# "<p>p1</p>" that would hide this exact regression).
+def test_hero_paragraph_carries_lede_class_across_all_templates():
+    from backend.app.services.site_engine import _F as _FactsWrapper, _index_main, _head
+
+    facts = _dentist()
+    f = _FactsWrapper(facts)
+    base = f"https://{facts.domain}"
+    blocks = _index_main(f, base)
+    blocks["head"] = _head(f, base, base + "/", "Title", "Desc", "index.md", "{}")
+    blocks["title"] = "Title"
+
+    pal = design_engine.palettes.palette_for(facts.subtype, 0)
+    typ = design_engine.typography.typography_for(0)
+    for tmpl in design_engine.TEMPLATES:
+        theme = design_engine.Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, base, theme, blocks)
+        assert 'class="lede"' in html, f"{tmpl.name}: hero paragraph is missing class=\"lede\""
+
+
 def test_hours_omitted_when_none_but_address_and_directions_remain():
     # Hours default to [] and must stay honestly gated -- never a
     # fabricated "call for hours" placeholder. The address and directions

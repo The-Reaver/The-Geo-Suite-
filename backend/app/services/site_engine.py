@@ -556,12 +556,27 @@ def _highlights_html(f: _F) -> str:
     <div>/<span> is invisible to both the structured-element count and the
     paragraph-chunk count, so this component can render unconditionally
     without disturbing either check -- verified via a direct 25-subtype
-    audit-gate sweep after this choice, not assumed."""
+    audit-gate sweep after this choice, not assumed.
+
+    2026-08-21, Opus 5 review: two real fixes. (1) service/credential
+    names are free text with no length cap on BusinessFacts -- a business
+    with three long service names plus two long credentials could push
+    this component's own word count high enough to meaningfully erode
+    Category 2's 0.05-0.10 emphasis-density headroom (measured 0.0512 vs
+    0.0575 without, on an adversarial fixture) -- clipped rather than
+    left unbounded. (2) an unlabeled 3-item div/span list has no
+    accessible name; the 2 templates that already wrap it in a real
+    <h2>Highlights</h2> were fine, the other 7 weren't -- aria-label
+    covers all 9 uniformly regardless of whether a visible heading also
+    exists (redundant, not incorrect, for the 2 that have one)."""
+    def _clip(text: str, max_chars: int = 60) -> str:
+        return text if len(text) <= max_chars else text[: max_chars - 1].rstrip() + "…"
+
     svc_names = [s.name for s in (f.services or [])]
     if not svc_names:
         svc_item = "a full range of services"
     elif len(svc_names) <= 3:
-        svc_item = _oxford(svc_names)
+        svc_item = _clip(_oxford(svc_names))
     else:
         svc_item = f"{len(svc_names)} services offered"
     items = [f'      <span role="listitem">{_esc(svc_item)}</span>']
@@ -572,9 +587,10 @@ def _highlights_html(f: _F) -> str:
 
     creds = [c for c in (f.credentials or []) if str(c).strip()]
     if creds:
-        items.append(f'      <span role="listitem">{_esc(_oxford(creds[:2]))}</span>')
+        items.append(f'      <span role="listitem">{_esc(_clip(_oxford(creds[:2])))}</span>')
 
-    return '    <div class="highlights" role="list">\n' + "\n".join(items) + "\n    </div>"
+    return ('    <div class="highlights" role="list" aria-label="Highlights">\n'
+            + "\n".join(items) + "\n    </div>")
 
 
 def _index_main(f: _F, base: str) -> str:
@@ -617,8 +633,17 @@ def _index_main(f: _F, base: str) -> str:
     # three genuinely separate values (never one string carrying an
     # embedded marker for business_name to forge -- see site_prose.py's
     # module comment for the full history of why that approach was unsafe).
+    #
+    # 2026-08-21, Opus 5 review of Slice 2: class="lede" was missing here
+    # entirely -- 7 of the 9 templates style the hero paragraph
+    # exclusively through a ".hero .lede"/".hero p.lede" CSS rule that
+    # therefore matched nothing, ever. The hero paragraph rendered at each
+    # template's default `.wrap` width (up to 1120px) instead of the
+    # intended ~52ch narrow reading measure, muted color, and lede font
+    # size -- the actual "shorter, more scannable lede" the commit that
+    # relocated p2_html was supposed to deliver never took visual effect.
     p1_html = (
-        f"      <p><strong>{_esc(open_clause)},</strong>{_esc_inline(p1_rest)}"
+        f'      <p class="lede"><strong>{_esc(open_clause)},</strong>{_esc_inline(p1_rest)}'
         f'<a href="about.html">{_esc(about_link_text)}</a>{_esc_inline(p1_trailing)}</p>'
     )
     p1_words = _wc(open_clause) + _wc(p1_rest) + _wc(about_link_text) + _wc(p1_trailing)

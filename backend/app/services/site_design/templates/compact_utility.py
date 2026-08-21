@@ -41,9 +41,17 @@ CSS_BASE = """
 
   .rating{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;margin-top:14px}
   .stars{color:var(--gold);letter-spacing:1px;font-size:14px}
-  .highlights{display:flex;flex-wrap:wrap;gap:6px 16px;padding:0;margin:12px 0 0}
+  /* 2026-08-21, Opus 5 review of Slice 2: the original version separated
+     items with a CSS-generated em-dash colored var(--line) -- the
+     hairline token, ~1.08-1.21:1 contrast on every one of the 20
+     palettes, effectively invisible. It was also exposed to screen
+     readers in Chrome/Firefox (generated content isn't reliably stripped
+     from the accessibility tree), so every item was announced with a
+     leading dash nobody could see. Removed rather than re-colored --
+     the flex gap alone already separates items visually, matching how
+     every other template's chips separate without a text character. */
+  .highlights{display:flex;flex-wrap:wrap;gap:6px 20px;padding:0;margin:12px 0 0}
   .highlights span{font-size:13px;color:var(--muted)}
-  .highlights span::before{content:"—";margin-right:6px;color:var(--line)}
 
   section.block{padding:22px 0;border-bottom:1px solid var(--line)}
   section.block:last-child{border-bottom:none}
