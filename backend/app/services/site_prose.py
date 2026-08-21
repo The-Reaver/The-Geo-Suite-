@@ -41,6 +41,7 @@ engine._template_seed(), so two same-industry businesses don't read
 identically either.
 """
 import hashlib
+import re
 
 
 def _prose_seed(seed: int) -> int:
@@ -74,7 +75,7 @@ def _dental_medical_0(business_name, human, loc, areas, svc_phrase, creds):
         f"appointments are available for urgent needs. Records and history "
         f"carry forward from visit to visit, so nothing has to be re-explained "
         f"from scratch each time you come in. "
-        f'You can also read more <a href="about.html">about {business_name} and our approach to care</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approach to careABOUT_LINK_CLOSE '
         f"before your visit."
     )
     p2_a = (
@@ -139,7 +140,7 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"out. Records and imaging from a prior provider are reviewed before "
         f"your first visit whenever they're available, so the team already has "
         f"context instead of starting from nothing. "
-        f'You can also read more <a href="about.html">about {business_name} and how the practice is run</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how the practice is runABOUT_LINK_CLOSE '
         f"before scheduling."
     )
     p2_a = (
@@ -205,7 +206,7 @@ def _home_services_0(business_name, human, loc, areas, svc_phrase, creds):
         f"will find the earliest available technician. Trucks are stocked for "
         f"the most common repairs, so a second trip just to grab a part is "
         f"rare. "
-        f'You can also read more <a href="about.html">about {business_name} and how we work</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how we workABOUT_LINK_CLOSE '
         f"before you call."
     )
     p2_a = (
@@ -266,7 +267,7 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"so you are not stuck waiting around all day for a truck that might "
         f"show up. Technicians call ahead when they are on the way, so you can "
         f"plan around the visit instead of sitting by the door. "
-        f'You can also read more <a href="about.html">about {business_name} and what we guarantee</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and what we guaranteeABOUT_LINK_CLOSE '
         f"before you call."
     )
     p2_a = (
@@ -329,7 +330,7 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"the cracks between meetings. The firm returns calls the same day "
         f"whenever possible, and a client should never have to guess who to "
         f"call for an update. "
-        f'You can also read more <a href="about.html">about {business_name} and how matters are handled</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how matters are handledABOUT_LINK_CLOSE '
         f"before you reach out."
     )
     p2_a = (
@@ -394,7 +395,7 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"have worked with the firm for years, from the very first call. "
         f"Every document the firm sends is written in plain language first, "
         f"with the legal terminology explained rather than left to guess at. "
-        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
         f"before scheduling a consultation."
     )
     p2_a = (
@@ -458,7 +459,7 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"including a real conversation about what your hair or skin can "
         f"actually support. Tools and stations are sanitized between every "
         f"single client, not just at the start of the day. "
-        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
         f"before you book."
     )
     p2_a = (
@@ -519,7 +520,7 @@ def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
         f"decorated to look that way in photos. Playlists and lighting are "
         f"kept low-key rather than loud, on purpose, so the appointment "
         f"actually feels like a break. "
-        f'You can also read more <a href="about.html">about {business_name} and the experience</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and the experienceABOUT_LINK_CLOSE '
         f"before you book."
     )
     p2_a = (
@@ -586,7 +587,7 @@ def _food_restaurant_0(business_name, human, loc, areas, svc_phrase, creds):
         f"adjusted quietly depending on how busy the kitchen is. Takeout "
         f"orders are packed to actually survive the drive home, not thrown "
         f"together at the last second. "
-        f'You can also read more <a href="about.html">about {business_name} and our kitchen</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our kitchenABOUT_LINK_CLOSE '
         f"before you visit."
     )
     p2_a = (
@@ -646,7 +647,7 @@ def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
         f"possible, not competing with music turned up to fill a loud space. "
         f"Special occasions are noted ahead of time whenever a guest mentions "
         f"one, so the evening actually feels marked rather than routine. "
-        f'You can also read more <a href="about.html">about {business_name} and the space</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and the spaceABOUT_LINK_CLOSE '
         f"before you book a table."
     )
     p2_a = (
@@ -712,7 +713,7 @@ def _general_0(business_name, human, loc, areas, svc_phrase, creds):
         f"Whether the request is routine or time-sensitive, the fastest way to "
         f"get a real answer is to reach out directly and describe the "
         f"situation, and a member of the team will follow up promptly. "
-        f'You can also read more <a href="about.html">about {business_name} and how we work</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how we workABOUT_LINK_CLOSE '
         f"before you reach out."
     )
     p2_a = (
@@ -774,7 +775,7 @@ def _general_1(business_name, human, loc, areas, svc_phrase, creds):
         f"a straight answer is to reach out directly and describe the "
         f"situation, and someone will follow up with real next steps rather "
         f"than a form response. "
-        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
         f"before reaching out."
     )
     p2_a = (
@@ -840,7 +841,7 @@ def _real_estate_0(business_name, human, loc, areas, svc_phrase, creds):
         f"disclosure and contingency is explained in plain language before a "
         f"client signs anything, not summarized in a rush at the closing "
         f"table. "
-        f'You can also read more <a href="about.html">about {business_name} and how transactions are handled</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how transactions are handledABOUT_LINK_CLOSE '
         f"before you reach out."
     )
     p2_a = (
@@ -904,7 +905,7 @@ def _real_estate_1(business_name, human, loc, areas, svc_phrase, creds):
         f"as clients who have bought or sold with {business_name} before. "
         f"Showings are scheduled around a client's actual availability, not "
         f"whatever slot happens to be easiest to fill. "
-        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
         f"before scheduling a showing."
     )
     p2_a = (
@@ -971,7 +972,7 @@ def _nail_spa_0(business_name, human, loc, areas, svc_phrase, creds):
         f"actually support before any service starts. Instruments are single "
         f"use or fully sterilized between clients, and that standard is "
         f"visible, not just claimed. "
-        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
         f"before you book."
     )
     p2_a = (
@@ -1033,7 +1034,7 @@ def _nail_spa_1(business_name, human, loc, areas, svc_phrase, creds):
         f"decorated to look that way in photos. Sanitation between clients "
         f"is visible and consistent, not something you have to take on "
         f"faith. "
-        f'You can also read more <a href="about.html">about {business_name} and the experience</a> '
+        f'You can also read more ABOUT_LINK_OPENabout {business_name} and the experienceABOUT_LINK_CLOSE '
         f"before you book."
     )
     p2_a = (
@@ -1116,13 +1117,50 @@ def _prose_family_for(subtype):
     maintained classifiers can drift" defect class already fixed once this
     session. This is an additive refinement layered on top, used only by
     prose selection.
+
+    2026-08-21, Opus review round 2: this function's first draft used plain
+    substring checks ("spa" in s), inheriting the exact "spa"-inside-
+    "Spanish" collision already documented as accepted-for-palette/
+    template-purposes in tests/test_site_design_variation.py's own
+    "Deliberately adversarial subtypes" list -- coarse routes "Spanish
+    Restaurant" to beauty_salon (its "spa"/"salon"/"beauty" branch is
+    checked before "food"/"restaurant"/"cafe"), and the substring check
+    then routed it specifically to nail_spa, producing real generated
+    prose telling a Spanish restaurant's visitors about "sterilized
+    instruments" and "the same technician." The sibling documented
+    collision, "Corvette Repair" ("vet" inside "Corvette" routes to
+    dental_medical before "repair" is ever checked), has the identical
+    failure mode for prose (a car-repair shop talking about "patients" and
+    "clinical evaluation"). Both are real for prose even though they're
+    harmless for color/layout. Fixed with word-boundary regex throughout
+    (closing off the SAME collision class in this function's own checks,
+    not just the two already-known cases) plus two narrow, explicitly-
+    scoped overrides for the two collisions this codebase's own tests
+    already document -- not a general reimplementation of the coarse
+    classifier, which would reintroduce the two-independently-maintained-
+    lists drift risk this function's design deliberately avoids.
     """
     from .site_design import palettes
     s = (subtype or "").lower()
     coarse = palettes.industry_family_for(subtype)
-    if coarse == palettes.INDUSTRY_FAMILY_LEGAL_FINANCE and "estate" in s and "law" not in s and "attorney" not in s:
+
+    # Known, documented substring collisions (see docstring) that are
+    # harmless for palette/template but produce false claims in prose.
+    if (coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON
+            and re.search(r"\brestaurant\b|\bcafe\b", s)
+            and not re.search(r"\bsalon\b|\bspa\b|\bnail\b|\bbeauty\b", s)):
+        coarse = palettes.INDUSTRY_FAMILY_FOOD_RESTAURANT
+    if (coarse == palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL
+            and re.search(r"\brepair\b", s)
+            and "veterinary" not in s
+            and not re.search(r"\bdent|\bphysician\b|\bmedical\b", s)):
+        coarse = palettes.INDUSTRY_FAMILY_HOME_SERVICES
+
+    if (coarse == palettes.INDUSTRY_FAMILY_LEGAL_FINANCE
+            and re.search(r"\bestate\b", s)
+            and not re.search(r"\blaw\b|\battorney\b", s)):
         return "real_estate"
-    if coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON and ("nail" in s or "spa" in s):
+    if coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON and re.search(r"\bnail\b|\bspa\b", s):
         return "nail_spa"
     return coarse
 

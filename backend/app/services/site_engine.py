@@ -144,8 +144,16 @@ def _loc(f: "_F") -> str:
     directions-link address line), not just the one _index_main() already
     guarded. One shared helper instead of ten independent inline f-strings,
     so this can't silently regress in an eleventh spot later.
+
+    2026-08-21, Opus review round 2: the original `if f.region` guard tests
+    truthiness, not content -- a whitespace-only region ("   ") is truthy in
+    Python, so it reproduced every one of the same 10 artifacts this helper
+    exists to remove. Test the stripped value instead, and use the stripped
+    value in the joined string too, so a region with incidental leading/
+    trailing whitespace doesn't leak into the rendered text either.
     """
-    return f"{f.locality}, {f.region}" if f.region else f.locality
+    region = (f.region or "").strip()
+    return f"{f.locality}, {region}" if region else f.locality
 
 
 def _phone_digits(tel: str) -> str:
@@ -593,33 +601,45 @@ def _index_main(f: _F, base: str) -> str:
     }
     return blocks
 
-_ANCHOR_RE = re.compile(r'(<a [^>]*>)(.*?)(</a>)', flags=re.S)
+# Sentinel markers site_prose.py's 16 variants use in place of literal
+# <a href="about.html">...</a> tags -- \x01 is never touched by html.escape
+# (which only handles & < > " '), so the markers survive escaping intact and
+# are substituted for the real anchor tags AFTER the whole string is escaped.
+_ABOUT_LINK_OPEN = "\x01ABOUT_LINK_OPEN\x01"
+_ABOUT_LINK_CLOSE = "\x01ABOUT_LINK_CLOSE\x01"
 
 
 def _esc_inline(text: str) -> str:
-    """Escape text that may contain an intentional <a> anchor we want to keep.
+    """Escape text that contains site_prose.py's one sentinel-marked
+    "read more" link.
 
-    2026-08-21, Opus review: every site_prose.py variant interpolates
-    business_name INTO the anchor's own visible text (e.g. "about {business_name}
-    and our approach"). Treating the whole "<a ...>...</a>" match as a single
-    pre-approved token and appending it unescaped left that inner text --
-    including business_name -- completely unescaped and injectable, even
-    though every other occurrence of business_name on the page is correctly
-    escaped. The anchor's opening/closing tags are trusted, hardcoded HTML
-    from this module (never user input), but the text BETWEEN them is not --
-    it is now escaped like everything else, only the tag structure passes
-    through literally.
+    2026-08-21, Opus review round 2: the prior fix (escape the anchor's
+    inner text, keep the tag structure literal) was still broken, because
+    it detected "a trusted anchor" via a generic `<a [^>]*>` regex applied
+    to the ALREADY-INTERPOLATED string -- and business_name is interpolated
+    into p1_rest/p2_a/about_a BEFORE the real about.html anchor. A
+    business_name containing its own `<a href="javascript:alert(1)"
+    onmouseover=...>` matched that regex first and had its OPENING tag
+    (with attacker-controlled attributes) emitted completely raw -- the
+    inner-text fix never touched the tag itself. The same regex-based
+    detection also crashed (AttributeError -> 500) on business names
+    containing a stray, unpaired "<a " with no matching "</a>" left for
+    re.split to have already consumed.
+
+    Root-caused instead of patched: site_prose.py no longer writes any
+    literal anchor HTML at all -- it writes the sentinel markers above.
+    This function escapes the ENTIRE string first (so business_name,
+    wherever it appears, including inside what becomes the link's visible
+    text, is genuinely safe), THEN substitutes the two fixed sentinel
+    strings for the real anchor tags. There is no runtime "is this tag
+    trustworthy" detection to get wrong, because the only anchor markup
+    that can ever exist is the two literal strings substituted in below --
+    never derived from any interpolated field.
     """
-    tokens = re.split(r'(<a [^>]*>.*?</a>)', text, flags=re.S)
-    out = []
-    for tok in tokens:
-        if tok.startswith("<a "):
-            m = _ANCHOR_RE.match(tok)
-            open_tag, inner, close_tag = m.group(1), m.group(2), m.group(3)
-            out.append(open_tag + _html.escape(inner, quote=False) + close_tag)
-        else:
-            out.append(_html.escape(tok, quote=False))
-    return "".join(out)
+    escaped = _html.escape(text, quote=False)
+    escaped = escaped.replace(_ABOUT_LINK_OPEN, '<a href="about.html">')
+    escaped = escaped.replace(_ABOUT_LINK_CLOSE, "</a>")
+    return escaped
 
 def _build_index(f: _F, base: str) -> str:
     canonical = f"{base}/"

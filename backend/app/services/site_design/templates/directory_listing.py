@@ -148,7 +148,7 @@ def _format_nav(nav_html: str, phone: str) -> str:
     <div class="brand">Your Business</div>
     <nav class="primary" aria-label="Primary">
       {links}
-      <a class="dir-call" href="tel:{tel_href}">Call {phone}</a>
+      <a class="dir-call" href="tel:{tel_href}">Call {_esc(phone)}</a>
     </nav>
   </div>
 </header>
@@ -161,7 +161,7 @@ def _mobile_call_bar(phone: str) -> str:
     # button already covers desktop) via the CSS media query, so it never
     # duplicates the header CTA on a screen large enough to see both.
     tel_href = _tel_href(phone)
-    return f'<div class="mobile-call-bar"><a href="tel:{tel_href}">Call {phone}</a></div>'
+    return f'<div class="mobile-call-bar"><a href="tel:{tel_href}">Call {_esc(phone)}</a></div>'
 
 
 def render_index(facts, base_url, theme, blocks) -> str:

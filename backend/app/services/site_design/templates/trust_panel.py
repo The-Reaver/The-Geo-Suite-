@@ -111,7 +111,7 @@ def _format_nav(nav_html: str, phone: str) -> str:
     <div class="brand"><span class="mark" aria-hidden="true"></span>Your Business</div>
     <nav class="primary" aria-label="Primary">
       {links}
-      <a class="call-pill" href="tel:{tel_digits}">Call {phone}</a>
+      <a class="call-pill" href="tel:{tel_digits}">Call {_esc(phone)}</a>
     </nav>
   </div>
 </header>

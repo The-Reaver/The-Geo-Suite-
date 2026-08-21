@@ -122,7 +122,7 @@ def _format_nav(nav_html: str, phone: str) -> str:
     <div class="brand">Your <span>Business</span></div>
     <nav class="primary" aria-label="Primary">
       {links}
-      <a class="call-btn" href="tel:{tel_digits}">Call {phone}</a>
+      <a class="call-btn" href="tel:{tel_digits}">Call {_esc(phone)}</a>
     </nav>
   </div>
 </header>

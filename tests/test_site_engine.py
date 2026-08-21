@@ -652,6 +652,98 @@ def test_real_estate_and_nail_salon_route_to_their_own_families():
     assert site_prose._prose_family_for("Hair Salon") == "beauty_salon"
 
 
+# 2026-08-21, Opus 5 review round 2 (of commit b386c3e, the fix for round
+# 1's 9 findings) found 5 more real bugs -- 2 critical (the XSS fixes from
+# round 1 were incomplete: _esc_inline still emitted an attacker-controlled
+# <a> OPENING tag raw when business_name contained its own anchor before
+# the real about.html one; facts.telephone was unescaped in the nav "Call
+# {phone}" text on 7 of 9 templates), 1 crash regression the round-1 fix
+# introduced (_ANCHOR_RE.match() returning None -> AttributeError -> 500
+# on an unpaired "<a"), 1 industry-misclassification gap inherited from a
+# collision this codebase's own tests already document ("Spanish
+# Restaurant" -> nail_spa via "spa" inside "Spanish"), and 1 _loc()
+# truthiness bug (whitespace-only region reproduced the same artifacts
+# empty region was fixed for). All fixed via a root-cause redesign
+# (site_prose.py's anchor is now a sentinel marker, never literal HTML,
+# eliminating the whole "detect a trusted vs. attacker anchor at runtime"
+# problem) rather than another patch on the same fragile approach.
+
+def test_attacker_anchor_in_business_name_cannot_form_a_real_tag():
+    payload = 'Acme<a href="javascript:alert(1)" onmouseover="alert(document.domain)">CLICK</a>Dental'
+    facts = _facts(business_name=payload, domain="attacker-anchor.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    # a REAL, HTML-parseable attacker tag needs a literal, unescaped "<a " --
+    # substring presence of the escaped text elsewhere is not exploitable.
+    assert not re.search(r'<a href="javascript:alert\(1\)"[^>]*onmouseover', html), (
+        "a real, parseable attacker <a> tag survived"
+    )
+    # the one real about.html anchor must still render correctly
+    assert '<a href="about.html">about Acme' in html
+
+
+def test_unpaired_anchor_tag_in_business_name_does_not_crash_generation():
+    for payload in ('Acme <a b>c</a><a d Dental', 'A</a><a b', '<a x>y</a><a z'):
+        facts = _facts(business_name=payload, domain=f"unpaired-{abs(hash(payload))}.example")
+        _gen(facts)  # must not raise
+
+
+def test_telephone_is_escaped_in_nav_call_link_across_all_templates():
+    payload_phone = '+1-555-0100"><script>alert(document.domain)</script>'
+    seen = set()
+    for subtype in ("Dentist", "Plumber", "Attorney", "Hair Salon", "Restaurant", "MovingCompany"):
+        for i in range(40):
+            facts = _facts(subtype=subtype, telephone=payload_phone,
+                            domain=f"tel-xss-{subtype.lower().replace(' ','')}-{i}.example")
+            theme = design_engine.select_theme(facts)
+            seen.add(theme.template.name)
+            html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+            body_start = html.find("<body")
+            body = re.sub(r"<style.*?</style>", "", html[body_start:], flags=re.S)
+            assert "<script>alert(document.domain)</script>" not in body, (
+                f"{subtype} on {theme.template.name}: telephone injection in nav"
+            )
+    assert len(seen) == 9, f"only exercised {len(seen)}/9 templates: {seen}"
+
+
+def test_known_substring_collisions_route_to_the_correct_prose_family():
+    # Both documented in tests/test_site_design_variation.py as accepted
+    # collisions for palette/template selection -- but wrong for prose.
+    assert site_prose._prose_family_for("Spanish Restaurant") == "food_restaurant"
+    assert site_prose._prose_family_for("Spanish Cafe") == "food_restaurant"
+    assert site_prose._prose_family_for("Corvette Repair") == "home_services"
+    # genuine veterinary/legal/beauty subtypes must still route correctly
+    assert site_prose._prose_family_for("VeterinaryCare") == "dental_medical"
+    assert site_prose._prose_family_for("Veterinary Clinic") == "dental_medical"
+    assert site_prose._prose_family_for("Real Estate") == "real_estate"
+    assert site_prose._prose_family_for("Nail Salon") == "nail_spa"
+
+
+def test_spanish_restaurant_never_gets_nail_salon_prose():
+    facts = _facts(subtype="Spanish Restaurant", business_name="Casa Iberia",
+                    domain="spanish-restaurant-real.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    body_start = html.find("<body")
+    text = re.sub(r"<[^>]+>", " ", html[body_start:]).lower()
+    for w in ("nail", "sterilized", "technician", "cuticle"):
+        assert not re.search(r"\b" + w + r"\b", text), f"found forbidden word {w!r}"
+
+
+def test_whitespace_only_region_never_produces_double_comma_or_space():
+    facts = _facts(business_name="No Region LLC", subtype="Plumber",
+                    locality="London", region="   ", postal_code="00000",
+                    domain="whitespace-region.example")
+    assert _loc(facts) == "London"
+    d = _gen(facts)
+    for name in os.listdir(d):
+        path = os.path.join(d, name)
+        if not (name.endswith(".html") or name.endswith(".md")):
+            continue
+        for line in open(path, encoding="utf-8").read().split("\n"):
+            stripped = line.strip()
+            assert "London,  " not in stripped, f"{name}: double space: {stripped[:120]!r}"
+            assert "London, ," not in stripped, f"{name}: double comma: {stripped[:120]!r}"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 
