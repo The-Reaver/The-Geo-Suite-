@@ -18,6 +18,7 @@ if BACKEND not in sys.path:
 from app.services.site_engine import generate_site
 from app.services import audit_engine
 from app.services.site_design import engine, palettes, typography
+from app.services.site_design.templates import editorial_minimal, boutique_editorial
 from app.services.site_design.engine import Theme
 
 
@@ -128,6 +129,52 @@ def test_all_palettes_pass_button_text_contrast_independently():
     for p in palettes.PALETTES:
         cr = _contrast("#FFFFFF", p.accent)
         assert cr >= 3.0, f"{p.name}: white text on accent {p.accent} is {cr:.2f}, below the 3:1 floor"
+
+
+def _css_rule(css: str, selector: str) -> str:
+    import re
+    m = re.search(re.escape(selector) + r"\{([^}]*)\}", css)
+    assert m, f"selector {selector!r} not found"
+    return m.group(1)
+
+
+def _declared_px(rule: str, prop: str) -> float:
+    import re
+    m = re.search(re.escape(prop) + r":\s*([\d.]+)px", rule)
+    return float(m.group(1)) if m else 0.0
+
+
+def _declared_weight(rule: str, prop: str = "font-weight") -> int:
+    import re
+    m = re.search(re.escape(prop) + r":\s*(\d+)", rule)
+    return int(m.group(1)) if m else 400  # CSS default is 400 (normal)
+
+
+# 2026-08-21, Opus 5 review of Slice C.2: editorial_minimal.py and
+# boutique_editorial.py both render their trust band as white text
+# directly on var(--accent) (split_modern/bold_cinematic use the fixed,
+# always-dark var(--dark) instead, and trust_panel uses dark text on a
+# light accent-soft tint -- neither is affected). White-on-accent only
+# clears WCAG's 3:1 floor (assert_wcag(), palettes.py) -- a bar that's
+# only valid for large-scale text. .band .sub was rendering at 16-17px
+# normal weight, nowhere near large text, so 2 of the 20 palettes (Teal
+# 3.74:1, Orange 3.56:1) genuinely failed the real 4.5:1 normal-text bar
+# their actual font size required. Every affected selector's declared
+# font-size/font-weight must now genuinely clear WCAG's large-text
+# threshold (>=24px at any weight, or >=18.66px bold) so relying on the
+# 3:1 floor is honest, not incidental.
+def test_band_white_text_on_accent_qualifies_as_large_text():
+    for mod in (editorial_minimal, boutique_editorial):
+        css = mod.CSS_BASE
+        for selector in (".band h2", ".band .sub"):
+            rule = _css_rule(css, selector)
+            size = _declared_px(rule, "font-size")
+            weight = _declared_weight(rule)
+            qualifies = size >= 24 or (size >= 18.66 and weight >= 700)
+            assert qualifies, (
+                f"{mod.__name__} {selector}: {size}px/{weight} does not qualify as WCAG "
+                f"large text, so it needs 4.5:1 contrast, not the 3:1 floor assert_wcag() checks"
+            )
 
 
 # 2026-08-21, Opus 5 review of Slice C.1: caught a real near-duplicate

@@ -48,8 +48,18 @@ CSS_BASE = """
   .chip{border:1px solid var(--line);border-radius:4px;padding:7px 14px;font-size:14px;color:var(--ink)}
 
   .band{background:var(--accent);color:#fff;border-radius:8px;padding:32px 30px}
-  .band h2{color:#fff;font-family:var(--disp);font-size:22px}
-  .band .sub{color:rgba(255,255,255,.88);margin-top:8px;font-size:16px}
+  /* 2026-08-21, Opus 5 review: white text on var(--accent) only clears
+     WCAG's 3:1 floor (assert_wcag() in palettes.py), a valid bar only
+     for large-scale text -- 22px here is under the 24px-regular
+     threshold, so it needs an explicit bold weight to actually qualify
+     as large text and legitimately rely on that 3:1 floor (2 of the 20
+     palettes, Teal/Orange, are only 3.56-3.74:1, below the 4.5:1
+     normal-text bar this size would otherwise need). */
+  .band h2{color:#fff;font-family:var(--disp);font-size:22px;font-weight:700}
+  /* Same reasoning: 16px was well under either large-text threshold.
+     Solid white (not translucent, which only weakens contrast further)
+     at 20px/700 genuinely clears it. */
+  .band .sub{color:#fff;margin-top:8px;font-size:20px;font-weight:700}
 
   address{font-style:normal;color:var(--ink);line-height:1.6}
   .directions-link{display:inline-block;margin-top:10px;color:var(--accent);font-weight:600}

@@ -52,7 +52,15 @@ CSS_BASE = """
   .band{background:var(--accent);color:#fff;border-radius:20px;padding:44px;display:flex;flex-wrap:wrap;gap:28px;align-items:center;justify-content:space-between}
   .band h2{color:#fff;font-size:28px;max-width:20ch}
   .band .btn-primary{background:#fff;color:var(--accent-dark) !important}
-  .band .sub{color:rgba(255,255,255,.86);margin-top:8px}
+  /* 2026-08-21, Opus 5 review: white text on var(--accent) only clears
+     WCAG's 3:1 floor (assert_wcag() in palettes.py), which is only a
+     valid bar for large-scale text -- this line used to render at 17px
+     normal weight, well under the ~18.66px-bold/24px-regular threshold
+     that actually qualifies, so 2 of the 20 palettes (Teal 3.74:1,
+     Orange 3.56:1) genuinely failed the applicable 4.5:1 normal-text
+     bar. Solid white (not translucent, which only weakens contrast
+     further) at 20px/700 genuinely clears the large-text threshold. */
+  .band .sub{color:#fff;margin-top:8px;font-size:20px;font-weight:700}
 
   address{font-style:normal;color:var(--ink);line-height:1.5}
   .directions-link{display:inline-block;margin-top:10px;color:var(--accent);font-weight:600}
@@ -111,6 +119,24 @@ def _format_nav(nav_html: str, phone: str) -> str:
 def _format_footer(footer_html: str, blocks: dict) -> str:
     return footer_html
 
+def _wrap_h2(block_html: str, kicker: str) -> str:
+    """Wrap a blocks-dict fragment's own <h2> in a section-head + kicker
+    label, preserving whatever attributes that <h2> already carries.
+
+    2026-08-21, Opus 5 review: the previous literal .replace('<h2>', ...)
+    only matched a completely bare <h2> tag -- it silently missed
+    site_engine.py's services_block, which emits <h2 id="services">
+    (that id is the real anchor target for _nav()'s "#services" link, so
+    it must survive). The opening substitution never fired for
+    services_block, but the matching </h2> -> </h2></div> substitution
+    still did, leaving one extra, unbalanced closing </div> that closed
+    up through the real .wrap/section divs and pushed the entire
+    services list out of the page's max-width wrapper on every generated
+    site. \\g<0> reinserts the h2 tag exactly as matched, id and all."""
+    block_html = re.sub(r'<h2[^>]*>', f'<div class="section-head"><div class="k">{kicker}</div>\\g<0>',
+                         block_html, count=1)
+    return block_html.replace('</h2>', '</h2></div>', 1)
+
 def render_index(facts, base_url, theme, blocks) -> str:
     head = _apply_css(blocks["head"], theme)
     nav = _format_nav(blocks["nav"], facts.telephone)
@@ -138,7 +164,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     # Services
     html.append('<div class="wrap">')
-    html.append(blocks["services_block"].replace('<h2>', '<div class="section-head"><div class="k">What we do</div><h2>').replace('</h2>', '</h2></div>').replace('<ul>', '<div class="cards">').replace('</ul>', '</div>').replace('<li>', '<article class="card">').replace('</li>', '</article>'))
+    html.append(_wrap_h2(blocks["services_block"], "What we do").replace('<ul>', '<div class="cards">').replace('</ul>', '</div>').replace('<li>', '<article class="card">').replace('</li>', '</article>'))
     html.append('</div>')
 
     # Trust band (real rating + service-area count, already computed for
@@ -151,7 +177,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
     # Areas
     if blocks["areas_block"]:
         html.append('<div class="wrap">')
-        html.append(blocks["areas_block"].replace('<h2>', '<div class="section-head"><div class="k">Where we serve</div><h2>').replace('</h2>', '</h2></div>').replace('<ul>', '<div class="chips">').replace('</ul>', '</div>').replace('<li>', '<span class="chip">').replace('</li>', '</span>'))
+        html.append(_wrap_h2(blocks["areas_block"], "Where we serve").replace('<ul>', '<div class="chips">').replace('</ul>', '</div>').replace('<li>', '<span class="chip">').replace('</li>', '</span>'))
         html.append('</div>')
 
     # Location + hours (real NAP + a real directions link, no map embed --

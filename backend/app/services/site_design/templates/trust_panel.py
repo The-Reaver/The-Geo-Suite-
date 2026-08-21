@@ -75,7 +75,7 @@ CSS_BASE = """
   footer.clinic{background:var(--surface);border-top:1px solid var(--line);padding:44px 0 32px;margin-top:20px;font-size:14px;color:var(--muted)}
   footer.clinic a{color:var(--ink)}
   footer.clinic p,footer.clinic a{display:block;margin:0 0 8px}
-  @media(max-width:900px){.fact-card{position:static}}
+  @media(max-width:900px){.sidebar{position:static}}
 """
 
 
@@ -101,6 +101,26 @@ def _format_nav(nav_html: str, phone: str) -> str:
   </div>
 </header>
 """
+
+
+def _wrap_h2(block_html: str, kicker: str) -> str:
+    """Wrap a blocks-dict fragment's own <h2> in a section-head + kicker
+    label, preserving whatever attributes that <h2> already carries.
+
+    2026-08-21, Opus 5 review: a literal .replace('<h2>', ...) here (the
+    pattern this was copied from) only matches a completely bare <h2>
+    tag -- it silently misses site_engine.py's services_block, which
+    emits <h2 id="services"> (that id is the real anchor target for
+    _nav()'s "#services" link, so it must survive). The opening
+    substitution would never fire for services_block, but a matching
+    </h2> -> </h2></div> substitution still would, leaving one extra,
+    unbalanced closing </div> that closes up through the real
+    .wrap/section divs and pushes the entire services list out of the
+    page's max-width wrapper. \\g<0> reinserts the h2 tag exactly as
+    matched, id and all."""
+    block_html = re.sub(r'<h2[^>]*>', f'<div class="section-head"><div class="k">{kicker}</div>\\g<0>',
+                         block_html, count=1)
+    return block_html.replace('</h2>', '</h2></div>', 1)
 
 
 def _sidebar(blocks: dict) -> str:
@@ -139,9 +159,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html.append('</div>')
 
     html.append('<div class="wrap"><section class="block">')
-    html.append(blocks["services_block"]
-        .replace('<h2>', '<div class="section-head"><div class="k">What we do</div><h2>')
-        .replace('</h2>', '</h2></div>')
+    html.append(_wrap_h2(blocks["services_block"], "What we do")
         .replace('<ul>', '<div class="svc-list">')
         .replace('</ul>', '</div>')
         .replace('<li>', '<div class="svc-row">')
@@ -151,9 +169,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     if blocks["areas_block"]:
         html.append('<div class="wrap"><section class="block">')
-        html.append(blocks["areas_block"]
-            .replace('<h2>', '<div class="section-head"><div class="k">Where we serve</div><h2>')
-            .replace('</h2>', '</h2></div>')
+        html.append(_wrap_h2(blocks["areas_block"], "Where we serve")
             .replace('<ul>', '<div class="chips">')
             .replace('</ul>', '</div>')
             .replace('<li>', '<span class="chip">')
