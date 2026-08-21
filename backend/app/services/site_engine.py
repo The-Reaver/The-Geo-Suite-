@@ -396,27 +396,41 @@ def _location_html(f: _F) -> str:
     already computed for JSON-LD's openingHoursSpecification (_hours_spec)
     but never shown to a visitor. No map embed: no maps API key is
     configured anywhere in site generation, so an <iframe> would either be
-    broken or require infrastructure this slice does not add. A Google
-    Maps search deep link needs no key and points at the business's own
-    real address, never a fabricated one. Hours render as-is, one <li> per
-    fact string -- not reparsed through _hours_spec()'s strict regex,
-    which silently drops anything that doesn't match; that's fine for
-    JSON-LD but would hide real hours data on a page meant to show it."""
+    broken or require infrastructure this slice does not add.
+
+    2026-08-21, Opus 5 review of this slice caught two real issues, fixed
+    here: (1) services/preview.py's FactWrapper substitutes known
+    placeholder NAP text ("123 Sample Ave", "Sample City", ...) for a
+    prospect's still-missing fields -- the address text itself already
+    mirrors that in the footer (pre-existing, unchanged), but a clickable
+    "Get directions" link is a materially more load-bearing claim that a
+    real place exists there, so it's suppressed whenever any address
+    field was synthesized rather than supplied. (2) a hours list containing
+    only blank/whitespace strings (e.g. a rep pasting a textarea with a
+    trailing newline) used to still render an empty, heading-labeled
+    "Hours" section that said nothing -- now filtered before the presence
+    check, same honesty gate as the empty-list case."""
     import urllib.parse
     addr_line = f"{f.street}, {f.locality}, {f.region} {f.postal_code}"
     query = urllib.parse.quote(f"{f.business_name}, {addr_line}")
     maps_url = f"https://www.google.com/maps/search/?api=1&query={query}"
+    placeholder_fields = getattr(f, "placeholder_fields", None) or set()
+    real_address = not ({"street", "locality", "region", "postal_code"} & placeholder_fields)
     parts = [
         '    <section aria-label="Location and hours">',
-        f'      <h2>Visit us in {_esc(f.locality)}</h2>',
+        f'      <h2>Location &amp; hours in {_esc(f.locality)}</h2>',
         '      <address>',
         f'        {_esc(f.street)}<br>',
         f'        {_esc(f.locality)}, {_esc(f.region)} {_esc(f.postal_code)}',
         '      </address>',
-        f'      <p><a class="directions-link" href="{_esc(maps_url)}" rel="noopener">Get directions</a></p>',
     ]
-    if f.hours:
-        items = "\n".join(f"        <li>{_esc(h)}</li>" for h in f.hours)
+    if real_address:
+        # No target="_blank" (matches _footer()'s own external GBP link
+        # convention), so rel="noopener" would be a no-op -- omitted.
+        parts.append(f'      <p><a class="directions-link" href="{_esc(maps_url)}">Get directions</a></p>')
+    hours = [str(h).strip() for h in (f.hours or []) if str(h).strip()]
+    if hours:
+        items = "\n".join(f"        <li>{_esc(h)}</li>" for h in hours)
         parts.append('      <h3>Hours</h3>')
         parts.append(f'      <ul class="hours-list">\n{items}\n      </ul>')
     parts.append('    </section>')

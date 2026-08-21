@@ -102,6 +102,36 @@ def test_facts_driven():
     assert "Plumber" in idx2
 
 
+# 2026-08-21, Opus 5 review of the Site Generator location/hours slice:
+# generate_preview()'s FactWrapper substitutes known placeholder NAP text
+# ("123 Sample Ave", "Sample City", "ST", "00000") for a prospect's still-
+# missing address fields. The footer already showed that placeholder text
+# as plain, low-salience text (pre-existing, unchanged) -- but a real
+# clickable "Get directions" link is a materially more load-bearing claim
+# that a real, visitable place exists there. Proves that link is
+# suppressed whenever any address field was synthesized, while a business
+# with a genuinely complete real address still gets a real directions
+# link.
+def test_directions_link_omitted_when_address_is_synthesized_placeholder():
+    facts = DummyFacts()  # nothing real supplied at all
+    res = generate_preview(facts)
+    html = (Path(res.out_dir) / "index.html").read_text(encoding="utf-8")
+    assert "Sample City" in html, "the placeholder address text itself is pre-existing, expected behavior"
+    assert 'class="directions-link"' not in html, \
+        "a synthesized placeholder address must never get a real, clickable directions link"
+
+
+def test_directions_link_present_for_a_genuinely_complete_real_address():
+    facts = DummyFacts(
+        business_name="Full Biz", subtype="Dentist",
+        locality="City", region="ST", street="123 St",
+        postal_code="12345", telephone="555-1234", domain="full.com")
+    res = generate_preview(facts)
+    html = (Path(res.out_dir) / "index.html").read_text(encoding="utf-8")
+    assert 'class="directions-link"' in html, \
+        "a real, fully-supplied address must still get a real directions link"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

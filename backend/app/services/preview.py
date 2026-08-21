@@ -22,33 +22,50 @@ def generate_preview(prospect_facts: Any, *, cwv: dict = None, out_dir: str = No
     # We need to wrap or modify prospect_facts to fill in placeholders
     # Because we don't import Pydantic here per constraints (we could, but wrapping is safer)
     class FactWrapper:
+        # 2026-08-21, Opus 5 review of the Site Generator location/hours
+        # slice: site_engine.py's new "Get directions" link is a much more
+        # load-bearing claim than plain placeholder text ("this is a real,
+        # visitable place") -- so it needs to know which NAP fields below
+        # are real vs. synthesized, not just receive whatever string comes
+        # back from __getattr__. placeholder_fields is a real instance
+        # attribute (not routed through __getattr__ itself), so
+        # site_engine.py can check it directly via getattr(f,
+        # "placeholder_fields", None) without recursing.
         def __init__(self, obj):
             self._obj = obj
-            
+            self.placeholder_fields = set()
+
         def __getattr__(self, name):
             val = getattr(self._obj, name, None)
             if not val:
                 # Provide defaults for missing fields
                 if name == "business_name":
                     fix_list.append("Confirm business name")
+                    self.placeholder_fields.add(name)
                     return "Demo Business"
                 if name == "subtype":
                     fix_list.append("Confirm business subtype")
+                    self.placeholder_fields.add(name)
                     return "Local Business"
                 if name == "locality":
                     fix_list.append("Confirm locality")
+                    self.placeholder_fields.add(name)
                     return "Sample City"
                 if name == "region":
                     fix_list.append("Confirm region")
+                    self.placeholder_fields.add(name)
                     return "ST"
                 if name == "street":
                     fix_list.append("Confirm street address")
+                    self.placeholder_fields.add(name)
                     return "123 Sample Ave"
                 if name == "telephone":
                     fix_list.append("Confirm telephone")
+                    self.placeholder_fields.add(name)
                     return "555-0000"
                 if name == "postal_code":
                     fix_list.append("Confirm postal code")
+                    self.placeholder_fields.add(name)
                     return "00000"
                 if name == "domain":
                     return "demo.example"

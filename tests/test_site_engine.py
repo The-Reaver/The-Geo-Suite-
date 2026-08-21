@@ -251,17 +251,46 @@ def test_rating_omitted_entirely_when_none():
 def test_location_is_visibly_rendered_with_directions_and_hours():
     d = _gen(_dentist())
     html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
-    assert "<address>" in html, "a real address block must render"
-    body = html.split("</script>")[-1]
-    assert "1200 Cedar Road" in body, "the real street address must be visible in the rendered body"
-    assert "Portland" in body and "OR" in body and "97201" in body
+    # 2026-08-21, Opus 5 review: the footer's own pre-existing NAP text
+    # already contains this business's street/city/state/zip, so asserting
+    # those strings appear anywhere in `body` passed even with a
+    # completely empty <address> block -- caught by mutation testing.
+    # Anchor every assertion inside the <address>...</address> block
+    # itself so this test can only pass if that specific element is real.
+    addr_match = re.search(r'<address>(.*?)</address>', html, re.S)
+    assert addr_match, "a real address block must render"
+    addr = addr_match.group(1)
+    assert "1200 Cedar Road" in addr, "the real street address must be visible inside <address>"
+    assert "Portland" in addr and "OR" in addr and "97201" in addr, "the real city/state/zip must be visible inside <address>"
     m = re.search(r'<a class="directions-link" href="([^"]+)"', html)
     assert m, "a real directions link must render"
     href = m.group(1)
     assert "www.google.com/maps/search" in href, "the directions link must be a real, no-API-key maps deep link"
     assert "Cedar%20Ridge%20Dental" in href, "the directions link must be built from this business's own real name, not a placeholder"
     assert "1200%20Cedar%20Road" in href, "the directions link must be built from this business's own real street, not a placeholder"
+    body = html.split("</script>")[-1]
     assert "Mon-Fri 8:00-17:00" in body, "the real, exact hours string must be visible, not reparsed/reformatted"
+
+
+def test_blank_hours_entries_are_filtered_not_rendered_as_empty_bullets():
+    # 2026-08-21, Opus 5 review: f.hours truthiness alone ("if f.hours:")
+    # let a list of only whitespace/blank strings (a realistic result of a
+    # rep pasting a textarea with a trailing newline) through, rendering a
+    # visible "Hours" heading over an empty, meaningless list. Real entries
+    # must still render; an all-blank list must be treated as no hours at
+    # all, same honesty gate as the genuinely-empty-list case.
+    facts = _dentist().model_copy(update={"hours": ["", "   ", "Mon-Fri 8:00-17:00"]})
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert "<li></li>" not in html, "a blank hours entry must not render as an empty bullet"
+    assert "<li>  </li>" not in html and "<li>   </li>" not in html
+    assert "Mon-Fri 8:00-17:00" in html, "a real hours entry alongside blank ones must still render"
+
+    all_blank = _dentist().model_copy(update={"hours": ["", "  \t "]})
+    d2 = _gen(all_blank)
+    html2 = open(os.path.join(d2, "index.html"), encoding="utf-8").read()
+    assert 'class="hours-list"' not in html2, "an hours list containing only blank strings must render as no hours at all"
+    assert "<h3>Hours</h3>" not in html2
 
 
 def test_hours_omitted_when_none_but_address_and_directions_remain():

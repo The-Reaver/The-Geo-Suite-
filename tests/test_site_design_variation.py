@@ -214,7 +214,7 @@ def _index_blocks(rating_html: str, stats_band: str, location_html: str = "") ->
 
 
 _LOCATION_HTML = (
-    '<section aria-label="Location and hours"><h2>Visit us in Austin</h2>'
+    '<section aria-label="Location and hours"><h2>Location &amp; hours in Austin</h2>'
     '<address>123 Main St<br>Austin, TX 78701</address>'
     '<p><a class="directions-link" href="https://www.google.com/maps/search/?api=1&amp;query=Acme%20Plumbing">'
     'Get directions</a></p></section>'
