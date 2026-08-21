@@ -16,6 +16,7 @@ if BACKEND not in sys.path:
     sys.path.insert(0, BACKEND)
 
 from app.services.site_engine import generate_site
+from app.services import audit_engine
 from app.services.site_design import engine, palettes, typography
 from app.services.site_design.engine import Theme
 
@@ -197,7 +198,11 @@ def test_variation_across_businesses():
         templates_seen.add(str(theme.template))
         palettes_seen.add(theme.palette.name)
 
-    assert len(templates_seen) >= 3, f"Expected >= 3 templates, got {len(templates_seen)}: {templates_seen}"
+    # 2026-08-21, Slice C.2: raised from >=3 to >=5 -- all 5 registered
+    # templates are actually observed across this exact business list
+    # today, so a future regression that silently drops one back out of
+    # reach should fail here, not slip through a stale >=3 floor.
+    assert len(templates_seen) >= 5, f"Expected >= 5 templates, got {len(templates_seen)}: {templates_seen}"
     assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
 
 
@@ -218,6 +223,22 @@ def test_bold_cinematic_is_reachable_for_real_facts():
             found = True
             break
     assert found, "Bold Cinematic must be reachable for facts with no has_photos field at all"
+
+
+# 2026-08-21, Slice C.2: proves both new templates are actually reachable
+# through the real, unconditional select_theme() modulo -- same
+# reachability guarantee test_bold_cinematic_is_reachable_for_real_facts
+# already established for the third template.
+def test_new_c2_templates_are_reachable_for_real_facts():
+    for target in ("Trust Panel", "Boutique Editorial"):
+        found = False
+        for i in range(200):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+            theme = engine.select_theme(f)
+            if theme.template.name == target:
+                found = True
+                break
+        assert found, f"{target} must be reachable for real facts"
 
 
 def test_generate_site_with_variations():
@@ -265,6 +286,10 @@ _CSS_MARKER = {
     "editorial_minimal": ".call-btn",
     "split_modern": ".hero-in",
     "bold_cinematic": "header.nav",
+    # 2026-08-21, Slice C.2: two new templates, verified unique the same
+    # way -- grepped across every template file before picking.
+    "trust_panel": "header.clinic",
+    "boutique_editorial": "header.boutique",
 }
 
 
@@ -380,6 +405,51 @@ def test_location_renders_across_all_templates():
         html = tmpl.render_index(f, "https://acme.com", theme, blocks)
         assert "<address>" in html, f"{tmpl.name} dropped the address block"
         assert 'class="directions-link"' in html, f"{tmpl.name} dropped the directions link"
+
+
+# 2026-08-21, Slice C.2: a template being reachable and rendering the
+# right blocks doesn't prove it actually clears the real 90-point audit
+# gate -- proves both new templates do, generating a real, complete site
+# (not synthetic blocks) through generate_site() with facts chosen to
+# actually hash to each new template, exactly like
+# test_bold_cinematic_is_reachable_for_real_facts finds a real seed
+# rather than forcing the template directly.
+def test_new_c2_templates_pass_the_real_audit_gate():
+    GOOD_CWV = {"lcp_s": 1.8, "inp_ms": 120, "cls": 0.05}
+    remaining = {"Trust Panel", "Boutique Editorial"}
+    for i in range(200):
+        if not remaining:
+            break
+        # 2026-08-21: this file's own bare-bones _F() fixture (same_as=[],
+        # no rating -- used elsewhere in this file only to prove business
+        # names/subtypes render, never to prove a score) does NOT clear
+        # the real 90-point gate regardless of template -- confirmed the
+        # first version of this test failed with these exact facts on
+        # Trust Panel for that reason, nothing to do with the template
+        # itself. A real site needs real sameAs/rating data to pass, same
+        # as test_site_engine.py's _dentist()/_plumber() fixtures already
+        # supply.
+        f = _F(
+            business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber",
+            locality="Austin", region="TX", postal_code="78701", country="US",
+            telephone="555-0100", street="123 Main St",
+            services=[types.SimpleNamespace(name="Fixing leaks", description="We fix them.")],
+            service_areas=["Austin"],
+            same_as=["https://g.page/example-plumbing"],
+            hours=["Mon-Fri 8:00-17:00"], faqs=[],
+            credentials=["Texas licensed"], last_updated="2026-07-25",
+            tagline="Quality plumbing",
+            rating=types.SimpleNamespace(value=4.9, count=218),
+        )
+        theme = engine.select_theme(f)
+        if theme.template.name not in remaining:
+            continue
+        remaining.discard(theme.template.name)
+        with tempfile.TemporaryDirectory() as tmp:
+            generate_site(f, tmp)
+            r = audit_engine.run_audit(tmp, cwv=GOOD_CWV)
+            assert r.passed is True, f"{theme.template.name} scored {r.normalized_score}, expected to pass"
+    assert not remaining, f"never found a seed landing on: {remaining}"
 
 
 # ---------------------------------------------------------------------------

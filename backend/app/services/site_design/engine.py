@@ -3,14 +3,22 @@ import collections
 from typing import Any
 from . import palettes
 from . import typography
-from .templates import editorial_minimal, split_modern, bold_cinematic
+from .templates import editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial
 
 Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "hero_style"])
 
+# 2026-08-21, Slice C.2: grew from 3 to 5 templates (first batch of a
+# planned 8-10), per the operator's explicit correction that the design
+# library needs to be "vast." Trust Panel and Boutique Editorial are
+# genuinely different information architectures (a persistent trust-fact
+# sidebar; a narrow single-column editorial layout), not palette/font
+# variations of the existing three.
 TEMPLATES = [
     editorial_minimal.TemplateEditorialMinimal,
     split_modern.TemplateSplitModern,
-    bold_cinematic.TemplateBoldCinematic
+    bold_cinematic.TemplateBoldCinematic,
+    trust_panel.TemplateTrustPanel,
+    boutique_editorial.TemplateBoutiqueEditorial,
 ]
 
 def compute_seed(facts: Any) -> int:
