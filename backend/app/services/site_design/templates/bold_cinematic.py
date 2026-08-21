@@ -17,8 +17,8 @@ CSS_BASE = """
 
   .hero{position:relative;background:var(--dark);color:#fff;padding:150px 0 110px;text-align:center;}
   .hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(44px,7vw,84px);letter-spacing:-.02em;line-height:1.02}
-  .rating{display:inline-flex;align-items:center;gap:9px;color:rgba(255,255,255,.82);font-size:15px;margin-top:28px}
-  .stars{color:var(--gold);letter-spacing:3px;font-size:18px}
+  .hero .rating{display:inline-flex;align-items:center;gap:9px;color:rgba(255,255,255,.82);font-size:15px;margin-top:28px}
+  .hero .stars{color:var(--gold);letter-spacing:3px;font-size:18px}
 
   section{padding:96px 0}
   .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px}

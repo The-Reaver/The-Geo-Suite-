@@ -214,16 +214,29 @@ def test_no_dead_font_references():
 def test_rating_is_visibly_rendered_not_just_in_jsonld():
     d = _gen(_dentist())
     html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
-    assert 'class="rating"' in html, "the real rating must render somewhere visible, not only in JSON-LD"
-    assert 'class="stars"' in html
-    # Isolate everything after the JSON-LD <script> block to prove the
-    # number is visible in the rendered body, not just inside the
-    # machine-readable block sharing the same digits.
-    body = html.split("</script>")[-1]
-    assert "4.9" in body, "the numeric rating value must be visible in the rendered body"
-    assert "218" in body, "the real review count must be visible in the rendered body"
+    # 2026-08-21, Opus 5 review: the previous version of this test checked
+    # for the digits "4.9"/"218" anywhere in the body after the JSON-LD
+    # script tag -- but _stats_band_html's own trust-band text also
+    # contains those exact digits, so the test could not fail even if the
+    # rating <div> itself were empty, wrong, or fabricated (confirmed via
+    # mutation testing: hardcoding the filled-star count to 5 regardless of
+    # the real value still passed). Every assertion below is anchored
+    # inside the rating element itself.
+    m = re.search(r'<div class="rating">(.*?)</div>', html, re.S)
+    assert m, "the real rating must render somewhere visible, not only in JSON-LD"
+    rating_block = m.group(0)
+    assert 'class="stars"' in rating_block
+    assert 'aria-hidden="true"' in rating_block, "the decorative star glyphs must be hidden from screen readers"
+    assert "★★★★★" in rating_block, "a 4.9 rating must round to 5 filled stars, not a hardcoded or wrong count"
+    assert "☆" not in rating_block, "a 4.9 rating must not show any empty stars"
+    assert "4.9" in rating_block, "the exact real rating value must be visible inside the rating element"
+    assert "218" in rating_block and "reviews" in rating_block, \
+        "the exact real review count must be visible inside the rating element"
+
     assert 'class="band"' in html, "a real rating must produce a visible trust band"
     assert "Trusted across Portland" in html, "the trust band must use the business's real locality"
+    assert "&middot;" in html, "the trust band's separator must render as a real middle dot"
+    assert "&amp;middot;" not in html, "the &middot; entity must not be double-escaped into literal text"
 
 
 def test_rating_omitted_entirely_when_none():
@@ -239,6 +252,44 @@ def test_rating_omitted_entirely_when_none():
     assert 'class="rating"' not in html, "must never fabricate a rating when there isn't one"
     assert 'class="stars"' not in html
     assert 'class="band"' not in html, "the trust band is rating-gated -- no rating means no band"
+
+
+def test_rating_omitted_when_zero_reviews():
+    # 2026-08-21, Opus 5 review: count=0 wasn't gated -- a "4.9 stars"
+    # badge and trust band could render with zero real reviews behind it,
+    # the same fabrication risk (a claim with nothing real to back it) the
+    # None-rating gate above already exists to prevent.
+    facts = _dentist().model_copy(update={"rating": Rating(value=4.9, count=0)})
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert 'class="rating"' not in html, "a rating with zero reviews behind it must not render a trust badge"
+    assert 'class="stars"' not in html
+    assert 'class="band"' not in html, "a rating with zero reviews behind it must not render a trust band"
+
+
+def test_rating_schema_rejects_invalid_values():
+    # 2026-08-21, Opus 5 review: Rating.value/count were unconstrained, so
+    # a corrupted upstream value (a bad DB row, a malformed API payload)
+    # could reach round() in _rating_html as NaN/Infinity -- a real 500 --
+    # or render visibly wrong output (more than 5 filled stars for
+    # value > 5, scientific notation for an absurd value, a negative star
+    # count). A real rating is always 0-5 stars with a non-negative review
+    # count; this is now a schema guarantee, not an assumption the
+    # renderer has to defend against on its own.
+    for bad_value in (float("nan"), float("inf"), float("-inf"), 5.1, -0.1, 123456789.0):
+        try:
+            Rating(value=bad_value, count=10)
+            raise AssertionError(f"Rating accepted an invalid value: {bad_value!r}")
+        except ValueError:
+            pass
+    try:
+        Rating(value=4.9, count=-1)
+        raise AssertionError("Rating accepted a negative review count")
+    except ValueError:
+        pass
+    # Real, valid ratings must still work.
+    r = Rating(value=4.9, count=218)
+    assert r.value == 4.9 and r.count == 218
 
 
 # 13. Site Generator robustness push, Slice B: a real location section --

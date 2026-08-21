@@ -346,12 +346,15 @@ def _rating_html(rating: Any) -> str:
     exact numeric value is always shown right beside it, so nothing here
     overstates the real number. Omitted entirely when there's no real
     rating, matching _build_jsonld's own `if rating is not None` gate --
-    never a fabricated placeholder rating."""
+    never a fabricated placeholder rating. 2026-08-21, Opus 5 review: also
+    omitted when count is 0 -- a "4.9 stars" badge with zero reviews
+    behind it is a visible trust claim with nothing real to back it,
+    the same fabrication risk this gate exists to prevent."""
     if rating is None:
         return ""
     value = getattr(rating, "value", None)
     count = getattr(rating, "count", None)
-    if value is None or count is None:
+    if value is None or not count:
         return ""
     filled = max(0, min(5, round(value)))
     stars = _STAR_FILLED * filled + _STAR_EMPTY * (5 - filled)
@@ -364,12 +367,13 @@ def _stats_band_html(f: _F, rating: Any) -> str:
     """A trust-signal band built entirely from facts already on hand
     (rating, service-area count) -- no new data pipeline, no invented
     testimonial or claim. Same honesty gate as _rating_html: omitted
-    entirely when there's no real rating to show."""
+    entirely when there's no real rating to show, including a rating
+    with zero reviews behind it (2026-08-21, Opus 5 review)."""
     if rating is None:
         return ""
     value = getattr(rating, "value", None)
     count = getattr(rating, "count", None)
-    if value is None or count is None:
+    if value is None or not count:
         return ""
     noun = "review" if count == 1 else "reviews"
     # These fragments are all safe, fixed-vocabulary text built from numbers

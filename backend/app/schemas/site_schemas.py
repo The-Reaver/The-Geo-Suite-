@@ -44,8 +44,16 @@ class Testimonial(BaseModel):
 
 
 class Rating(BaseModel):
-    value: float
-    count: int
+    # 2026-08-21, Opus 5 review of the Site Generator rating-display slice:
+    # these were unconstrained, so a bad upstream value (a corrupted DB
+    # row, a malformed API payload) could reach round() in site_engine.py
+    # as NaN/Infinity (a real 500) or render visibly wrong output --
+    # scientific notation for an absurd value, more than 5 filled stars
+    # for value > 5, a negative star count. A real rating is always 0-5
+    # stars with a non-negative review count; ge/le make that a schema
+    # guarantee instead of an assumption the renderer has to defend.
+    value: float = Field(ge=0, le=5)
+    count: int = Field(ge=0)
 
 
 class BusinessFacts(BaseModel):
