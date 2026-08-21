@@ -426,6 +426,62 @@ def test_blank_hours_entries_are_filtered_not_rendered_as_empty_bullets():
     assert "<h3>Hours</h3>" not in html2
 
 
+# 2026-08-21, Slice 2 (hero visual restructuring): _highlights_html
+# replaces the second hero paragraph with a real, fact-derived component
+# (services/areas/credentials) -- never fabricated. Anchored inside
+# class="highlights" specifically (not the whole page), same lesson as
+# test_location_is_visibly_rendered_with_directions_and_hours above --
+# service/credential text already appears elsewhere on the page (prose,
+# services list), so a whole-page substring check could pass even with a
+# broken or empty highlights component.
+def _highlights_span(html: str) -> str:
+    m = re.search(r'<div class="highlights"[^>]*>(.*?)</div>', html, re.S)
+    assert m, "a real highlights component must render"
+    return m.group(1)
+
+
+def test_highlights_content_is_real_and_correctly_gated():
+    d = _gen(_dentist())
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    hl = _highlights_span(html)
+    # _dentist() has 3 services, 3 service areas, 1 credential -- all three
+    # kinds of highlight should be present.
+    assert "Preventive cleanings" in hl and "Dental implants" in hl and "Emergency care" in hl, (
+        "3 or fewer services should be listed by name, not summarized"
+    )
+    assert "3 areas served" in hl
+    assert "ADA membership" in hl
+
+    # No services at all -> the same honest fallback phrase svc_phrase
+    # already uses elsewhere on the page, never an empty/missing item.
+    no_services = _dentist().model_copy(update={"services": []})
+    d2 = _gen(no_services)
+    html2 = open(os.path.join(d2, "index.html"), encoding="utf-8").read()
+    hl2 = _highlights_span(html2)
+    assert "a full range of services" in hl2
+
+    # More than 3 services -> summarized by count, not an unbounded list.
+    many_services = _dentist().model_copy(update={"services": [
+        Service(name=f"Service {i}", description="A real description.") for i in range(5)
+    ]})
+    d3 = _gen(many_services)
+    html3 = open(os.path.join(d3, "index.html"), encoding="utf-8").read()
+    hl3 = _highlights_span(html3)
+    assert "5 services offered" in hl3
+    assert "Service 0" not in hl3, "more than 3 services must be summarized, not listed"
+
+    # No service areas / no credentials -> those items are omitted
+    # entirely, never a fabricated placeholder.
+    bare = _dentist().model_copy(update={"service_areas": [], "credentials": []})
+    d4 = _gen(bare)
+    html4 = open(os.path.join(d4, "index.html"), encoding="utf-8").read()
+    hl4 = _highlights_span(html4)
+    assert "served" not in hl4
+    assert "ADA membership" not in hl4
+    # The services item is unconditional -- still present with nothing else.
+    assert "Preventive cleanings" in hl4
+
+
 def test_hours_omitted_when_none_but_address_and_directions_remain():
     # Hours default to [] and must stay honestly gated -- never a
     # fabricated "call for hours" placeholder. The address and directions

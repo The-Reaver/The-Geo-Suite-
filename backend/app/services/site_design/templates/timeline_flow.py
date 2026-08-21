@@ -50,6 +50,8 @@ CSS_BASE = """
 
   .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px;margin-top:22px;justify-content:center}
   .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
+  .highlights{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:0;margin:22px 0 0}
+  .highlights span{background:var(--accent-soft);color:var(--accent-dark);font-size:14px;font-weight:600;padding:8px 14px;border-radius:999px}
 
   section.block{padding:44px 0}
   .section-head{margin-bottom:32px}
@@ -136,13 +138,22 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav, '  <main id="main">', '    <article>']
 
+    # 2026-08-21, Slice 2: p1_html stays in the hero; p2_html moves to its
+    # own section right after (was two dense paragraphs stacked centered
+    # above the timeline).
     html.append('<div class="wrap"><div class="hero">')
     html.append(f'<h1>{_esc(facts.business_name)} in {_esc(facts.locality)}</h1>')
     html.append(blocks["p1_html"])
-    html.append(blocks["p2_html"])
     if blocks.get("rating_html"):
         html.append(blocks["rating_html"])
+    if blocks.get("highlights_html"):
+        html.append(blocks["highlights_html"])
     html.append('</div></div>')
+
+    if blocks.get("p2_html"):
+        html.append('<div class="wrap"><section aria-label="Our approach">')
+        html.append(blocks["p2_html"])
+        html.append('</section></div>')
 
     html.append('<div class="wrap"><section class="block">')
     html.append(_wrap_h2(blocks["services_block"], "What we do")

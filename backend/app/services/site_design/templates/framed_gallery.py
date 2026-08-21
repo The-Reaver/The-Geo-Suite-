@@ -44,6 +44,8 @@ CSS_BASE = """
 
   .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px;margin-top:22px;justify-content:center}
   .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
+  .highlights{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:0;margin:22px 0 0}
+  .highlights span{border:1px solid var(--ink);color:var(--ink);font-size:13px;font-weight:600;padding:7px 14px}
 
   section.block{padding:36px 40px;border-bottom:3px solid var(--ink)}
   section.block:last-child{border-bottom:none}
@@ -119,13 +121,22 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     html.append('<div class="wrap"><div class="frame">')
 
+    # 2026-08-21, Slice 2: p1_html stays in the hero; p2_html moves to its
+    # own section right after, still inside the .frame border box (was
+    # two dense paragraphs stacked in the centered, bordered hero).
     html.append('<div class="hero">')
     html.append(f'<h1>{_esc(facts.business_name)} in {_esc(facts.locality)}</h1>')
     html.append(blocks["p1_html"])
-    html.append(blocks["p2_html"])
     if blocks.get("rating_html"):
         html.append(blocks["rating_html"])
+    if blocks.get("highlights_html"):
+        html.append(blocks["highlights_html"])
     html.append('</div>')
+
+    if blocks.get("p2_html"):
+        html.append('<section class="block" aria-label="Our approach">')
+        html.append(blocks["p2_html"])
+        html.append('</section>')
 
     html.append('<section class="block">')
     html.append(_wrap_h2(blocks["services_block"], "What we do")

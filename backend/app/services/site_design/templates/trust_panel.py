@@ -60,6 +60,9 @@ CSS_BASE = """
 
   .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px}
   .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
+  .highlights{padding:0;margin:0}
+  .highlights span{display:block;padding:5px 0;color:var(--ink);font-size:14px;border-bottom:1px solid var(--line)}
+  .highlights span:last-child{border-bottom:none}
   .band{background:var(--accent-soft);border-radius:12px;padding:16px 18px;margin-top:14px}
   .band h2{color:var(--accent-dark);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
   .band .sub{color:var(--ink);font-size:14px}
@@ -133,6 +136,12 @@ def _sidebar(blocks: dict) -> str:
     if blocks.get("rating_html") or blocks.get("stats_band"):
         inner = (blocks.get("rating_html") or "") + (blocks.get("stats_band") or "")
         cards.append(f'<div class="fact-card"><h2>Reputation</h2>{inner}</div>')
+    # 2026-08-21, Slice 2: highlights_html (services/areas/credentials)
+    # joins the sidebar rather than the narrow hero column -- this
+    # template's own established pattern is to route every real trust
+    # fact into the sidebar, not scatter them through the hero.
+    if blocks.get("highlights_html"):
+        cards.append(f'<div class="fact-card"><h2>Highlights</h2>{blocks["highlights_html"]}</div>')
     if blocks.get("location_html"):
         cards.append(f'<div class="fact-card">{blocks["location_html"]}</div>')
     if not cards:
@@ -150,15 +159,22 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav, '  <main id="main">', '    <article>']
 
+    # 2026-08-21, Slice 2: p1_html stays in the hero column; p2_html moves
+    # to its own section right after the layout grid (was two dense
+    # paragraphs stacked in the same narrow column next to the sidebar).
     html.append('<div class="wrap layout">')
     html.append('<div class="hero">')
     html.append(f'<h1>{_esc(facts.business_name)} in {_esc(facts.locality)}</h1>')
     html.append(blocks["p1_html"])
-    html.append(blocks["p2_html"])
     html.append('</div>')
     sidebar = _sidebar(blocks)
     html.append(sidebar if sidebar else '<div></div>')
     html.append('</div>')
+
+    if blocks.get("p2_html"):
+        html.append('<div class="wrap"><section aria-label="Our approach">')
+        html.append(blocks["p2_html"])
+        html.append('</section></div>')
 
     html.append('<div class="wrap"><section class="block">')
     html.append(_wrap_h2(blocks["services_block"], "What we do")

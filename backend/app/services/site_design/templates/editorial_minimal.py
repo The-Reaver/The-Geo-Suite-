@@ -45,7 +45,9 @@ CSS_BASE = """
   .hero p.lede{font-size:20px;color:var(--muted);max-width:52ch;margin:20px 0 0}
   .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px;margin-top:26px}
   .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
-  
+  .highlights{display:flex;flex-wrap:wrap;gap:10px;padding:0;margin:22px 0 0}
+  .highlights span{background:var(--accent-soft);color:var(--accent-dark);font-size:14px;font-weight:600;padding:8px 14px;border-radius:999px}
+
   section{padding:56px 0}
   .section-head{max-width:60ch;margin-bottom:36px}
   .section-head .k{color:var(--accent);font-weight:700;font-size:14px;letter-spacing:.04em;text-transform:uppercase}
@@ -155,14 +157,27 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav, '  <main id="main">', '    <article>']
     
     # Hero (wraps h1 and p1)
+    # 2026-08-21, Slice 2: p1_html stays in the hero (the answer-first
+    # opening); p2_html moves to its own section right after -- was two
+    # dense paragraphs stacked in the hero, reads as a wall of text.
+    # highlights_html (services/areas/credentials, always real, never
+    # fabricated -- see site_engine.py's _highlights_html) replaces the
+    # lost second paragraph with a scannable component instead.
     html.append('<div class="wrap"><section class="hero">')
     # The H1 must be exactly what is in blocks["title"] or close, but let's just emit the original h1 block
     html.append(f'<h1>{_esc(facts.business_name)} in {_esc(facts.locality)}</h1>')
     html.append(blocks["p1_html"])
-    html.append(blocks["p2_html"])
     if blocks.get("rating_html"):
         html.append(blocks["rating_html"])
+    if blocks.get("highlights_html"):
+        html.append(blocks["highlights_html"])
     html.append('</section></div>')
+
+    if blocks.get("p2_html"):
+        html.append('<div class="wrap"><section aria-label="Our approach">')
+        html.append(blocks["p2_html"])
+        html.append('</section></div>')
+
 
     # Services
     html.append('<div class="wrap">')

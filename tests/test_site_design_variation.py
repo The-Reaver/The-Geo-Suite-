@@ -876,7 +876,8 @@ def test_every_template_renders_real_faq_accordion_markup():
 # no-API-key directions link -- always present, unlike rating_html/
 # stats_band, since NAP fields are mandatory on BusinessFacts) so both
 # slices' cross-template coverage share one blocks builder.
-def _index_blocks(rating_html: str, stats_band: str, location_html: str = "") -> dict:
+def _index_blocks(rating_html: str, stats_band: str, location_html: str = "",
+                   highlights_html: str = "") -> dict:
     return {
         "head": "<!DOCTYPE html><html><head><style></style></head>",
         "nav": '<nav aria-label="Primary"><a href="index.html">Home</a></nav>',
@@ -890,6 +891,7 @@ def _index_blocks(rating_html: str, stats_band: str, location_html: str = "") ->
         "rating_html": rating_html,
         "stats_band": stats_band,
         "location_html": location_html,
+        "highlights_html": highlights_html,
         "cookie": '<div id="cookie-consent"></div>',
     }
 
@@ -950,6 +952,90 @@ def test_location_renders_across_all_templates():
         html = tmpl.render_index(f, "https://acme.com", theme, blocks)
         assert "<address>" in html, f"{tmpl.name} dropped the address block"
         assert 'class="directions-link"' in html, f"{tmpl.name} dropped the directions link"
+
+
+def _find_hero_el(dom):
+    for el in dom.iter():
+        if "hero" in el.attrs.get("class", ""):
+            return el
+    return None
+
+
+# 2026-08-21, Slice 2 (hero visual restructuring): the hero used to stack
+# both p1_html and p2_html -- two full prose paragraphs -- reading as a
+# wall of text. p2_html now relocates to its own section right after the
+# hero (mirroring bold_cinematic.py's pre-existing, already-shipping
+# split), across all 9 templates, real DOM-checked -- not just "present
+# on the page somewhere", which a plain substring check can't tell apart
+# from "still inside the hero".
+def test_p2_relocated_outside_hero_across_all_templates():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    blocks = _index_blocks("", "")
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        dom = audit_engine._parse_html(html)
+        hero = _find_hero_el(dom)
+        assert hero is not None, f"{tmpl.name}: no element with 'hero' in its class"
+        assert "p1" in hero.text(), f"{tmpl.name}: p1_html is missing from the hero"
+        assert "p2" not in hero.text(), f"{tmpl.name}: p2_html is still inside the hero"
+        assert "p2" in dom.text(), f"{tmpl.name}: p2_html was dropped from the page entirely, not just relocated"
+
+
+# 2026-08-21, Slice 2: highlights_html (services/areas/credentials, real
+# facts only -- see site_engine.py's _highlights_html) is the real
+# component meant to replace the lost second hero paragraph. Present on
+# every template; inside the hero for 8 of 9, inside Trust Panel's own
+# sidebar for the one template whose established pattern is to route
+# every real trust fact there instead.
+def test_highlights_render_and_are_correctly_placed():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    highlights = '<div class="highlights"><span role="listitem">3 services offered</span></div>'
+    blocks = _index_blocks("", "", highlights_html=highlights)
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert 'class="highlights"' in html, f"{tmpl.name} dropped the highlights component"
+        dom = audit_engine._parse_html(html)
+        hero = _find_hero_el(dom)
+        assert hero is not None, f"{tmpl.name}: no element with 'hero' in its class"
+        if tmpl.name == "Trust Panel":
+            assert "3 services offered" not in hero.text(), (
+                "Trust Panel: highlights must route to the sidebar, not the narrow hero column"
+            )
+            assert 'class="sidebar"' in html and "3 services offered" in html, (
+                "Trust Panel: highlights must still render somewhere real (the sidebar)"
+            )
+        else:
+            assert "3 services offered" in hero.text(), (
+                f"{tmpl.name}: highlights_html must render inside the hero"
+            )
+
+
+def test_highlights_omitted_gracefully_when_blocks_key_missing():
+    # _index_blocks's own default ("") mirrors a real business with no
+    # services/areas/credentials data reaching _highlights_html -- but
+    # _highlights_html itself always returns a real <div> (the services
+    # fallback phrase guarantees that), so the ONLY way this key is empty
+    # is a caller (or an older cached blocks dict) that never set it at
+    # all -- confirms every template's blocks.get("highlights_html") gate
+    # degrades safely rather than raising a KeyError.
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    blocks = _index_blocks("", "")
+    del blocks["highlights_html"]
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert 'class="highlights"' not in html, f"{tmpl.name} fabricated highlights with no real data"
 
 
 # 2026-08-21, Slice C.2: a template being reachable and rendering the

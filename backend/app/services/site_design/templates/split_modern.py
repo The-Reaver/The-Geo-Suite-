@@ -18,14 +18,15 @@ CSS_BASE = """
   .cta{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff !important;padding:11px 20px;border-radius:12px;font-weight:600;font-size:15px;min-height:44px;box-shadow:var(--shadow-sm)}
   @media(max-width:820px){nav.primary a:not(.cta){display:none}}
 
-  .hero{position:relative;overflow:hidden}
-  .hero-in{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:80px 0 70px}
+  .hero-in{position:relative;overflow:hidden;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:80px 0 70px}
   h1{font-size:clamp(40px,5.6vw,62px);margin:24px 0 0;max-width:15ch;font-family:var(--disp);}
-  
+
   .visual{position:relative;height:420px;border-radius:26px;background:var(--grad);box-shadow:var(--shadow-lg);overflow:hidden}
   @media(max-width:860px){.hero-in{grid-template-columns:1fr;gap:40px}.visual{height:300px}}
   .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px;margin-top:24px}
   .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
+  .highlights{display:flex;flex-wrap:wrap;gap:10px;padding:0;margin:22px 0 0}
+  .highlights span{background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;padding:8px 14px;border-radius:999px}
 
   section{padding:78px 0}
   .head{max-width:58ch;margin:0 auto 46px;text-align:center}
@@ -75,16 +76,25 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', blocks["nav"], '  <main id="main">', '    <article>']
     
     # Split hero
+    # 2026-08-21, Slice 2: p1_html stays in the hero; p2_html moves to its
+    # own section right after (was two dense paragraphs stacked next to
+    # the visual box). highlights_html adds a real, scannable component.
     html.append('<div class="wrap hero-in">')
     html.append('<div>')
     html.append(f'<h1>{_esc(facts.business_name)}</h1>')
     html.append(blocks["p1_html"])
-    html.append(blocks["p2_html"])
     if blocks.get("rating_html"):
         html.append(blocks["rating_html"])
+    if blocks.get("highlights_html"):
+        html.append(blocks["highlights_html"])
     html.append('</div>')
     html.append('<div class="visual" aria-hidden="true"></div>') # The visual
     html.append('</div>')
+
+    if blocks.get("p2_html"):
+        html.append('<div class="wrap"><section aria-label="Our approach">')
+        html.append(blocks["p2_html"])
+        html.append('</section></div>')
 
     html.append('<div class="wrap"><div class="grid3">')
     html.append(blocks["services_block"].replace('<ul>', '').replace('</ul>', '').replace('<li>', '<div class="svc">').replace('</li>', '</div>'))

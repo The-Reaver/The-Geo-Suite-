@@ -19,6 +19,13 @@ CSS_BASE = """
   .hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(44px,7vw,84px);letter-spacing:-.02em;line-height:1.02}
   .hero .rating{display:inline-flex;align-items:center;gap:9px;color:rgba(255,255,255,.82);font-size:15px;margin-top:28px}
   .hero .stars{color:var(--gold);letter-spacing:3px;font-size:18px}
+  /* White text on a transparent, bordered pill (not a solid fill) --
+     safe by construction on the dark hero background at any palette,
+     the same "safe by construction, not by clearing a threshold"
+     approach already used for the nav call button elsewhere in this
+     session (see other templates' own CTA classes). */
+  .hero .highlights{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:0;margin:26px 0 0}
+  .hero .highlights span{border:1px solid rgba(255,255,255,.35);color:#fff;font-size:14px;font-weight:600;padding:8px 16px;border-radius:999px}
 
   section{padding:96px 0}
   .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px}
@@ -67,6 +74,8 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html.append(blocks["p1_html"])
     if blocks.get("rating_html"):
         html.append(blocks["rating_html"])
+    if blocks.get("highlights_html"):
+        html.append(blocks["highlights_html"])
     html.append('</div></section>')
 
     html.append('<section class="wrap">')

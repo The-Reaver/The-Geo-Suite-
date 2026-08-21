@@ -63,6 +63,8 @@ CSS_BASE = """
   .glance address{font-size:14px}
   .glance .directions-link{font-size:14px}
   .glance .hours-list li{font-size:13px}
+  .highlights{padding:0;margin:0}
+  .highlights span{display:block;font-size:14px;color:var(--ink);padding:2px 0}
 
   .rating{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:14px}
   .stars{color:var(--gold);letter-spacing:1px;font-size:15px}
@@ -174,20 +176,34 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav, '  <main id="main">', '    <article>']
 
+    # 2026-08-21, Slice 2: p1_html stays in the hero; p2_html moves to its
+    # own section right after (was two dense paragraphs stacked above the
+    # glance strip).
     html.append('<div class="wrap"><div class="hero">')
     html.append(f'<h1>{_esc(facts.business_name)} in {_esc(facts.locality)}</h1>')
     html.append(blocks["p1_html"])
-    html.append(blocks["p2_html"])
 
-    # "At a glance": the real rating and real location/hours facts,
-    # placed near the top instead of scattered mid-page or tucked into a
-    # sidebar -- both keep their own real headings, just styled compactly
-    # (never hidden -- a hidden heading would drop real content from the
-    # accessibility tree and page structure for no real gain).
-    glance = (blocks.get("rating_html") or "") + (blocks.get("location_html") or "")
+    # "At a glance": the real rating, highlights, and real location/hours
+    # facts, placed near the top instead of scattered mid-page or tucked
+    # into a sidebar -- highlights_html joins this existing flexible row
+    # rather than becoming a separate component, matching this template's
+    # own established "one compact facts strip" pattern. Each item keeps
+    # its own real heading, just styled compactly (never hidden -- a
+    # hidden heading would drop real content from the accessibility tree
+    # and page structure for no real gain).
+    glance_items = [blocks.get("rating_html") or ""]
+    if blocks.get("highlights_html"):
+        glance_items.append(f'<div><h2>Highlights</h2>{blocks["highlights_html"]}</div>')
+    glance_items.append(blocks.get("location_html") or "")
+    glance = "".join(glance_items)
     if glance:
         html.append(f'<div class="glance">{glance}</div>')
     html.append('</div></div>')
+
+    if blocks.get("p2_html"):
+        html.append('<div class="wrap"><section aria-label="Our approach">')
+        html.append(blocks["p2_html"])
+        html.append('</section></div>')
 
     html.append('<div class="wrap"><section class="block">')
     html.append(_wrap_h2(blocks["services_block"], "What we do")
