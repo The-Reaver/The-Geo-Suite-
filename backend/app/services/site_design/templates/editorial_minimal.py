@@ -1,4 +1,4 @@
-from . import Template, _inject_css
+from . import Template, _inject_css, _wrap_h2
 import re
 
 CSS_BASE = """
@@ -119,23 +119,9 @@ def _format_nav(nav_html: str, phone: str) -> str:
 def _format_footer(footer_html: str, blocks: dict) -> str:
     return footer_html
 
-def _wrap_h2(block_html: str, kicker: str) -> str:
-    """Wrap a blocks-dict fragment's own <h2> in a section-head + kicker
-    label, preserving whatever attributes that <h2> already carries.
-
-    2026-08-21, Opus 5 review: the previous literal .replace('<h2>', ...)
-    only matched a completely bare <h2> tag -- it silently missed
-    site_engine.py's services_block, which emits <h2 id="services">
-    (that id is the real anchor target for _nav()'s "#services" link, so
-    it must survive). The opening substitution never fired for
-    services_block, but the matching </h2> -> </h2></div> substitution
-    still did, leaving one extra, unbalanced closing </div> that closed
-    up through the real .wrap/section divs and pushed the entire
-    services list out of the page's max-width wrapper on every generated
-    site. \\g<0> reinserts the h2 tag exactly as matched, id and all."""
-    block_html = re.sub(r'<h2[^>]*>', f'<div class="section-head"><div class="k">{kicker}</div>\\g<0>',
-                         block_html, count=1)
-    return block_html.replace('</h2>', '</h2></div>', 1)
+# 2026-08-21: _wrap_h2() moved to templates/__init__.py (shared) so a
+# future new template can't reintroduce the id-attribute bug this fixed
+# by copy-pasting the broken pattern instead of the fixed helper.
 
 def render_index(facts, base_url, theme, blocks) -> str:
     head = _apply_css(blocks["head"], theme)

@@ -1,4 +1,4 @@
-from . import Template, _inject_css
+from . import Template, _inject_css, _wrap_h2
 import re
 
 # Site Generator robustness push, Slice C.2 (2026-08-21): the first of two
@@ -103,25 +103,9 @@ def _format_nav(nav_html: str, phone: str) -> str:
 """
 
 
-def _wrap_h2(block_html: str, kicker: str) -> str:
-    """Wrap a blocks-dict fragment's own <h2> in a section-head + kicker
-    label, preserving whatever attributes that <h2> already carries.
-
-    2026-08-21, Opus 5 review: a literal .replace('<h2>', ...) here (the
-    pattern this was copied from) only matches a completely bare <h2>
-    tag -- it silently misses site_engine.py's services_block, which
-    emits <h2 id="services"> (that id is the real anchor target for
-    _nav()'s "#services" link, so it must survive). The opening
-    substitution would never fire for services_block, but a matching
-    </h2> -> </h2></div> substitution still would, leaving one extra,
-    unbalanced closing </div> that closes up through the real
-    .wrap/section divs and pushes the entire services list out of the
-    page's max-width wrapper. \\g<0> reinserts the h2 tag exactly as
-    matched, id and all."""
-    block_html = re.sub(r'<h2[^>]*>', f'<div class="section-head"><div class="k">{kicker}</div>\\g<0>',
-                         block_html, count=1)
-    return block_html.replace('</h2>', '</h2></div>', 1)
-
+# 2026-08-21: _wrap_h2() moved to templates/__init__.py (shared) so a
+# future new template can't reintroduce the id-attribute bug this fixed
+# by copy-pasting the broken pattern instead of the fixed helper.
 
 def _sidebar(blocks: dict) -> str:
     # Groups every real, already-computed trust fact (rating/stats/

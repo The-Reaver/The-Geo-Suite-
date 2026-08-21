@@ -3,7 +3,10 @@ import collections
 from typing import Any
 from . import palettes
 from . import typography
-from .templates import editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial
+from .templates import (
+    editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial,
+    framed_gallery, directory_listing,
+)
 
 Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "hero_style"])
 
@@ -13,12 +16,19 @@ Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "h
 # genuinely different information architectures (a persistent trust-fact
 # sidebar; a narrow single-column editorial layout), not palette/font
 # variations of the existing three.
+#
+# Slice C.3: grew from 5 to 7. Framed Gallery uses a thick bordered
+# "canvas" instead of shadow/color-fill for depth; Directory Listing puts
+# an "at a glance" rating+location strip near the top and adds a real
+# sticky mobile call bar, neither of which any prior template has.
 TEMPLATES = [
     editorial_minimal.TemplateEditorialMinimal,
     split_modern.TemplateSplitModern,
     bold_cinematic.TemplateBoldCinematic,
     trust_panel.TemplateTrustPanel,
     boutique_editorial.TemplateBoutiqueEditorial,
+    framed_gallery.TemplateFramedGallery,
+    directory_listing.TemplateDirectoryListing,
 ]
 
 def compute_seed(facts: Any) -> int:

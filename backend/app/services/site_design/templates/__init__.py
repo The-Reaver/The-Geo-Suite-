@@ -1,4 +1,5 @@
 import collections
+import re
 
 Template = collections.namedtuple("Template", [
     "name",
@@ -39,3 +40,29 @@ def _inject_css(head_html: str, palette, typography) -> str:
 """
     custom_style = f"<style>\n{typography.css}\n{vars_css}\n"
     return head_html.replace("</head>", f"{custom_style}</style>\n</head>")
+
+
+def _wrap_h2(block_html: str, kicker: str, k_class: str = "k") -> str:
+    """Wrap a blocks-dict fragment's own <h2> in a section-head + kicker
+    label, preserving whatever attributes that <h2> already carries.
+
+    2026-08-21, Opus 5 review of Slice C.2: a literal .replace('<h2>',
+    ...) -- the pattern this replaces, previously duplicated per-template
+    -- only matches a completely bare <h2> tag. It silently missed
+    site_engine.py's services_block, which emits <h2 id="services"> (that
+    id is the real anchor target for _nav()'s "#services" link, so it
+    must survive). The opening substitution would never fire for
+    services_block, but a paired </h2> -> </h2></div> substitution still
+    would, leaving one extra, unbalanced closing </div> that closes up
+    through the real section/wrap divs and pushes everything after it
+    outside the page's layout -- found live in two templates' generated
+    output before this helper existed. Centralized here (not duplicated
+    per template) so a new template can't reintroduce the same bug by
+    copy-pasting the broken pattern. \\g<0> reinserts the h2 tag exactly
+    as matched, id and all."""
+    block_html = re.sub(
+        r"<h2[^>]*>",
+        f'<div class="section-head"><div class="{k_class}">{kicker}</div>\\g<0>',
+        block_html, count=1,
+    )
+    return block_html.replace("</h2>", "</h2></div>", 1)

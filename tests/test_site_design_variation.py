@@ -246,10 +246,14 @@ def test_variation_across_businesses():
         palettes_seen.add(theme.palette.name)
 
     # 2026-08-21, Slice C.2: raised from >=3 to >=5 -- all 5 registered
-    # templates are actually observed across this exact business list
-    # today, so a future regression that silently drops one back out of
-    # reach should fail here, not slip through a stale >=3 floor.
-    assert len(templates_seen) >= 5, f"Expected >= 5 templates, got {len(templates_seen)}: {templates_seen}"
+    # templates were observed across this exact business list at the
+    # time. Slice C.3 grew the registry to 7, but only 6 of those 7 show
+    # up in this specific fixed 12-business list (Split Modern doesn't,
+    # just by chance of the hash distribution over this exact set) --
+    # raised to >=6, matching what's actually observed, not the full
+    # registry size, so this doesn't become flaky against an unchanging
+    # small sample.
+    assert len(templates_seen) >= 6, f"Expected >= 6 templates, got {len(templates_seen)}: {templates_seen}"
     assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
 
 
@@ -278,6 +282,20 @@ def test_bold_cinematic_is_reachable_for_real_facts():
 # already established for the third template.
 def test_new_c2_templates_are_reachable_for_real_facts():
     for target in ("Trust Panel", "Boutique Editorial"):
+        found = False
+        for i in range(200):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+            theme = engine.select_theme(f)
+            if theme.template.name == target:
+                found = True
+                break
+        assert found, f"{target} must be reachable for real facts"
+
+
+# 2026-08-21, Slice C.3: same guarantee for the second batch of new
+# templates.
+def test_new_c3_templates_are_reachable_for_real_facts():
+    for target in ("Framed Gallery", "Directory Listing"):
         found = False
         for i in range(200):
             f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
@@ -337,6 +355,9 @@ _CSS_MARKER = {
     # way -- grepped across every template file before picking.
     "trust_panel": "header.clinic",
     "boutique_editorial": "header.boutique",
+    # 2026-08-21, Slice C.3: same again.
+    "framed_gallery": "header.frame-top",
+    "directory_listing": "header.directory",
 }
 
 
@@ -461,21 +482,21 @@ def test_location_renders_across_all_templates():
 # actually hash to each new template, exactly like
 # test_bold_cinematic_is_reachable_for_real_facts finds a real seed
 # rather than forcing the template directly.
-def test_new_c2_templates_pass_the_real_audit_gate():
+def _assert_templates_pass_real_audit_gate(template_names):
+    # 2026-08-21: this file's own bare-bones _F() fixture (same_as=[], no
+    # rating -- used elsewhere in this file only to prove business
+    # names/subtypes render, never to prove a score) does NOT clear the
+    # real 90-point gate regardless of template -- confirmed the first
+    # version of the C.2 test failed with those exact facts on Trust
+    # Panel for that reason, nothing to do with the template itself. A
+    # real site needs real sameAs/rating data to pass, same as
+    # test_site_engine.py's _dentist()/_plumber() fixtures already
+    # supply.
     GOOD_CWV = {"lcp_s": 1.8, "inp_ms": 120, "cls": 0.05}
-    remaining = {"Trust Panel", "Boutique Editorial"}
+    remaining = set(template_names)
     for i in range(200):
         if not remaining:
             break
-        # 2026-08-21: this file's own bare-bones _F() fixture (same_as=[],
-        # no rating -- used elsewhere in this file only to prove business
-        # names/subtypes render, never to prove a score) does NOT clear
-        # the real 90-point gate regardless of template -- confirmed the
-        # first version of this test failed with these exact facts on
-        # Trust Panel for that reason, nothing to do with the template
-        # itself. A real site needs real sameAs/rating data to pass, same
-        # as test_site_engine.py's _dentist()/_plumber() fixtures already
-        # supply.
         f = _F(
             business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber",
             locality="Austin", region="TX", postal_code="78701", country="US",
@@ -497,6 +518,16 @@ def test_new_c2_templates_pass_the_real_audit_gate():
             r = audit_engine.run_audit(tmp, cwv=GOOD_CWV)
             assert r.passed is True, f"{theme.template.name} scored {r.normalized_score}, expected to pass"
     assert not remaining, f"never found a seed landing on: {remaining}"
+
+
+def test_new_c2_templates_pass_the_real_audit_gate():
+    _assert_templates_pass_real_audit_gate({"Trust Panel", "Boutique Editorial"})
+
+
+# 2026-08-21, Slice C.3: same guarantee for the second batch of new
+# templates.
+def test_new_c3_templates_pass_the_real_audit_gate():
+    _assert_templates_pass_real_audit_gate({"Framed Gallery", "Directory Listing"})
 
 
 # ---------------------------------------------------------------------------
