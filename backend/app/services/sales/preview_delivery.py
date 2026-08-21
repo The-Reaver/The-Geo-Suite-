@@ -73,12 +73,13 @@ def create_preview(
     """Issue a preview link after compliance screening.
 
     site_artifact carries "pages": {filename: raw_html}, with "index.html"
-    required -- that's the page the compliance gate below screens, same as
-    when this only ever handled one page. Every other page in "pages" is
-    stored too and becomes servable through the /page/{filename} sub-route
-    (routers/sales_preview.py's view_preview_page), with internal nav links
-    rewritten to point there (see _rewrite_internal_links above) instead of
-    404ing.
+    required. Every page in "pages" -- not just index.html -- is screened
+    by the compliance gate below (2026-08-21 fix: it used to check only
+    index.html, back when that was the only page this module ever served)
+    and, once cleared, stored and made servable through the
+    /page/{filename} sub-route (routers/sales_preview.py's
+    view_preview_page), with internal nav links rewritten to point there
+    (see _rewrite_internal_links above) instead of 404ing.
 
     Back-compat: a caller still passing the old single-page {"html": ...}
     shape gets it treated as {"pages": {"index.html": ...}} -- no known
@@ -99,21 +100,32 @@ def create_preview(
             "reason": "empty site artifact — nothing to preview",
         }
 
-    audit = audit_site(html, mode="publish")
-    blocking = [
-        f for f in (audit.get("findings") or [])
-        if f.get("severity") == "error" or f.get("blocking")
-    ]
-    # Prefer explicit blocking list when present.
-    if audit.get("blocking"):
-        blocking = audit["blocking"]
-    if audit.get("ok") is False or blocking:
-        named = []
-        for item in blocking:
-            if isinstance(item, dict):
-                named.append(item.get("rule") or item.get("id") or item.get("message"))
-            else:
-                named.append(str(item))
+    # 2026-08-21, Opus 5 review: this used to screen index.html only --
+    # correct back when index.html was the only page this module ever
+    # served. The multi-page fix above (2026-08-20) made about.html,
+    # privacy.html, accessibility.html, and every service-*.html publicly
+    # servable too, and those pages render prospect-supplied free text
+    # verbatim (service descriptions, credentials) that this gate never
+    # saw. Every page is now screened; the whole preview is refused if any
+    # one of them has a blocking finding, not just index.html.
+    named: list[str] = []
+    for page_content in pages.values():
+        audit = audit_site(page_content or "", mode="publish")
+        page_blocking = [
+            f for f in (audit.get("findings") or [])
+            if f.get("severity") == "error" or f.get("blocking")
+        ]
+        # Prefer explicit blocking list when present.
+        if audit.get("blocking"):
+            page_blocking = audit["blocking"]
+        if audit.get("ok") is False or page_blocking:
+            for item in page_blocking:
+                if isinstance(item, dict):
+                    named.append(item.get("rule") or item.get("id") or item.get("message"))
+                else:
+                    named.append(str(item))
+
+    if named:
         # PHI testimonials are the named refusal the spec requires.
         phi_hit = any(
             "phi" in (n or "").lower() or "testimonial" in (n or "").lower()

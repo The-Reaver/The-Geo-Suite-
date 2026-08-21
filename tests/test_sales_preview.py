@@ -429,6 +429,97 @@ def test_preview_tempdir_is_cleaned_up_after_read():
         "the tempdir must actually be gone after the request completes"
 
 
+def test_preview_tempdir_is_cleaned_up_even_when_generate_preview_raises():
+    # 2026-08-21, Opus 5 review: the cleanup fix above only covered the
+    # success path -- generate_preview() itself creates the directory (via
+    # mkdtemp()) before it can fail, so if it raised partway through (or if
+    # reading the generated pages afterward raised), the directory was
+    # still orphaned with no way to recover its path. The router now owns
+    # the tempdir and cleans it up in `finally`, so a failure inside
+    # generate_preview() must not leak it.
+    payload = {
+        "business_name": "Test Biz",
+        "subtype": "Plumber",
+        "locality": "NY",
+        "region": "NY",
+        "street": "123 Main",
+        "telephone": "555-0000",
+        "postal_code": "10001",
+        "domain": "test.com",
+    }
+    captured = {}
+    real_rmtree = sales_preview.shutil.rmtree
+
+    def spy_rmtree(path, *args, **kwargs):
+        captured["path"] = str(path)
+        captured["existed_before_cleanup"] = os.path.exists(path)
+        return real_rmtree(path, *args, **kwargs)
+
+    app.dependency_overrides[require_sales_agent] = _fake_owner
+    try:
+        with patch.object(sales_preview.shutil, "rmtree", side_effect=spy_rmtree), \
+             patch.object(sales_preview, "generate_preview", side_effect=RuntimeError("boom")):
+            resp = client.post("/sales/preview", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 500, \
+        f"a generate_preview() failure must surface as a real 500, got {resp.status_code}: {resp.text}"
+    assert captured.get("existed_before_cleanup") is True, \
+        "the router-owned tempdir must exist before cleanup even on the failure path"
+    assert not os.path.exists(captured["path"]), \
+        "the tempdir must still be cleaned up when generate_preview() raises, not just on success"
+
+
+def test_compliance_gate_screens_every_page_not_just_index():
+    # 2026-08-21, Opus 5 review: preview_delivery.create_preview() used to
+    # run audit_site() against pages["index.html"] only -- correct back
+    # when index.html was the only page this module ever served, but the
+    # multi-page fix (2026-08-20) made every other page in "pages"
+    # (about.html, privacy.html, accessibility.html, every service-*.html)
+    # publicly servable too, all rendering prospect-supplied free text the
+    # gate never saw. audit_site() is mocked directly here to prove the
+    # *looping/aggregation* logic itself now covers every page, independent
+    # of any one compliance rule's real detection behavior (real rule
+    # coverage is exercised elsewhere in the compliance test suite).
+    from app.services.sales import preview_delivery
+    preview_delivery.clear_preview_store()
+
+    def fake_audit_site(html, *, mode):
+        if "RISKY" in html:
+            return {"ok": False, "blocking": [{"rule": "marketing-unrescuable-guarantee-claim", "message": "risky"}]}
+        return {"ok": True, "blocking": []}
+
+    pages = {
+        "index.html": "<html><body>clean homepage</body></html>",
+        "service-example.html": "<html><body>RISKY service claim</body></html>",
+    }
+    with patch.object(preview_delivery, "audit_site", side_effect=fake_audit_site):
+        result = preview_delivery.create_preview({"pages": pages})
+
+    assert result["ok"] is False, "a blocking finding on a non-index page must refuse the whole preview"
+    assert result["status_code"] == 403
+    assert any("guarantee" in (r or "").lower() for r in result.get("rules", [])), \
+        "the specific rule that blocked it must be named, even though it came from a non-index page"
+
+
+def test_compliance_gate_still_passes_when_every_page_is_clean():
+    from app.services.sales import preview_delivery
+    preview_delivery.clear_preview_store()
+
+    def fake_audit_site(html, *, mode):
+        return {"ok": True, "blocking": []}
+
+    pages = {
+        "index.html": "<html><body>clean homepage</body></html>",
+        "about.html": "<html><body>clean about page</body></html>",
+    }
+    with patch.object(preview_delivery, "audit_site", side_effect=fake_audit_site):
+        result = preview_delivery.create_preview({"pages": pages})
+
+    assert result["ok"] is True, "every page passing the gate must still let the preview issue normally"
+
+
 def test_create_preview_requires_auth():
     # 2026-08-09 GEO Brain Trust Presentation Mode review, Sentinel finding:
     # this route carried zero authentication. No dependency override here.

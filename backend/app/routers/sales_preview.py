@@ -489,21 +489,24 @@ async def create_preview(
     compliance gate, and the noindex/nofollow watermark. A blocked preview
     (e.g. an unauthorized testimonial) returns 403 with the specific rule
     that blocked it, not a silent 200."""
+    # generate_preview() (services/preview.py) creates its own directory via
+    # tempfile.mkdtemp() unless one is passed in. The router used to let it
+    # pick its own and clean up afterward -- but that cleanup only ran on
+    # the success path: if generate_preview() itself raised (mkdtemp()
+    # already happened by then) or _read_html_pages() raised, the directory
+    # was orphaned with no way to recover its path. 2026-08-21, Opus 5
+    # review: the router now owns the directory and cleans it up in
+    # `finally`, so every exit path -- success, a generate_preview()
+    # failure, or a _read_html_pages() failure -- is covered.
+    tmp_dir = tempfile.mkdtemp(prefix="preview_")
     try:
-        result = generate_preview(facts)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    # generate_preview() (services/preview.py) creates result.out_dir with
-    # tempfile.mkdtemp(), not a `with TemporaryDirectory()` block, so nothing
-    # ever cleaned it up -- every call leaked a real directory on disk.
-    # Reading every page before removing it, in the same pass that fixes
-    # the 404 bug (only index.html used to get captured at all), closes
-    # both issues together rather than leaving a known leak beside code
-    # already being rewritten.
-    out_path = Path(result.out_dir)
-    pages = _read_html_pages(out_path)
-    shutil.rmtree(out_path, ignore_errors=True)
+        try:
+            result = generate_preview(facts, out_dir=tmp_dir)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        pages = _read_html_pages(Path(result.out_dir))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     delivery = issue_preview_delivery({"pages": pages})
     if not delivery.get("ok"):
