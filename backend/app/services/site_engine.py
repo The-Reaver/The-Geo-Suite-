@@ -362,6 +362,8 @@ def _nav(f: _F) -> str:
              '<a href="index.html#services">Services</a>']
     if f.faqs:
         links.append('<a href="index.html#faq">FAQ</a>')
+    if f.menu_items:
+        links.append('<a href="menu.html">Menu</a>')
     return '  <nav aria-label="Primary">\n    ' + "\n    ".join(links) + '\n  </nav>'
 
 
@@ -785,6 +787,64 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
     theme = design_engine.select_theme(f)
     return theme.template.render_service(f, base, theme, blocks)
 
+
+def _build_menu_page(f: _F, base: str) -> str:
+    """Site Generator page-structure taxonomy, slice 1. Reuses the generic
+    "chrome + content" render_service template method exactly like
+    _build_service_page/_build_privacy already do -- no template file
+    changes needed, since every one of the 9 templates already implements
+    this method identically for styling only. Only called from
+    generate_site() when f.menu_items is genuinely non-empty (the honesty
+    gate lives at the call site, matching every other conditional page in
+    this file); this function assumes real data is present."""
+    canonical = f"{base}/menu.html"
+    title = f"Menu — {f.business_name}"
+    desc = f"Menu for {f.business_name}, a {_human(f.subtype)} in {_loc(f)}."
+    head = _head(f, base, canonical, title, desc, "menu.md")
+
+    # Group by category, preserving first-seen order -- the business's own
+    # supplied order is the only real signal for section sequencing; no
+    # assumed ordering like "Appetizers before Entrees".
+    groups: dict[str, list] = {}
+    for item in (f.menu_items or []):
+        groups.setdefault(item.category or "Menu", []).append(item)
+
+    content_lines = [f"      <h1>Menu — {_esc(f.business_name)}</h1>"]
+    for category, items in groups.items():
+        content_lines.append(f"      <h2>{_esc(category)}</h2>")
+        content_lines.append("      <dl>")
+        for item in items:
+            dt = f"        <dt>{_esc(item.name)}"
+            if item.price:
+                dt += f' <span class="price">{_esc(item.price)}</span>'
+            dt += "</dt>"
+            content_lines.append(dt)
+            dd_parts = []
+            if item.description:
+                dd_parts.append(_esc(item.description))
+            if item.dietary_tags:
+                dd_parts.append(_esc(_oxford(list(item.dietary_tags))))
+            if dd_parts:
+                content_lines.append(f"        <dd>{' &middot; '.join(dd_parts)}</dd>")
+        content_lines.append("      </dl>")
+    # Real pricing is a genuine accuracy/liability surface, unlike generic
+    # marketing prose -- worth a plain disclaimer, not skipped.
+    content_lines.append('      <p class="menu-disclaimer">Menu items and prices are subject to change.</p>')
+
+    blocks = {
+        "head": head,
+        "title": title,
+        "nav": _nav(f),
+        "footer": _footer(f, base),
+        "content": "\n".join(content_lines),
+        "cookie": '<div id="cookie-consent" role="region" aria-label="Cookie consent">\n    <button type="button">Accept</button>\n    <button type="button">Decline</button>\n  </div>'
+    }
+
+    from .site_design import engine as design_engine
+    theme = design_engine.select_theme(f)
+    return theme.template.render_service(f, base, theme, blocks)
+
+
 def _build_about(f: _F, base: str) -> str:
     canonical = f"{base}/about.html"
     title = f"About {f.business_name} — {f.subtype} in {f.locality}"
@@ -1042,6 +1102,8 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
     pages: list[str] = ["index.html"]
     for s in (f.services or []):
         pages.append(f"service-{_slug(s.name)}.html")
+    if f.menu_items:
+        pages.append("menu.html")
     pages.append("about.html")
     pages.append("privacy.html")
     pages.append("accessibility.html")
@@ -1054,6 +1116,9 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
         fname = f"service-{_slug(s.name)}.html"
         (out / fname).write_text(_build_service_page(f, base, s), encoding="utf-8")
         written.append(fname)
+    if f.menu_items:
+        (out / "menu.html").write_text(_build_menu_page(f, base), encoding="utf-8")
+        written.append("menu.html")
     (out / "about.html").write_text(_build_about(f, base), encoding="utf-8")
     written.append("about.html")
     (out / "privacy.html").write_text(_build_privacy(f, base), encoding="utf-8")
@@ -1073,6 +1138,12 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
         (out / f"service-{slug}.md").write_text(
             _md_mirror(f, f"{s.name} in {f.locality}", [s.description]), encoding="utf-8")
         written.append(f"service-{slug}.md")
+    if f.menu_items:
+        (out / "menu.md").write_text(
+            _md_mirror(f, f"Menu — {f.business_name}",
+                       [f"Menu for {f.business_name} in {f.locality}."]),
+            encoding="utf-8")
+        written.append("menu.md")
     (out / "about.md").write_text(
         _md_mirror(f, f"About {f.business_name}",
                    [f"{f.business_name} is a {_human(f.subtype)} serving {f.locality}."]),

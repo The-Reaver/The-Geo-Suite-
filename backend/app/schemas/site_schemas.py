@@ -70,6 +70,30 @@ class Service(BaseModel):
         return slugify(self.name)
 
 
+class MenuItem(BaseModel):
+    # 2026-08-21: Site Generator page-structure taxonomy, slice 1 (menu
+    # page). price is a free-form str, not a float -- real menu pricing
+    # isn't always a single number ("$10-14", "Market price"). dietary_tags
+    # is a free-form list, not an enum, matching this codebase's existing
+    # "no invented taxonomy" pattern (credentials/service_areas are also
+    # free strings, never a closed set).
+    name: str
+    description: str = ""
+    price: str = ""
+    category: str = ""
+    dietary_tags: List[str] = Field(default_factory=list)
+
+    @field_validator("name", "description", "price", "category")
+    @classmethod
+    def _no_control_chars(cls, value: str) -> str:
+        return _strip_control_chars(value)
+
+    @field_validator("dietary_tags")
+    @classmethod
+    def _no_control_chars_list(cls, values: List[str]) -> List[str]:
+        return [_strip_control_chars(v) for v in values]
+
+
 class FAQ(BaseModel):
     question: str
     answer: str
@@ -121,6 +145,7 @@ class BusinessFacts(BaseModel):
     hours: List[str] = Field(default_factory=list)         # ["Mon-Fri 8:00-17:00", ...]
     service_areas: List[str] = Field(default_factory=list)  # ["Portland", "Beaverton"]
     services: List[Service] = Field(default_factory=list)
+    menu_items: List[MenuItem] = Field(default_factory=list)
     credentials: List[str] = Field(default_factory=list)
     faqs: List[FAQ] = Field(default_factory=list)
     testimonials: List[Testimonial] = Field(default_factory=list)

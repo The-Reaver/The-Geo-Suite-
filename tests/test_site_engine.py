@@ -16,7 +16,7 @@ if PROJ not in sys.path:
     sys.path.insert(0, PROJ)
 
 from backend.app.schemas.site_schemas import (                     # noqa: E402
-    BusinessFacts, Service, FAQ, Rating)
+    BusinessFacts, Service, FAQ, Rating, MenuItem)
 from backend.app.services.site_engine import generate_site         # noqa: E402
 from backend.app.services import audit_engine                      # noqa: E402
 
@@ -611,6 +611,95 @@ def test_hero_paragraph_carries_lede_class_across_all_templates():
         theme = design_engine.Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
         html = tmpl.render_index(f, base, theme, blocks)
         assert 'class="lede"' in html, f"{tmpl.name}: hero paragraph is missing class=\"lede\""
+
+
+# 2026-08-21, Site Generator page-structure taxonomy slice 1 (menu page):
+# a business with real menu_items gets a genuinely different page than one
+# without -- the actual gap this whole slice was built to close.
+def _cafe_with_menu(**overrides):
+    base = dict(
+        business_name="Riverside Cafe", subtype="Restaurant",
+        street="10 River St", locality="Portland", region="OR",
+        postal_code="97201", telephone="+1-503-555-0177",
+        domain="riverside-cafe.example",
+        service_areas=["Portland", "Beaverton"],
+        same_as=["https://g.page/riverside-cafe"],
+        rating=Rating(value=4.6, count=87), last_updated="2026-08-21",
+        menu_items=[
+            MenuItem(name="House Salad", description="Greens, radish, sherry vinaigrette.",
+                     price="$9", category="Starters"),
+            MenuItem(name="Grilled Salmon", description="With seasonal vegetables.",
+                     price="$24", category="Entrees", dietary_tags=["gluten-free"]),
+            MenuItem(name="Veggie Burger", description="House-made patty.",
+                     price="$16", category="Entrees", dietary_tags=["vegetarian"]),
+        ])
+    base.update(overrides)
+    return BusinessFacts(**base)
+
+
+def test_menu_page_generated_only_when_menu_items_present():
+    with_menu = _gen(_cafe_with_menu())
+    assert os.path.exists(os.path.join(with_menu, "menu.html")), "menu.html must exist when menu_items is real"
+    assert os.path.exists(os.path.join(with_menu, "menu.md")), "menu.md mirror must exist alongside menu.html"
+    nav_html = open(os.path.join(with_menu, "index.html"), encoding="utf-8").read()
+    assert 'href="menu.html"' in nav_html, "nav must link to the real menu page"
+
+    without_menu = _gen(_cafe_with_menu(menu_items=[], domain="riverside-cafe-nomenu.example"))
+    assert not os.path.exists(os.path.join(without_menu, "menu.html")), "must never fabricate a menu page with no real items"
+    nav_html2 = open(os.path.join(without_menu, "index.html"), encoding="utf-8").read()
+    assert 'href="menu.html"' not in nav_html2, "nav must not link to a menu page that was never generated"
+
+
+def test_menu_page_groups_by_category_with_real_dl_structure():
+    d = _gen(_cafe_with_menu())
+    html = open(os.path.join(d, "menu.html"), encoding="utf-8").read()
+    assert "<h1>" in html and "Menu" in html
+    assert "<h2>" in html and "Starters" in html and "Entrees" in html
+    starters_section = html.split("Starters")[1].split("Entrees")[0]
+    assert "House Salad" in starters_section
+    assert "Grilled Salmon" not in starters_section, "items must be grouped into their own category, not all sections"
+    entrees_section = html.split("Entrees", 1)[1]
+    assert "Grilled Salmon" in entrees_section and "Veggie Burger" in entrees_section
+    assert "$24" in html and "$16" in html and "$9" in html
+    assert "gluten-free" in html and "vegetarian" in html
+    assert "<dl>" in html and "<dt>" in html and "<dd>" in html
+    assert "subject to change" in html, "a real menu with prices needs the accuracy disclaimer"
+
+
+def test_menu_page_escapes_html_in_item_fields():
+    payload = '<img src=x onerror=alert(1)>'
+    facts = _cafe_with_menu(menu_items=[
+        MenuItem(name=payload, description=payload, price=payload,
+                 category=payload, dietary_tags=[payload]),
+    ])
+    d = _gen(facts)
+    html = open(os.path.join(d, "menu.html"), encoding="utf-8").read()
+    assert "<img" not in html, "unescaped markup reached the menu page"
+    assert html.count("&lt;img") >= 4, "name/description/price/category/tag must all be escaped"
+
+
+def test_menu_items_control_chars_stripped():
+    item = MenuItem(name="Soup\x01", description="Hot\x00", price="$5\x1f",
+                     category="Starters\x0b", dietary_tags=["vegan\x0c"])
+    assert "\x01" not in item.name
+    assert "\x00" not in item.description
+    assert "\x1f" not in item.price
+    assert "\x0b" not in item.category
+    assert "\x0c" not in item.dietary_tags[0]
+
+
+def test_menu_page_included_in_sitemap_and_llms():
+    d = _gen(_cafe_with_menu())
+    sitemap = open(os.path.join(d, "sitemap.xml"), encoding="utf-8").read()
+    assert "menu.html" in sitemap
+    llms = open(os.path.join(d, "llms.txt"), encoding="utf-8").read()
+    assert "menu.html" in llms
+
+
+def test_cafe_with_menu_still_passes_the_real_audit_gate():
+    d = _gen(_cafe_with_menu())
+    r = audit_engine.run_audit(d, cwv=GOOD_CWV)
+    assert r.passed, f"cafe-with-menu site scored {r.normalized_score}, expected a real pass"
 
 
 def test_hours_omitted_when_none_but_address_and_directions_remain():
