@@ -414,11 +414,16 @@ def test_variation_across_businesses():
     # after select_theme() stopped being subtype-blind for template
     # choice (each business here now only ever reaches its own real
     # industry family's 4 templates, not any of the 9) -- still exactly
-    # 7 distinct templates observed across this same fixed list (Directory
-    # Listing and Timeline Flow don't land here, since none of these 12
-    # subtypes' families happen to hash onto them this time), so the
-    # >=7 floor holds without needing to change, verified fresh rather
-    # than assumed to still be true.
+    # 7 distinct templates observed across this same fixed list, so the
+    # >=7 floor holds without needing to change. Deliberately NOT naming
+    # which 2 of the 9 don't land here: that's a function of the exact
+    # seed-derivation internals (compute_seed/hashing choices), which
+    # already changed once this same slice (a round-3 Opus 5 review found
+    # this comment's own earlier "Directory Listing and Timeline Flow"
+    # detail had gone stale the moment _template_seed() replaced the old
+    # `// 13` divisor -- the actual pair is now different) -- a detail
+    # this comment shouldn't have to keep re-verifying on every future
+    # change to how seeds map to indices.
     assert len(templates_seen) >= 7, f"Expected >= 7 templates, got {len(templates_seen)}: {templates_seen}"
     assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
 
@@ -557,18 +562,125 @@ def test_every_named_family_has_real_variety():
 # able to reach any of the 9 templates -- the same guarantee every
 # business had before template selection became industry-aware, now
 # scoped to only the businesses actually outside a named family.
+#
+# 2026-08-21, Opus 5 review (round 3): this test's expected_names was
+# derived from engine.TEMPLATES itself -- the same tautology already
+# fixed in test_every_named_family_has_real_variety(), left unfixed here.
+# Mutation-proven: removing a template from TEMPLATES entirely (a real
+# regression -- the fallback pool for every non-family business silently
+# shrinks) still passed 407/407, including this test, since both the
+# expected set and the observed set shrink together. Hardcoded
+# independently of engine.py so a real registry shrink is now caught.
 def test_general_fallback_still_reaches_all_nine_templates():
-    expected_names = {t.name for t in engine.TEMPLATES}
+    expected_names = {
+        "Editorial Minimal", "Split Modern", "Bold Cinematic", "Trust Panel",
+        "Boutique Editorial", "Framed Gallery", "Directory Listing",
+        "Timeline Flow", "Compact Utility",
+    }
     seen_names = set()
     for i in range(400):
         f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Moving Company")
         theme = engine.select_theme(f)
+        assert theme.template.name in expected_names, (
+            f"general fallback selected {theme.template.name!r}, which isn't one of the "
+            f"9 registered templates -- {expected_names}"
+        )
         seen_names.add(theme.template.name)
-        if seen_names >= expected_names:
-            break
-    assert seen_names >= expected_names, (
+    assert seen_names == expected_names, (
         f"general fallback must reach all 9 templates, only reached {seen_names}"
     )
+
+
+# 2026-08-21, Opus 5 review (round 3): the design intent -- "a business
+# always gets a coherent pairing, never a Legal-family palette with a
+# Beauty-family template" -- was genuinely unenforced before
+# palettes.industry_family_for() was extracted as the single shared
+# classifier both palette_for() and template_for() now call (previously
+# each module carried its own copy of the same keyword branches, and
+# mutation-proven a keyword added to only one copy left the whole suite
+# green). This pins the observable guarantee directly, against
+# HARDCODED expected sets -- NOT derived from engine._TEMPLATE_FAMILIES /
+# palettes._PALETTE_FAMILIES, the exact self-referential tautology
+# already caught and fixed once in this same file
+# (test_every_named_family_has_real_variety, test_general_fallback_
+# still_reaches_all_nine_templates). Confirmed the danger is real, not
+# theoretical: an earlier draft of this exact test derived its expected
+# sets from those live dicts and a swap-two-families mutation (a real
+# kind of copy/paste mistake, not a contrived one) passed cleanly,
+# because the test's own "expected" value and the code under test read
+# from the identical mutated source.
+def test_template_and_palette_family_selection_stay_coherent():
+    expected = {
+        "dental_medical": (
+            {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern"},
+            {"Teal", "Blue", "Mint", "Indigo"},
+        ),
+        "home_services": (
+            {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern"},
+            {"Red", "Steel", "Amber", "Charcoal"},
+        ),
+        "legal_finance": (
+            {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal"},
+            {"Navy", "Slate", "Burgundy", "Forest"},
+        ),
+        "beauty_salon": (
+            {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal"},
+            {"Rose", "Teal", "Lavender", "Blush"},
+        ),
+        "food_restaurant": (
+            {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern"},
+            {"Orange", "Red", "Olive", "Terracotta"},
+        ),
+    }
+    subtype_to_family = {
+        "Dentist": "dental_medical", "Physician": "dental_medical", "VeterinaryCare": "dental_medical",
+        "Plumber": "home_services", "HVAC": "home_services", "Electrician": "home_services", "Contractor": "home_services",
+        "Attorney": "legal_finance", "Law Firm": "legal_finance", "Real Estate": "legal_finance",
+        "Hair Salon": "beauty_salon", "Beauty Spa": "beauty_salon",
+        "Restaurant": "food_restaurant", "Cafe": "food_restaurant",
+        # Deliberately adversarial subtypes with known substring-collision
+        # risk, inherited from the original keyword design (not
+        # introduced by this slice) -- confirming they land in the same
+        # (mis-triggered) family on both sides, not just "some" family.
+        "Spanish Restaurant": "beauty_salon",  # "spa" substring in "Spanish"
+        "Corvette Repair": "dental_medical",   # "vet" substring in "Corvette"
+    }
+    for subtype, family_key in subtype_to_family.items():
+        expected_template_names, expected_palette_names = expected[family_key]
+        for i in range(30):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
+            theme = engine.select_theme(f)
+            assert theme.template.name in expected_template_names, (
+                f"subtype={subtype!r} (expected family={family_key!r}): template "
+                f"{theme.template.name!r} isn't in this family's own template list "
+                f"{expected_template_names}"
+            )
+            assert theme.palette.name in expected_palette_names, (
+                f"subtype={subtype!r} (expected family={family_key!r}): palette "
+                f"{theme.palette.name!r} isn't in this family's own palette list "
+                f"{expected_palette_names}"
+            )
+
+    # "Moving Company" and "" match none of the 5 named families --
+    # confirm both template and palette land in the general fallback
+    # (the full 9-template / 20-palette pool), also against a hardcoded
+    # set, not TEMPLATES/PALETTES themselves.
+    all_template_names = {
+        "Editorial Minimal", "Split Modern", "Bold Cinematic", "Trust Panel",
+        "Boutique Editorial", "Framed Gallery", "Directory Listing",
+        "Timeline Flow", "Compact Utility",
+    }
+    all_palette_names = {
+        "Teal", "Blue", "Red", "Steel", "Navy", "Rose", "Orange", "Slate",
+        "Mint", "Indigo", "Amber", "Charcoal", "Burgundy", "Forest",
+        "Lavender", "Blush", "Olive", "Terracotta", "Sky", "Stone",
+    }
+    for subtype in ("Moving Company", ""):
+        for i in range(30):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
+            theme = engine.select_theme(f)
+            assert theme.template.name in all_template_names
+            assert theme.palette.name in all_palette_names
 
 
 def test_generate_site_with_variations():

@@ -134,20 +134,49 @@ PALETTES = [
     P_LAVENDER, P_BLUSH, P_OLIVE, P_TERRACOTTA, P_SKY, P_STONE,
 ]
 
-def palette_for(subtype: str, seed: int) -> Palette:
+# 2026-08-21, Opus 5 review (round 3) of the industry-aware template
+# selection slice: engine.py's template_for() used to duplicate this
+# module's subtype-keyword branches verbatim in a second copy, to keep
+# template family and palette family "coherent" (the same business never
+# gets a Legal-family palette paired with a Beauty-family template).
+# That coherence guarantee had zero real enforcement -- mutation-proven:
+# adding one keyword to only ONE of the two copies left the entire
+# 407-test suite green, since nothing actually compared the two
+# classifications against each other. Extracted here as the single
+# source of truth both modules call, so the two branch chains can no
+# longer drift apart at all -- not just "tested to not drift," genuinely
+# impossible to drift, since there is only one copy of the logic left.
+INDUSTRY_FAMILY_DENTAL_MEDICAL = "dental_medical"
+INDUSTRY_FAMILY_HOME_SERVICES = "home_services"
+INDUSTRY_FAMILY_LEGAL_FINANCE = "legal_finance"
+INDUSTRY_FAMILY_BEAUTY_SALON = "beauty_salon"
+INDUSTRY_FAMILY_FOOD_RESTAURANT = "food_restaurant"
+INDUSTRY_FAMILY_GENERAL = "general"
+
+def industry_family_for(subtype: str) -> str:
     subtype = subtype.lower() if subtype else ""
     if "dent" in subtype or "medical" in subtype or "physician" in subtype or "vet" in subtype:
-        family = [P_TEAL, P_BLUE, P_MINT, P_INDIGO]
-    elif "plumb" in subtype or "hvac" in subtype or "electric" in subtype or "repair" in subtype or "contractor" in subtype:
-        family = [P_RED, P_STEEL, P_AMBER, P_CHARCOAL]
-    elif "law" in subtype or "attorney" in subtype or "finance" in subtype or "estate" in subtype:
-        family = [P_NAVY, P_SLATE, P_BURGUNDY, P_FOREST]
-    elif "salon" in subtype or "beauty" in subtype or "spa" in subtype:
-        family = [P_ROSE, P_TEAL, P_LAVENDER, P_BLUSH]
-    elif "food" in subtype or "restaurant" in subtype or "cafe" in subtype:
-        family = [P_ORANGE, P_RED, P_OLIVE, P_TERRACOTTA]
-    else:
-        family = PALETTES
+        return INDUSTRY_FAMILY_DENTAL_MEDICAL
+    if "plumb" in subtype or "hvac" in subtype or "electric" in subtype or "repair" in subtype or "contractor" in subtype:
+        return INDUSTRY_FAMILY_HOME_SERVICES
+    if "law" in subtype or "attorney" in subtype or "finance" in subtype or "estate" in subtype:
+        return INDUSTRY_FAMILY_LEGAL_FINANCE
+    if "salon" in subtype or "beauty" in subtype or "spa" in subtype:
+        return INDUSTRY_FAMILY_BEAUTY_SALON
+    if "food" in subtype or "restaurant" in subtype or "cafe" in subtype:
+        return INDUSTRY_FAMILY_FOOD_RESTAURANT
+    return INDUSTRY_FAMILY_GENERAL
+
+_PALETTE_FAMILIES = {
+    INDUSTRY_FAMILY_DENTAL_MEDICAL: [P_TEAL, P_BLUE, P_MINT, P_INDIGO],
+    INDUSTRY_FAMILY_HOME_SERVICES: [P_RED, P_STEEL, P_AMBER, P_CHARCOAL],
+    INDUSTRY_FAMILY_LEGAL_FINANCE: [P_NAVY, P_SLATE, P_BURGUNDY, P_FOREST],
+    INDUSTRY_FAMILY_BEAUTY_SALON: [P_ROSE, P_TEAL, P_LAVENDER, P_BLUSH],
+    INDUSTRY_FAMILY_FOOD_RESTAURANT: [P_ORANGE, P_RED, P_OLIVE, P_TERRACOTTA],
+}
+
+def palette_for(subtype: str, seed: int) -> Palette:
+    family = _PALETTE_FAMILIES.get(industry_family_for(subtype), PALETTES)
     return family[seed % len(family)]
 
 def assert_wcag():

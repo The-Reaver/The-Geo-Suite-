@@ -49,10 +49,20 @@ def compute_seed(facts: Any) -> int:
 # 2026-08-21, Slice C, final sub-slice: industry-aware template selection,
 # per the operator's explicit go-ahead ("go ahead with the industry-aware
 # template selection. make sure we have a vast selection of
-# industry-aware templates."). Mirrors palette_for()'s exact
-# subtype-detection branches (same keywords, same branch order) so a
-# business always gets a COHERENT pairing -- never a Legal-family
+# industry-aware templates."). Uses palettes.industry_family_for() -- the
+# single shared classifier both this module and palette_for() call -- so
+# a business always gets a COHERENT pairing -- never a Legal-family
 # palette paired with a Beauty-family template for the same business.
+#
+# 2026-08-21, Opus 5 review (round 3): this used to duplicate
+# palette_for()'s keyword branches verbatim in a second copy here, with
+# only a comment asserting they'd stay identical. Mutation-proven that
+# guarantee had zero real enforcement -- a keyword added to only one of
+# the two copies left the entire suite green. Fixed by extracting the
+# classification into palettes.industry_family_for() and having both
+# modules call it, so the two branch chains can't drift apart at all --
+# not "tested to stay in sync," structurally incapable of falling out of
+# sync, since only one copy of the logic exists now.
 #
 # Each named family gets 4 genuinely distinct templates -- the same
 # "vast per industry" bar palette_for() already established (4 real
@@ -127,20 +137,16 @@ def _template_seed(seed: int) -> int:
     # genuinely uniform, not just "different enough to look plausible."
     return int(hashlib.sha256(str(seed).encode()).hexdigest()[:16], 16)
 
+_TEMPLATE_FAMILIES = {
+    palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL: DENTAL_MEDICAL_TEMPLATES,
+    palettes.INDUSTRY_FAMILY_HOME_SERVICES: HOME_SERVICES_TEMPLATES,
+    palettes.INDUSTRY_FAMILY_LEGAL_FINANCE: LEGAL_FINANCE_TEMPLATES,
+    palettes.INDUSTRY_FAMILY_BEAUTY_SALON: BEAUTY_SALON_TEMPLATES,
+    palettes.INDUSTRY_FAMILY_FOOD_RESTAURANT: FOOD_RESTAURANT_TEMPLATES,
+}
+
 def template_for(subtype: str, seed: int):
-    subtype = subtype.lower() if subtype else ""
-    if "dent" in subtype or "medical" in subtype or "physician" in subtype or "vet" in subtype:
-        family = DENTAL_MEDICAL_TEMPLATES
-    elif "plumb" in subtype or "hvac" in subtype or "electric" in subtype or "repair" in subtype or "contractor" in subtype:
-        family = HOME_SERVICES_TEMPLATES
-    elif "law" in subtype or "attorney" in subtype or "finance" in subtype or "estate" in subtype:
-        family = LEGAL_FINANCE_TEMPLATES
-    elif "salon" in subtype or "beauty" in subtype or "spa" in subtype:
-        family = BEAUTY_SALON_TEMPLATES
-    elif "food" in subtype or "restaurant" in subtype or "cafe" in subtype:
-        family = FOOD_RESTAURANT_TEMPLATES
-    else:
-        family = TEMPLATES
+    family = _TEMPLATE_FAMILIES.get(palettes.industry_family_for(subtype), TEMPLATES)
     return family[_template_seed(seed) % len(family)]
 
 def select_theme(facts: Any) -> Theme:
