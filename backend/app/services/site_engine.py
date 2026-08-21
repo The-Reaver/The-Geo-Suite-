@@ -190,10 +190,21 @@ def _build_jsonld(f: _F, base: str) -> dict:
         "@type": "PostalAddress",
         "streetAddress": f.street,
         "addressLocality": f.locality,
-        "addressRegion": f.region,
         "postalCode": f.postal_code,
         "addressCountry": f.country or "US",
     }
+    # 2026-08-21, Opus review round 3: _loc() (used everywhere region
+    # appears on the visible page) treats a whitespace-only region the same
+    # as an empty one and omits it -- this raw f.region assignment didn't,
+    # so a whitespace-only region rendered as omitted on the page but as a
+    # literal "   " in the machine-readable JSON-LD, a real NAP-consistency
+    # mismatch in a product whose whole thesis is search-engine trust in
+    # that consistency. schema.org's PostalAddress.addressRegion is
+    # optional; omit the key entirely rather than assert a junk value,
+    # matching the visible page's own honesty.
+    region = (f.region or "").strip()
+    if region:
+        address["addressRegion"] = region
 
     biz: dict = {
         "@type": _schema_type(f.subtype),
@@ -532,12 +543,20 @@ def _index_main(f: _F, base: str) -> str:
     from .site_design import engine as design_engine
     from . import site_prose
     prose_seed = design_engine.compute_seed(f)
-    open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b = site_prose.prose_for(
+    (open_clause, p1_rest, about_link_text, p1_trailing,
+     p2_a, em_clause, p2_b, about_a, about_em, about_b) = site_prose.prose_for(
         f.subtype, prose_seed, f.business_name, human, loc, areas, svc_phrase, creds
     )
 
-    p1_html = f"      <p><strong>{_esc(open_clause)},</strong>{_esc_inline(p1_rest)}</p>"
-    p1_words = _wc(open_clause) + _wc(p1_rest)
+    # The "read more about {business}" link is built structurally here from
+    # three genuinely separate values (never one string carrying an
+    # embedded marker for business_name to forge -- see site_prose.py's
+    # module comment for the full history of why that approach was unsafe).
+    p1_html = (
+        f"      <p><strong>{_esc(open_clause)},</strong>{_esc_inline(p1_rest)}"
+        f'<a href="about.html">{_esc(about_link_text)}</a>{_esc_inline(p1_trailing)}</p>'
+    )
+    p1_words = _wc(open_clause) + _wc(p1_rest) + _wc(about_link_text) + _wc(p1_trailing)
     emph_words = _wc(open_clause)
 
     p2_html = ("      <p>" + _esc_inline(p2_a) + f"<em>{_esc(em_clause)}</em>"
@@ -601,45 +620,30 @@ def _index_main(f: _F, base: str) -> str:
     }
     return blocks
 
-# Sentinel markers site_prose.py's 16 variants use in place of literal
-# <a href="about.html">...</a> tags -- \x01 is never touched by html.escape
-# (which only handles & < > " '), so the markers survive escaping intact and
-# are substituted for the real anchor tags AFTER the whole string is escaped.
-_ABOUT_LINK_OPEN = "\x01ABOUT_LINK_OPEN\x01"
-_ABOUT_LINK_CLOSE = "\x01ABOUT_LINK_CLOSE\x01"
-
-
 def _esc_inline(text: str) -> str:
-    """Escape text that contains site_prose.py's one sentinel-marked
-    "read more" link.
+    """Escape a prose fragment for inline placement inside a <p>.
 
-    2026-08-21, Opus review round 2: the prior fix (escape the anchor's
-    inner text, keep the tag structure literal) was still broken, because
-    it detected "a trusted anchor" via a generic `<a [^>]*>` regex applied
-    to the ALREADY-INTERPOLATED string -- and business_name is interpolated
-    into p1_rest/p2_a/about_a BEFORE the real about.html anchor. A
-    business_name containing its own `<a href="javascript:alert(1)"
-    onmouseover=...>` matched that regex first and had its OPENING tag
-    (with attacker-controlled attributes) emitted completely raw -- the
-    inner-text fix never touched the tag itself. The same regex-based
-    detection also crashed (AttributeError -> 500) on business names
-    containing a stray, unpaired "<a " with no matching "</a>" left for
-    re.split to have already consumed.
+    2026-08-21, Opus review round 3: an earlier version of this function
+    (rounds 1-2) treated an embedded sentinel marker as a stand-in for the
+    "read more about {business}" anchor, substituting the real <a> tag back
+    in after escaping the rest of the string. That was ALSO forgeable --
+    business_name is free text with no charset restriction, is interpolated
+    into the same string the sentinel lived in, and html.escape() doesn't
+    touch the \x01 control byte the sentinel used (the same property that
+    let the module's own marker survive escaping intact also let a
+    business_name containing the literal marker bytes forge its own anchor
+    tag, and let a stray \x01 reach assets/logo.svg's XML output).
 
-    Root-caused instead of patched: site_prose.py no longer writes any
-    literal anchor HTML at all -- it writes the sentinel markers above.
-    This function escapes the ENTIRE string first (so business_name,
-    wherever it appears, including inside what becomes the link's visible
-    text, is genuinely safe), THEN substitutes the two fixed sentinel
-    strings for the real anchor tags. There is no runtime "is this tag
-    trustworthy" detection to get wrong, because the only anchor markup
-    that can ever exist is the two literal strings substituted in below --
-    never derived from any interpolated field.
+    Root-caused instead of patched again: site_prose.py no longer embeds
+    the anchor in this string at ALL, in any form, marked or not -- the
+    link's visible text and the text after it are genuinely separate
+    return values (about_link_text, p1_trailing), and _index_main() below
+    builds the real <a href="about.html"> tag structurally from them. This
+    function's only job now is plain, unconditional escaping -- there is no
+    embedded signal of any kind left in the strings it's called on for
+    anything to forge.
     """
-    escaped = _html.escape(text, quote=False)
-    escaped = escaped.replace(_ABOUT_LINK_OPEN, '<a href="about.html">')
-    escaped = escaped.replace(_ABOUT_LINK_CLOSE, "</a>")
-    return escaped
+    return _html.escape(text, quote=False)
 
 def _build_index(f: _F, base: str) -> str:
     canonical = f"{base}/"

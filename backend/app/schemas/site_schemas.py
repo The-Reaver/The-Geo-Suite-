@@ -16,7 +16,7 @@ import json
 import re
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def slugify(value: str) -> str:
@@ -24,9 +24,35 @@ def slugify(value: str) -> str:
     return s or "item"
 
 
+# 2026-08-21, Opus review round 3: site_prose.py used to signal its one
+# internal "read more" link with an embedded \x01 control-character marker
+# -- since removed for an unrelated forgery reason (see site_prose.py's
+# module comment), but the underlying exposure was broader than that one
+# marker: a business_name (or any other free-text field here) containing
+# ANY C0 control character reaches rendered output completely unfiltered.
+# Reproduced directly: a business_name containing a raw \x01 byte produced
+# an invalid assets/logo.svg (XML forbids C0 controls other than tab/
+# newline/CR) -- a real, broken static file, not a theoretical risk.
+# site_engine.py's own escaping (_esc/_esc_inline) only ever handles the
+# five HTML-significant characters (& < > " '); it was never meant to be
+# the place raw control bytes get filtered. Stripped once, here, at the
+# real intake boundary every API request actually validates through --
+# not per-renderer, so no future call site can reintroduce this gap.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _strip_control_chars(value: str) -> str:
+    return _CONTROL_CHARS_RE.sub("", value)
+
+
 class Service(BaseModel):
     name: str
     description: str
+
+    @field_validator("name", "description")
+    @classmethod
+    def _no_control_chars(cls, value: str) -> str:
+        return _strip_control_chars(value)
 
     @property
     def slug(self) -> str:
@@ -37,10 +63,20 @@ class FAQ(BaseModel):
     question: str
     answer: str
 
+    @field_validator("question", "answer")
+    @classmethod
+    def _no_control_chars(cls, value: str) -> str:
+        return _strip_control_chars(value)
+
 
 class Testimonial(BaseModel):
     author: str
     text: str
+
+    @field_validator("author", "text")
+    @classmethod
+    def _no_control_chars(cls, value: str) -> str:
+        return _strip_control_chars(value)
 
 
 class Rating(BaseModel):
@@ -81,6 +117,22 @@ class BusinessFacts(BaseModel):
     rating: Optional[Rating] = None
     last_updated: str = ""                                   # ISO date, e.g. "2026-07-24"
     tagline: Optional[str] = None
+
+    @field_validator("business_name", "subtype", "street", "locality", "region",
+                      "postal_code", "country", "telephone", "domain", "last_updated")
+    @classmethod
+    def _no_control_chars(cls, value: str) -> str:
+        return _strip_control_chars(value)
+
+    @field_validator("email", "tagline")
+    @classmethod
+    def _no_control_chars_optional(cls, value: Optional[str]) -> Optional[str]:
+        return _strip_control_chars(value) if value else value
+
+    @field_validator("hours", "service_areas", "credentials", "same_as")
+    @classmethod
+    def _no_control_chars_list(cls, values: List[str]) -> List[str]:
+        return [_strip_control_chars(v) for v in values]
 
     def base_url(self) -> str:
         return f"https://{self.domain}"

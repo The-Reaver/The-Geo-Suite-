@@ -478,7 +478,7 @@ def _facts(**overrides):
 def test_em_clause_is_always_capitalized():
     for fam_name, fns in site_prose._FAMILIES.items():
         for fn in fns:
-            _, _, p2_a, em_clause, _, _, about_em, _ = fn(
+            _, _, _, _, p2_a, em_clause, _, _, about_em, _ = fn(
                 "Example Business", "example business", "Portland, OR",
                 "Portland", "Signature Service", "")
             assert p2_a.rstrip().endswith("."), f"{fam_name}/{fn.__name__}: p2_a must end a sentence"
@@ -499,7 +499,7 @@ def test_rendered_page_never_starts_a_sentence_lowercase_after_a_period():
 #     up first when they refer someone else matter more than any single
 #     project" -- two finite verbs with no punctuation between them.
 def test_general_1_about_paragraph_is_grammatical():
-    _, _, _, _, _, about_a, about_em, about_b = site_prose._general_1(
+    _, _, _, _, _, _, _, about_a, about_em, about_b = site_prose._general_1(
         "Example Business", "example business", "Portland, OR", "Portland", "Signature Service", "")
     full = about_a + about_em + about_b
     assert " else matter " not in full, "still has the two-finite-verbs grammar break"
@@ -682,8 +682,14 @@ def test_attacker_anchor_in_business_name_cannot_form_a_real_tag():
 
 
 def test_unpaired_anchor_tag_in_business_name_does_not_crash_generation():
-    for payload in ('Acme <a b>c</a><a d Dental', 'A</a><a b', '<a x>y</a><a z'):
-        facts = _facts(business_name=payload, domain=f"unpaired-{abs(hash(payload))}.example")
+    # 2026-08-21, Opus review round 3: str hashing is PYTHONHASHSEED-
+    # randomized, so a domain built from hash(payload) selected a
+    # different, randomly-varying template/palette on every run -- a
+    # template-specific crash would only have been caught probabilistically
+    # and would not have been reproducible. A fixed, enumerated domain is
+    # deterministic across runs.
+    for i, payload in enumerate(('Acme <a b>c</a><a d Dental', 'A</a><a b', '<a x>y</a><a z')):
+        facts = _facts(business_name=payload, domain=f"unpaired-anchor-case-{i}.example")
         _gen(facts)  # must not raise
 
 
@@ -742,6 +748,84 @@ def test_whitespace_only_region_never_produces_double_comma_or_space():
             stripped = line.strip()
             assert "London,  " not in stripped, f"{name}: double space: {stripped[:120]!r}"
             assert "London, ," not in stripped, f"{name}: double comma: {stripped[:120]!r}"
+
+
+# 2026-08-21, Opus 5 review round 3 (of commit e8b97ef, the fix for round
+# 2's 5 findings) found 3 more real bugs, 2 of them in that commit's own
+# fixes: the sentinel-marker scheme e8b97ef introduced to fix the anchor-
+# injection bug was itself forgeable (business_name could contain the
+# literal sentinel bytes and inject its own fake anchor, and any stray
+# \x01 broke assets/logo.svg's XML validity via a separate path); the
+# word-boundary regex rewrite (also from e8b97ef) didn't allow plural
+# forms, so "Corvette Repairs"/"Estates Agency"/"Spanish Restaurants" all
+# fell through the very guards meant to catch their singular forms; and
+# the _loc() strip fix created a new divergence between the visible page
+# (region omitted) and the JSON-LD address (region still raw). Fixed by
+# removing the marker/sentinel design entirely (the "read more" link's
+# text is now a genuinely separate return value, never signaled in-band)
+# plus stripping control characters at the real intake boundary
+# (BusinessFacts itself) rather than trusting no renderer downstream ever
+# needs to defend against them.
+
+def test_control_characters_are_stripped_from_business_name_at_intake():
+    facts = _facts(business_name="Acme \x01ABOUT_LINK_OPEN\x01 Dental",
+                    domain="control-char-intake.example")
+    assert "\x01" not in facts.business_name
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert "\x01" not in html
+    import xml.etree.ElementTree as ET
+    logo = open(os.path.join(d, "assets", "logo.svg"), encoding="utf-8").read()
+    ET.fromstring(logo)  # must not raise ParseError
+
+
+def test_business_name_cannot_forge_extra_anchor_tags_via_sentinel_bytes():
+    baseline = _facts(business_name="Riverside Family Dental", domain="anchor-baseline.example")
+    baseline_html = open(os.path.join(_gen(baseline), "index.html"), encoding="utf-8").read()
+    baseline_count = baseline_html.count('<a href="about.html">')
+
+    for payload in (
+        'Acme \x01ABOUT_LINK_OPEN\x01<script>alert(1)</script>\x01ABOUT_LINK_CLOSE\x01 Dental',
+        'Acme \x01ABOUT_LINK_OPEN\x01 Dental',
+    ):
+        facts = _facts(business_name=payload, domain=f"anchor-forgery-{abs(len(payload))}.example")
+        html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+        assert html.count('<a href="about.html">') == baseline_count, (
+            f"forged anchor tag count for payload {payload!r}"
+        )
+
+
+def test_known_collisions_survive_pluralization():
+    for subtype, expected in [
+        ("Spanish Restaurant", "food_restaurant"),
+        ("Spanish Restaurants", "food_restaurant"),
+        ("Spanish Cafes", "food_restaurant"),
+        ("Corvette Repair", "home_services"),
+        ("Corvette Repairs", "home_services"),
+        ("Real Estate", "real_estate"),
+        ("Estates Agency", "real_estate"),
+        ("Real Estates Group", "real_estate"),
+        ("Nail Salon", "nail_spa"),
+        ("Nails Salon", "nail_spa"),
+        ("Day Spas", "nail_spa"),
+    ]:
+        got = site_prose._prose_family_for(subtype)
+        assert got == expected, f"{subtype!r} -> {got!r}, expected {expected!r}"
+
+
+def test_jsonld_address_region_matches_visible_page_omission():
+    facts = _facts(business_name="No Region LLC", subtype="Plumber",
+                    locality="London", region="   ", postal_code="00000",
+                    domain="jsonld-region-consistency.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    import json
+    start = html.find('<script type="application/ld+json">') + len('<script type="application/ld+json">')
+    end = html.find("</script>", start)
+    parsed = json.loads(html[start:end])
+    biz = next(n for n in parsed["@graph"] if n.get("@id", "").endswith("#business"))
+    assert "addressRegion" not in biz["address"], (
+        "whitespace-only region must be omitted from JSON-LD, matching the visible page"
+    )
 
 
 def _base_url_for(facts) -> str:

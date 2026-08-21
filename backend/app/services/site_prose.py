@@ -52,8 +52,26 @@ def _variant_index(seed: int, n: int) -> int:
     return _prose_seed(seed) % n
 
 
-# Each entry below is a function (business_name, human, loc, areas, svc_phrase, creds) -> 8-tuple:
-#   (open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b)
+# Each entry below is a function (business_name, human, loc, areas, svc_phrase, creds) -> 10-tuple:
+#   (open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b)
+#
+# 2026-08-21, Opus review round 3: p1_rest used to embed the "read more
+# about {business_name}..." link as a single string carrying a sentinel
+# marker (\x01ABOUT_LINK_OPEN\x01 / \x01ABOUT_LINK_CLOSE\x01) in place of
+# the literal <a> tag, with site_engine.py substituting the real tag back
+# in after escaping. That scheme was itself forgeable: business_name is
+# free text with no charset restriction, is interpolated into the SAME
+# string the sentinel lives in, and html.escape() doesn't touch \x01 (the
+# exact property the scheme relied on to protect its own marker) -- so a
+# business_name containing the literal sentinel bytes could inject its own
+# fake anchor tag, and any stray \x01 reaching assets/logo.svg's
+# aria-label (built from business_name via a separate path) produced
+# invalid XML. Fixed at the root: the "read more" link's visible text
+# (about_link_text) and the text after it (p1_trailing) are now genuinely
+# separate return values, never concatenated into one string with a
+# marker. site_engine.py builds the real <a href="about.html"> tag
+# structurally from these pieces -- there is no in-band signal in any
+# string for attacker-controlled text to forge.
 # matching site_engine.py's original paragraph shape exactly.
 
 def _dental_medical_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -75,9 +93,10 @@ def _dental_medical_0(business_name, human, loc, areas, svc_phrase, creds):
         f"appointments are available for urgent needs. Records and history "
         f"carry forward from visit to visit, so nothing has to be re-explained "
         f"from scratch each time you come in. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approach to careABOUT_LINK_CLOSE '
-        f"before your visit."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our approach to care'
+    p1_trailing = f" before your visit."
     p2_a = (
         f"Every treatment plan at {business_name} starts with a full clinical "
         f"evaluation, not a guess, so patients understand exactly what is "
@@ -117,7 +136,7 @@ def _dental_medical_0(business_name, human, loc, areas, svc_phrase, creds):
         f"office is easy to reach and will get you a real answer, not a "
         f"callback three days later."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -140,9 +159,10 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"out. Records and imaging from a prior provider are reviewed before "
         f"your first visit whenever they're available, so the team already has "
         f"context instead of starting from nothing. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how the practice is runABOUT_LINK_CLOSE '
-        f"before scheduling."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and how the practice is run'
+    p1_trailing = f" before scheduling."
     p2_a = (
         f"{business_name} reviews each case individually before recommending "
         f"anything, weighing the real options against a patient's actual "
@@ -183,7 +203,7 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"wrong, and a real person answers when you call with a question "
         f"instead of routing you to a general voicemail box."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _home_services_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -206,9 +226,10 @@ def _home_services_0(business_name, human, loc, areas, svc_phrase, creds):
         f"will find the earliest available technician. Trucks are stocked for "
         f"the most common repairs, so a second trip just to grab a part is "
         f"rare. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how we workABOUT_LINK_CLOSE '
-        f"before you call."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and how we work'
+    p1_trailing = f" before you call."
     p2_a = (
         f"Every job at {business_name} starts with a real inspection and a "
         f"written estimate, so you understand the recommendation and the price "
@@ -246,7 +267,7 @@ def _home_services_0(business_name, human, loc, areas, svc_phrase, creds):
         f"it will cost before anyone shows up, with no last-minute changes to "
         f"the quote."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -267,9 +288,10 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"so you are not stuck waiting around all day for a truck that might "
         f"show up. Technicians call ahead when they are on the way, so you can "
         f"plan around the visit instead of sitting by the door. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and what we guaranteeABOUT_LINK_CLOSE '
-        f"before you call."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and what we guarantee'
+    p1_trailing = f" before you call."
     p2_a = (
         f"When something breaks, {business_name} treats speed and quality as "
         f"the same goal, not a trade-off — a rushed repair that fails again in "
@@ -307,7 +329,7 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"and the crew keeps notes on what was done last time, so a follow-up "
         f"job never starts from a blank slate."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -330,9 +352,10 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"the cracks between meetings. The firm returns calls the same day "
         f"whenever possible, and a client should never have to guess who to "
         f"call for an update. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how matters are handledABOUT_LINK_CLOSE '
-        f"before you reach out."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and how matters are handled'
+    p1_trailing = f" before you reach out."
     p2_a = (
         f"Every matter at {business_name} starts with a full review of the "
         f"facts and a candid assessment of the realistic outcomes, not a sales "
@@ -373,7 +396,7 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"client who understands what is happening makes better decisions "
         f"along the way."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -395,9 +418,10 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"have worked with the firm for years, from the very first call. "
         f"Every document the firm sends is written in plain language first, "
         f"with the legal terminology explained rather than left to guess at. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
-        f"before scheduling a consultation."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our approach'
+    p1_trailing = f" before scheduling a consultation."
     p2_a = (
         f"{business_name} treats a clear fee structure as part of good "
         f"representation, not a separate conversation to have later — clients "
@@ -436,7 +460,7 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"statements are itemized in plain language too, so a client can "
         f"actually see what each charge covers."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -459,9 +483,10 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"including a real conversation about what your hair or skin can "
         f"actually support. Tools and stations are sanitized between every "
         f"single client, not just at the start of the day. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
-        f"before you book."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our approach'
+    p1_trailing = f" before you book."
     p2_a = (
         f"Every appointment at {business_name} starts with a real "
         f"conversation about what you want, not an assumption based on what is "
@@ -499,7 +524,7 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"how long it will take before you sit down, with no guessing once you "
         f"arrive, and no pressure to add a service you did not come in for."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -520,9 +545,10 @@ def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
         f"decorated to look that way in photos. Playlists and lighting are "
         f"kept low-key rather than loud, on purpose, so the appointment "
         f"actually feels like a break. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and the experienceABOUT_LINK_CLOSE '
-        f"before you book."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and the experience'
+    p1_trailing = f" before you book."
     p2_a = (
         f"{business_name} treats the actual experience of an appointment as "
         f"part of the service, not just the technical result — how relaxed you "
@@ -563,7 +589,7 @@ def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
         f"cards and rebooking are handled at the front desk in a couple of "
         f"minutes, not treated as an inconvenience on your way out."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _food_restaurant_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -587,9 +613,10 @@ def _food_restaurant_0(business_name, human, loc, areas, svc_phrase, creds):
         f"adjusted quietly depending on how busy the kitchen is. Takeout "
         f"orders are packed to actually survive the drive home, not thrown "
         f"together at the last second. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our kitchenABOUT_LINK_CLOSE '
-        f"before you visit."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our kitchen'
+    p1_trailing = f" before you visit."
     p2_a = (
         f"Every dish at {business_name} starts with ingredients chosen the "
         f"same day, not a freezer pulled from on a slow night, because the "
@@ -626,7 +653,7 @@ def _food_restaurant_0(business_name, human, loc, areas, svc_phrase, creds):
         f"rather than guessed at. Groups are accommodated with the same care "
         f"as a table for two, not treated as an inconvenience to squeeze in."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -647,9 +674,10 @@ def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
         f"possible, not competing with music turned up to fill a loud space. "
         f"Special occasions are noted ahead of time whenever a guest mentions "
         f"one, so the evening actually feels marked rather than routine. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and the spaceABOUT_LINK_CLOSE '
-        f"before you book a table."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and the space'
+    p1_trailing = f" before you book a table."
     p2_a = (
         f"{business_name} treats the atmosphere of a meal as seriously as "
         f"what is on the plate — a great dish served in a rushed, loud, "
@@ -688,7 +716,7 @@ def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
         f"will tell you honestly how long that might take rather than "
         f"promising a table that is not actually close to ready."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _general_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -713,9 +741,10 @@ def _general_0(business_name, human, loc, areas, svc_phrase, creds):
         f"Whether the request is routine or time-sensitive, the fastest way to "
         f"get a real answer is to reach out directly and describe the "
         f"situation, and a member of the team will follow up promptly. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how we workABOUT_LINK_CLOSE '
-        f"before you reach out."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and how we work'
+    p1_trailing = f" before you reach out."
     p2_a = (
         f"Every request at {business_name} starts with a real assessment of "
         f"the situation and a clear explanation of the options, not a "
@@ -752,7 +781,7 @@ def _general_0(business_name, human, loc, areas, svc_phrase, creds):
         f"work is done are answered the same way the first ones were, not "
         f"treated as an afterthought once the invoice is paid."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _general_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -775,9 +804,10 @@ def _general_1(business_name, human, loc, areas, svc_phrase, creds):
         f"a straight answer is to reach out directly and describe the "
         f"situation, and someone will follow up with real next steps rather "
         f"than a form response. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
-        f"before reaching out."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our approach'
+    p1_trailing = f" before reaching out."
     p2_a = (
         f"{business_name} treats clear communication as part of the work "
         f"itself, not a separate courtesy — clients should never be surprised "
@@ -816,7 +846,7 @@ def _general_1(business_name, human, loc, areas, svc_phrase, creds):
         f"different number once the work is already underway, and no surprise "
         f"add-ons once the work is finished."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _real_estate_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -841,9 +871,10 @@ def _real_estate_0(business_name, human, loc, areas, svc_phrase, creds):
         f"disclosure and contingency is explained in plain language before a "
         f"client signs anything, not summarized in a rush at the closing "
         f"table. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and how transactions are handledABOUT_LINK_CLOSE '
-        f"before you reach out."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and how transactions are handled'
+    p1_trailing = f" before you reach out."
     p2_a = (
         f"Every listing at {business_name} starts with a real, current read "
         f"on comparable sales in the area, not a number pulled out of thin "
@@ -884,7 +915,7 @@ def _real_estate_0(business_name, human, loc, areas, svc_phrase, creds):
         f"accepted get the same attention as questions before it, all the "
         f"way through to closing day."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _real_estate_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -905,9 +936,10 @@ def _real_estate_1(business_name, human, loc, areas, svc_phrase, creds):
         f"as clients who have bought or sold with {business_name} before. "
         f"Showings are scheduled around a client's actual availability, not "
         f"whatever slot happens to be easiest to fill. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
-        f"before scheduling a showing."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our approach'
+    p1_trailing = f" before scheduling a showing."
     p2_a = (
         f"{business_name} treats a clear, current market read as part of "
         f"good representation, not a separate conversation to have after a "
@@ -949,7 +981,7 @@ def _real_estate_1(business_name, human, loc, areas, svc_phrase, creds):
         f"answer the same day, not a promise to circle back once things slow "
         f"down."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _nail_spa_0(business_name, human, loc, areas, svc_phrase, creds):
@@ -972,9 +1004,10 @@ def _nail_spa_0(business_name, human, loc, areas, svc_phrase, creds):
         f"actually support before any service starts. Instruments are single "
         f"use or fully sterilized between clients, and that standard is "
         f"visible, not just claimed. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and our approachABOUT_LINK_CLOSE '
-        f"before you book."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and our approach'
+    p1_trailing = f" before you book."
     p2_a = (
         f"Every appointment at {business_name} starts with a real "
         f"conversation about what you want, not an assumption based on what "
@@ -1013,7 +1046,7 @@ def _nail_spa_0(business_name, human, loc, areas, svc_phrase, creds):
         f"no guessing once you arrive, and no pressure to add anything you "
         f"did not come in for."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 def _nail_spa_1(business_name, human, loc, areas, svc_phrase, creds):
@@ -1034,9 +1067,10 @@ def _nail_spa_1(business_name, human, loc, areas, svc_phrase, creds):
         f"decorated to look that way in photos. Sanitation between clients "
         f"is visible and consistent, not something you have to take on "
         f"faith. "
-        f'You can also read more ABOUT_LINK_OPENabout {business_name} and the experienceABOUT_LINK_CLOSE '
-        f"before you book."
+        f'You can also read more '
     )
+    about_link_text = f'about {business_name} and the experience'
+    p1_trailing = f" before you book."
     p2_a = (
         f"{business_name} treats the actual experience of an appointment as "
         f"part of the service, not just the technical result — how relaxed "
@@ -1078,7 +1112,7 @@ def _nail_spa_1(business_name, human, loc, areas, svc_phrase, creds):
         f"itself and no pressure to add anything once you are already "
         f"seated."
     )
-    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+    return open_clause, p1_rest, about_link_text, p1_trailing, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
 
 _FAMILIES = {
@@ -1144,23 +1178,32 @@ def _prose_family_for(subtype):
     s = (subtype or "").lower()
     coarse = palettes.industry_family_for(subtype)
 
+    # 2026-08-21, Opus review round 3: plain \b...\b word-boundary regex
+    # requires a NON-word character immediately after the keyword, so it
+    # doesn't match a trailing "s" -- "Estates Agency", "Nails Salon", "Day
+    # Spas", "Spanish Restaurants", "Corvette Repairs" all silently fell
+    # through every guard below (round 2's own fix, and this one, alike),
+    # reproducing the exact false-claim bugs both rounds were fixing, just
+    # one letter away. Every keyword below now allows an optional trailing
+    # "s" (`s?`) rather than requiring an exact match.
+
     # Known, documented substring collisions (see docstring) that are
     # harmless for palette/template but produce false claims in prose.
     if (coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON
-            and re.search(r"\brestaurant\b|\bcafe\b", s)
-            and not re.search(r"\bsalon\b|\bspa\b|\bnail\b|\bbeauty\b", s)):
+            and re.search(r"\brestaurants?\b|\bcafes?\b", s)
+            and not re.search(r"\bsalons?\b|\bspas?\b|\bnails?\b|\bbeauty\b", s)):
         coarse = palettes.INDUSTRY_FAMILY_FOOD_RESTAURANT
     if (coarse == palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL
-            and re.search(r"\brepair\b", s)
+            and re.search(r"\brepairs?\b", s)
             and "veterinary" not in s
-            and not re.search(r"\bdent|\bphysician\b|\bmedical\b", s)):
+            and not re.search(r"\bdent|\bphysicians?\b|\bmedical\b", s)):
         coarse = palettes.INDUSTRY_FAMILY_HOME_SERVICES
 
     if (coarse == palettes.INDUSTRY_FAMILY_LEGAL_FINANCE
-            and re.search(r"\bestate\b", s)
-            and not re.search(r"\blaw\b|\battorney\b", s)):
+            and re.search(r"\bestates?\b", s)
+            and not re.search(r"\blaw\b|\battorneys?\b", s)):
         return "real_estate"
-    if coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON and re.search(r"\bnail\b|\bspa\b", s):
+    if coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON and re.search(r"\bnails?\b|\bspas?\b", s):
         return "nail_spa"
     return coarse
 
