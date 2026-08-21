@@ -241,6 +241,47 @@ def test_rating_omitted_entirely_when_none():
     assert 'class="band"' not in html, "the trust band is rating-gated -- no rating means no band"
 
 
+# 13. Site Generator robustness push, Slice B: a real location section --
+#     the mandatory NAP fields already rendered in the footer, plus a real
+#     no-API-key Google Maps directions link (no maps API key is
+#     configured anywhere in this codebase, so an embedded map isn't
+#     honestly buildable), plus the real business hours already computed
+#     for JSON-LD's openingHoursSpecification but never shown to a
+#     visitor until now.
+def test_location_is_visibly_rendered_with_directions_and_hours():
+    d = _gen(_dentist())
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert "<address>" in html, "a real address block must render"
+    body = html.split("</script>")[-1]
+    assert "1200 Cedar Road" in body, "the real street address must be visible in the rendered body"
+    assert "Portland" in body and "OR" in body and "97201" in body
+    m = re.search(r'<a class="directions-link" href="([^"]+)"', html)
+    assert m, "a real directions link must render"
+    href = m.group(1)
+    assert "www.google.com/maps/search" in href, "the directions link must be a real, no-API-key maps deep link"
+    assert "Cedar%20Ridge%20Dental" in href, "the directions link must be built from this business's own real name, not a placeholder"
+    assert "1200%20Cedar%20Road" in href, "the directions link must be built from this business's own real street, not a placeholder"
+    assert "Mon-Fri 8:00-17:00" in body, "the real, exact hours string must be visible, not reparsed/reformatted"
+
+
+def test_hours_omitted_when_none_but_address_and_directions_remain():
+    # Hours default to [] and must stay honestly gated -- never a
+    # fabricated "call for hours" placeholder. The address and directions
+    # link are unconditional (NAP fields are mandatory), so they must
+    # still render even with no hours at all.
+    facts = BusinessFacts(
+        business_name="No Hours Yet LLC", subtype="GeneralContractor",
+        street="1 First St", locality="Boise", region="ID",
+        postal_code="83701", telephone="+1-208-555-0100",
+        domain="nohoursyet.example")
+    d = _gen(facts)
+    html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+    assert 'class="hours-list"' not in html, "must never fabricate hours when none were given"
+    assert "<h3>Hours</h3>" not in html
+    assert "<address>" in html, "the address must still render with no hours present"
+    assert 'class="directions-link"' in html, "the directions link must still render with no hours present"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 

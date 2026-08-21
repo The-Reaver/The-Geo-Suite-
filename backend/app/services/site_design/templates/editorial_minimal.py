@@ -53,7 +53,12 @@ CSS_BASE = """
   .band h2{color:#fff;font-size:28px;max-width:20ch}
   .band .btn-primary{background:#fff;color:var(--accent-dark) !important}
   .band .sub{color:rgba(255,255,255,.86);margin-top:8px}
-  
+
+  address{font-style:normal;color:var(--ink);line-height:1.5}
+  .directions-link{display:inline-block;margin-top:10px;color:var(--accent);font-weight:600}
+  .hours-list{list-style:none;padding:0;margin:12px 0 0}
+  .hours-list li{padding:4px 0;color:var(--muted);font-size:15px}
+
   .faq{display:grid;gap:14px;max-width:760px}
   details{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 22px}
   summary{cursor:pointer;font-weight:600;padding:18px 0;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:17px}
@@ -148,7 +153,14 @@ def render_index(facts, base_url, theme, blocks) -> str:
         html.append('<div class="wrap">')
         html.append(blocks["areas_block"].replace('<h2>', '<div class="section-head"><div class="k">Where we serve</div><h2>').replace('</h2>', '</h2></div>').replace('<ul>', '<div class="chips">').replace('</ul>', '</div>').replace('<li>', '<span class="chip">').replace('</li>', '</span>'))
         html.append('</div>')
-        
+
+    # Location + hours (real NAP + a real directions link, no map embed --
+    # no maps API key exists anywhere in site generation)
+    if blocks.get("location_html"):
+        html.append('<div class="wrap">')
+        html.append(blocks["location_html"])
+        html.append('</div>')
+
     html.append(blocks["about_block"])
     
     if blocks["faq_block"]:

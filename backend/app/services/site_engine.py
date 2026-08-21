@@ -389,6 +389,40 @@ def _stats_band_html(f: _F, rating: Any) -> str:
     )
 
 
+def _location_html(f: _F) -> str:
+    """A real address + a real, no-API-key directions link, built entirely
+    from the same mandatory NAP fields _footer() already renders -- and,
+    only when the business actually supplied them, the real opening hours
+    already computed for JSON-LD's openingHoursSpecification (_hours_spec)
+    but never shown to a visitor. No map embed: no maps API key is
+    configured anywhere in site generation, so an <iframe> would either be
+    broken or require infrastructure this slice does not add. A Google
+    Maps search deep link needs no key and points at the business's own
+    real address, never a fabricated one. Hours render as-is, one <li> per
+    fact string -- not reparsed through _hours_spec()'s strict regex,
+    which silently drops anything that doesn't match; that's fine for
+    JSON-LD but would hide real hours data on a page meant to show it."""
+    import urllib.parse
+    addr_line = f"{f.street}, {f.locality}, {f.region} {f.postal_code}"
+    query = urllib.parse.quote(f"{f.business_name}, {addr_line}")
+    maps_url = f"https://www.google.com/maps/search/?api=1&query={query}"
+    parts = [
+        '    <section aria-label="Location and hours">',
+        f'      <h2>Visit us in {_esc(f.locality)}</h2>',
+        '      <address>',
+        f'        {_esc(f.street)}<br>',
+        f'        {_esc(f.locality)}, {_esc(f.region)} {_esc(f.postal_code)}',
+        '      </address>',
+        f'      <p><a class="directions-link" href="{_esc(maps_url)}" rel="noopener">Get directions</a></p>',
+    ]
+    if f.hours:
+        items = "\n".join(f"        <li>{_esc(h)}</li>" for h in f.hours)
+        parts.append('      <h3>Hours</h3>')
+        parts.append(f'      <ul class="hours-list">\n{items}\n      </ul>')
+    parts.append('    </section>')
+    return "\n".join(parts)
+
+
 def _index_main(f: _F, base: str) -> str:
     human = _human(f.subtype)
     loc = f"{f.locality}, {f.region}"
@@ -516,6 +550,7 @@ def _index_main(f: _F, base: str) -> str:
         "faq_block": faq_block,
         "rating_html": _rating_html(rating),
         "stats_band": _stats_band_html(f, rating),
+        "location_html": _location_html(f),
         "nav": _nav(f),
         "footer": _footer(f, base),
         "cookie": '<div id="cookie-consent" role="region" aria-label="Cookie consent">\n  <p>We use cookies to improve your experience.</p>\n  <button type="button">Accept</button>\n  <button type="button">Decline</button>\n</div>'

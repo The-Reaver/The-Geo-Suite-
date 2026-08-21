@@ -190,7 +190,12 @@ def test_interior_pages_use_their_own_templates_css():
 # template actually renders them when present, and none of the three
 # fabricates them when facts carry no rating (rating_html/stats_band are
 # empty strings in that case, mirroring site_engine.py's own gate).
-def _index_blocks(rating_html: str, stats_band: str) -> dict:
+#
+# 2026-08-21, Slice B: extended with location_html (real address + a real
+# no-API-key directions link -- always present, unlike rating_html/
+# stats_band, since NAP fields are mandatory on BusinessFacts) so both
+# slices' cross-template coverage share one blocks builder.
+def _index_blocks(rating_html: str, stats_band: str, location_html: str = "") -> dict:
     return {
         "head": "<!DOCTYPE html><html><head><style></style></head>",
         "nav": '<nav aria-label="Primary"><a href="index.html">Home</a></nav>',
@@ -203,8 +208,17 @@ def _index_blocks(rating_html: str, stats_band: str) -> dict:
         "faq_block": "",
         "rating_html": rating_html,
         "stats_band": stats_band,
+        "location_html": location_html,
         "cookie": '<div id="cookie-consent"></div>',
     }
+
+
+_LOCATION_HTML = (
+    '<section aria-label="Location and hours"><h2>Visit us in Austin</h2>'
+    '<address>123 Main St<br>Austin, TX 78701</address>'
+    '<p><a class="directions-link" href="https://www.google.com/maps/search/?api=1&amp;query=Acme%20Plumbing">'
+    'Get directions</a></p></section>'
+)
 
 
 def test_rating_and_stats_band_render_across_all_templates():
@@ -227,7 +241,10 @@ def test_rating_and_stats_band_render_across_all_templates():
 def test_rating_and_stats_band_omitted_when_blank():
     f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
            telephone="555-0100", locality="Austin")
-    blocks = _index_blocks("", "")
+    # location_html is real here (unlike rating/stats) -- proves the two
+    # slices' honesty gates are independent: no rating doesn't mean no
+    # location, since NAP fields are mandatory and rating is optional.
+    blocks = _index_blocks("", "", _LOCATION_HTML)
     pal = palettes.palette_for("Plumber", 0)
     typ = engine.typography.typography_for(0)
     for tmpl in engine.TEMPLATES:
@@ -235,6 +252,23 @@ def test_rating_and_stats_band_omitted_when_blank():
         html = tmpl.render_index(f, "https://acme.com", theme, blocks)
         assert 'class="rating"' not in html, f"{tmpl.name} must not fabricate a rating block when none is given"
         assert 'class="band"' not in html, f"{tmpl.name} must not fabricate a trust band when none is given"
+        assert 'class="directions-link"' in html, f"{tmpl.name} dropped a real location block that was actually given"
+
+
+# 2026-08-21, Slice B: proves every template renders the real location
+# section (address + directions link) when given, mirroring Slice A's
+# rating/stats-band coverage above.
+def test_location_renders_across_all_templates():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    blocks = _index_blocks("", "", _LOCATION_HTML)
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert "<address>" in html, f"{tmpl.name} dropped the address block"
+        assert 'class="directions-link"' in html, f"{tmpl.name} dropped the directions link"
 
 
 # ---------------------------------------------------------------------------

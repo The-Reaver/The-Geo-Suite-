@@ -26,7 +26,12 @@ CSS_BASE = """
 
   .band{background:var(--dark);border-radius:30px;padding:70px;text-align:center;color:#fff}
   .band h2{font-family:var(--disp);color:#fff;}
-  
+
+  address{font-style:normal;color:var(--ink);line-height:1.5}
+  .directions-link{display:inline-block;margin-top:10px;color:var(--accent);font-weight:600}
+  .hours-list{list-style:none;padding:0;margin:12px 0 0}
+  .hours-list li{padding:4px 0;color:var(--muted);font-size:15px}
+
   .faq{display:grid;gap:14px;max-width:800px;margin:0 auto}
 
   footer.site{background:var(--dark);color:#fff;padding:72px 0 40px;margin-top:24px}
@@ -67,7 +72,14 @@ def render_index(facts, base_url, theme, blocks) -> str:
         html.append('<section class="wrap">')
         html.append(blocks["areas_block"])
         html.append('</section>')
-        
+
+    # Location + hours (real NAP + a real directions link, no map embed --
+    # no maps API key exists anywhere in site generation)
+    if blocks.get("location_html"):
+        html.append('<section class="wrap">')
+        html.append(blocks["location_html"])
+        html.append('</section>')
+
     html.append('<section class="wrap">')
     html.append(blocks["about_block"])
     html.append('</section>')
