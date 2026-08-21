@@ -828,6 +828,84 @@ def test_jsonld_address_region_matches_visible_page_omission():
     )
 
 
+# 2026-08-21, Opus 5 review round 4 (of commit 453755c, the fix for round
+# 3's 3 findings) found 4 more real bugs -- the control-character
+# sanitization round 3 added was bypassed entirely by the one real,
+# externally-reachable route (POST /sales/preview validates through a
+# separate, hand-maintained model that never inherited the new
+# validators), the control-character regex missed two XML-forbidden
+# noncharacters (U+FFFE/U+FFFF) and lone UTF-16 surrogates (a real,
+# remote-triggerable 500), and the false-industry-claim collision class
+# was still open for any word not on the two specific override lists
+# ("Spanish Tapas Bar" still got hair-salon prose, "Corvette Restoration"
+# still got dental prose). Fixed by reusing the same stripping helper on
+# the router's own model, widening the character class, and adding a
+# general safety net that falls back to industry-neutral prose whenever a
+# family has no real word-level support at all, rather than trying to
+# enumerate every possible synonym.
+
+def test_sales_preview_business_facts_req_strips_control_chars():
+    from app.routers.sales_preview import BusinessFactsReq
+    req = BusinessFactsReq(business_name="Acme\x01Dental Co", subtype="Dentist\x01",
+                            locality="Portland\x01", domain="test.example")
+    assert "\x01" not in req.business_name
+    assert "\x01" not in req.subtype
+    assert "\x01" not in req.locality
+
+
+def test_control_char_stripping_covers_noncharacters_and_surrogates():
+    facts = _facts(business_name="Acme" + chr(0xFFFE) + "Dental",
+                    domain="noncharacter-fffe.example")
+    assert chr(0xFFFE) not in facts.business_name
+    d = _gen(facts)
+    import xml.etree.ElementTree as ET
+    logo = open(os.path.join(d, "assets", "logo.svg"), encoding="utf-8").read()
+    ET.fromstring(logo)  # must not raise
+
+    facts2 = _facts(business_name="Acme" + chr(0xFFFF) + "Dental",
+                     domain="noncharacter-ffff.example")
+    assert chr(0xFFFF) not in facts2.business_name
+
+    facts3 = _facts(business_name="Acme" + chr(0xD800) + "Dental",
+                     domain="lone-surrogate.example")
+    assert chr(0xD800) not in facts3.business_name
+    _gen(facts3)  # must not raise UnicodeEncodeError
+
+
+def test_false_industry_claims_closed_for_untested_synonym_collisions():
+    # "Spanish Tapas Bar" / "Corvette Restoration" contain neither
+    # "restaurant"/"cafe" nor "repair" literally, so the two specific
+    # overrides never fire -- must fall back to safe, general prose
+    # instead of the coarse classifier's accidental beauty_salon/
+    # dental_medical guess.
+    assert site_prose._prose_family_for("Spanish Tapas Bar") == "general"
+    assert site_prose._prose_family_for("Corvette Restoration") == "general"
+    assert site_prose._prose_family_for("Flawless Nails Studio") == "general"
+
+    facts = _facts(subtype="Spanish Tapas Bar", business_name="Casa Iberia",
+                    domain="spanish-tapas-real.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    body_start = html.find("<body")
+    text = re.sub(r"<[^>]+>", " ", html[body_start:]).lower()
+    for w in ("hair", "stylist", "nail", "sterilized"):
+        assert not re.search(r"\b" + w + r"\b", text), f"found forbidden word {w!r}"
+
+
+def test_safety_net_does_not_regress_real_pascalcase_schema_types():
+    # PascalCase schema keys (site_engine.py's own _HUMAN dict) have no
+    # internal spaces -- a naive \bmedical\b never matches inside the
+    # lowercased "medicalclinic". Every one of these must still route to
+    # its real family, not fall back to "general".
+    from app.services.site_engine import _HUMAN
+    from app.services.site_design import palettes
+    for key in _HUMAN:
+        coarse = palettes.industry_family_for(key)
+        if coarse == palettes.INDUSTRY_FAMILY_GENERAL:
+            continue
+        got = site_prose._prose_family_for(key)
+        assert got != "general", f"{key!r} (coarse={coarse!r}) wrongly demoted to general"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 

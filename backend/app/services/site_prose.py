@@ -1175,7 +1175,21 @@ def _prose_family_for(subtype):
     lists drift risk this function's design deliberately avoids.
     """
     from .site_design import palettes
-    s = (subtype or "").lower()
+    # 2026-08-21, Opus review round 4: the word-boundary safety net added
+    # below regressed real, common schema-type keys -- "MedicalClinic",
+    # "HairSalon", "AutoRepair", "VeterinaryCare", "RealEstateAgent",
+    # "GeneralContractor" and others are PascalCase compounds with no
+    # internal spaces, so a strict \bmedical\b never matches inside
+    # "medicalclinic" (no boundary between "medical" and "clinic" once
+    # lowercased) even though this is the single most common real path
+    # subtype strings take (site_engine.py's own _HUMAN dict keys). Split
+    # PascalCase into real words first (the same technique _human() uses
+    # for its own fallback, refined to treat a run of capitals as one
+    # acronym unit so "HVACBusiness" splits to "HVAC Business", not
+    # "H V A C Business") -- free-text subtypes with real spaces already
+    # pass through unchanged.
+    _camel_split = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", subtype or "")
+    s = _camel_split.lower()
     coarse = palettes.industry_family_for(subtype)
 
     # 2026-08-21, Opus review round 3: plain \b...\b word-boundary regex
@@ -1187,8 +1201,10 @@ def _prose_family_for(subtype):
     # one letter away. Every keyword below now allows an optional trailing
     # "s" (`s?`) rather than requiring an exact match.
 
-    # Known, documented substring collisions (see docstring) that are
-    # harmless for palette/template but produce false claims in prose.
+    # Known, documented substring collisions (see docstring) that identify
+    # a MORE SPECIFIC correct family -- checked first, since a positive
+    # redirect is better than a safe-but-generic fallback when we actually
+    # know the right answer.
     if (coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON
             and re.search(r"\brestaurants?\b|\bcafes?\b", s)
             and not re.search(r"\bsalons?\b|\bspas?\b|\bnails?\b|\bbeauty\b", s)):
@@ -1198,6 +1214,37 @@ def _prose_family_for(subtype):
             and "veterinary" not in s
             and not re.search(r"\bdent|\bphysicians?\b|\bmedical\b", s)):
         coarse = palettes.INDUSTRY_FAMILY_HOME_SERVICES
+
+    # 2026-08-21, Opus review round 4: the two overrides above only catch
+    # the two specific collisions this session happened to test ("spa" in
+    # "Spanish", "vet" in "Corvette") -- confirmed via real generated
+    # output that the SAME defect class is still open for any other word
+    # that happens to contain one of industry_family_for()'s substrings
+    # without being a genuine match: "Spanish Tapas Bar" (no literal
+    # "restaurant"/"cafe" word, so the override above never fires) still
+    # got beauty-salon prose about hair and stylists; "Corvette
+    # Restoration" (no literal "repair") still got dental prose about
+    # patients and clinical evaluation. Enumerating every possible
+    # restaurant/repair synonym is an unbounded, losing list. Instead: if
+    # coarse's own family has NO real, whole-word support anywhere in the
+    # subtype string -- meaning the coarse classifier's own verdict came
+    # from nothing but an accidental substring, with no positive evidence
+    # either way -- don't guess a specific family at all. Fall back to
+    # "general" (still real, industry-neutral, non-generic prose; never a
+    # false, specific professional claim). This is a safety net under the
+    # two specific overrides above, not a replacement for them: a genuine
+    # positive match (like "restaurant") still routes to the better,
+    # more-specific family instead of settling for "general".
+    _REAL_WORD_MARKERS = {
+        palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL: r"\bdent|\bphysicians?\b|\bmedical\b|\bvets?\b|\bveterinary\b",
+        palettes.INDUSTRY_FAMILY_HOME_SERVICES: r"\bplumb|\bhvac\b|\belectric|\brepairs?\b|\bcontractors?\b",
+        palettes.INDUSTRY_FAMILY_LEGAL_FINANCE: r"\blaws?\b|\battorneys?\b|\bfinanc|\bestates?\b",
+        palettes.INDUSTRY_FAMILY_BEAUTY_SALON: r"\bsalons?\b|\bbeauty\b|\bspas?\b|\bnails?\b",
+        palettes.INDUSTRY_FAMILY_FOOD_RESTAURANT: r"\bfoods?\b|\brestaurants?\b|\bcafes?\b",
+    }
+    marker = _REAL_WORD_MARKERS.get(coarse)
+    if marker and not re.search(marker, s):
+        coarse = palettes.INDUSTRY_FAMILY_GENERAL
 
     if (coarse == palettes.INDUSTRY_FAMILY_LEGAL_FINANCE
             and re.search(r"\bestates?\b", s)

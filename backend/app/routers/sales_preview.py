@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import httpx
@@ -19,7 +19,7 @@ from app.core.permissions import require_owner, require_sales_agent, security
 from app.core.supabase_client import get_supabase_admin, get_user_client
 from app.services.audit_engine import run_audit
 from app.services.dashboard_panels import build_lead_pipeline, render_lead_pipeline_html
-from app.schemas.site_schemas import FAQ, Rating
+from app.schemas.site_schemas import FAQ, Rating, _strip_control_chars
 from app.services.preview import generate_preview
 from app.services.sales.preview_delivery import (
     create_preview as issue_preview_delivery,
@@ -151,6 +151,31 @@ class BusinessFactsReq(BaseModel):
     rating: Optional[Rating] = None
     same_as: List[str] = []
     faqs: List[FAQ] = []
+
+    # 2026-08-21, Opus review round 4: this model is a hand-maintained
+    # parallel of site_schemas.BusinessFacts, not that class itself -- so
+    # BusinessFacts's own control-character-stripping validators (added
+    # after a real business_name-forged-anchor-tag exploit) never ran for
+    # this route at all. FAQ/Rating happened to be protected because they
+    # reuse site_schemas's own types directly; the flat string fields here
+    # -- including business_name, the exact field the exploit used -- did
+    # not. Reproduced end-to-end through the real route: a business_name
+    # containing a raw \x01 byte reached rendered HTML and produced an
+    # invalid assets/logo.svg, the identical failure already fixed for the
+    # BusinessFacts path. This is the one real, externally-reachable route
+    # a discovered prospect's business_name (sourced from an external
+    # directory API with no character-set guarantee of its own) actually
+    # flows through, so this gap was not theoretical.
+    @field_validator("business_name", "subtype", "locality", "region", "street",
+                      "telephone", "postal_code", "domain")
+    @classmethod
+    def _no_control_chars(cls, value: str) -> str:
+        return _strip_control_chars(value)
+
+    @field_validator("same_as")
+    @classmethod
+    def _no_control_chars_list(cls, values: List[str]) -> List[str]:
+        return [_strip_control_chars(v) for v in values]
 
 class RankLeadsRequest(BaseModel):
     providers: List[Dict[str, Any]]

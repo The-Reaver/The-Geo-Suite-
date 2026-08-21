@@ -38,7 +38,18 @@ def slugify(value: str) -> str:
 # the place raw control bytes get filtered. Stripped once, here, at the
 # real intake boundary every API request actually validates through --
 # not per-renderer, so no future call site can reintroduce this gap.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+#
+# 2026-08-21, Opus review round 4: the C0-only class was incomplete against
+# the actual XML 1.0 Char production (#x9 | #xA | #xD | [#x20-#xD7FF] |
+# [#xE000-#xFFFD] | [#x10000-#x10FFFF]) -- U+FFFE/U+FFFF fall in the gap
+# right after #xFFFD and are forbidden too, reproduced with the same
+# invalid-logo.svg failure via this exact validator. Lone UTF-16 surrogates
+# (U+D800-U+DFFF) are a separate, real crash: Python's json module accepts
+# an unpaired "\ud800" while decoding a request body, Pydantic doesn't
+# reject it, and Path.write_text(..., encoding="utf-8") then raises an
+# unhandled UnicodeEncodeError -- reproduced as a real HTTP 500 with the
+# raw exception text leaked to the caller. Both ranges added.
+_CONTROL_CHARS_RE = re.compile("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\ud800-\\udfff\\ufffe\\uffff]")
 
 
 def _strip_control_chars(value: str) -> str:
