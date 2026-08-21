@@ -68,6 +68,35 @@ def test_incomplete_input_still_renders():
     assert any("business name" in f.lower() for f in res.fix_list)
     assert any("telephone" in f.lower() for f in res.fix_list)
 
+# 2026-08-21, Opus 5 review (round 3) of the industry-aware template
+# selection slice flagged this as a real, pre-existing, out-of-scope
+# finding: FactWrapper.__getattr__ appends to fix_list on EVERY access of
+# a missing field, not just the first -- site_engine.py reads fields
+# like business_name/locality dozens of times while building a page, so
+# the same "Confirm X" message accumulated over and over. Reproduced
+# directly before fixing: a fully empty DummyFacts() produced 175
+# fix_list entries, only 17 unique ("Confirm business name" alone
+# appeared 52 times). This is genuinely user-facing, not just an
+# internal accounting artifact -- PreviewResult.fix_list is returned
+# verbatim as "breakdown" in POST /sales/preview's JSON response
+# (sales_preview.py), so a rep opening a preview for an incomplete
+# prospect record would see the same line repeated dozens of times.
+def test_fix_list_has_no_duplicate_placeholder_field_messages():
+    facts = DummyFacts()  # nothing real supplied at all -- the worst case
+    res = generate_preview(facts)
+    assert len(res.fix_list) == len(set(res.fix_list)), (
+        f"fix_list must never repeat the same message: {res.fix_list}"
+    )
+    possible_messages = [
+        "Confirm business name", "Confirm business subtype", "Confirm locality",
+        "Confirm region", "Confirm street address", "Confirm telephone",
+        "Confirm postal code",
+    ]
+    for msg in possible_messages:
+        count = res.fix_list.count(msg)
+        assert count <= 1, f"{msg!r} appeared {count} times in fix_list, expected at most once"
+
+
 def test_never_publishable():
     facts = DummyFacts(
         business_name="Full Biz",

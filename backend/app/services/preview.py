@@ -38,33 +38,49 @@ def generate_preview(prospect_facts: Any, *, cwv: dict = None, out_dir: str = No
         def __getattr__(self, name):
             val = getattr(self._obj, name, None)
             if not val:
-                # Provide defaults for missing fields
+                # 2026-08-21: __getattr__ fires on EVERY lookup of a
+                # missing attribute, and site_engine.py reads fields like
+                # business_name/locality dozens of times while building a
+                # page -- appending to fix_list unconditionally here made
+                # it accumulate the same "Confirm X" message every single
+                # access (reproduced: 175 entries, 17 unique, for a fully
+                # empty facts object). placeholder_fields already tracks
+                # which fields have been substituted once; gate the
+                # append on that so each field's message is recorded only
+                # the first time it's found missing.
                 if name == "business_name":
-                    fix_list.append("Confirm business name")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm business name")
                     self.placeholder_fields.add(name)
                     return "Demo Business"
                 if name == "subtype":
-                    fix_list.append("Confirm business subtype")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm business subtype")
                     self.placeholder_fields.add(name)
                     return "Local Business"
                 if name == "locality":
-                    fix_list.append("Confirm locality")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm locality")
                     self.placeholder_fields.add(name)
                     return "Sample City"
                 if name == "region":
-                    fix_list.append("Confirm region")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm region")
                     self.placeholder_fields.add(name)
                     return "ST"
                 if name == "street":
-                    fix_list.append("Confirm street address")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm street address")
                     self.placeholder_fields.add(name)
                     return "123 Sample Ave"
                 if name == "telephone":
-                    fix_list.append("Confirm telephone")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm telephone")
                     self.placeholder_fields.add(name)
                     return "555-0000"
                 if name == "postal_code":
-                    fix_list.append("Confirm postal code")
+                    if name not in self.placeholder_fields:
+                        fix_list.append("Confirm postal code")
                     self.placeholder_fields.add(name)
                     return "00000"
                 if name == "domain":
@@ -104,7 +120,15 @@ def generate_preview(prospect_facts: Any, *, cwv: dict = None, out_dir: str = No
     # Audit's gaps are in audit_res.fix_list
     if hasattr(audit_res, "fix_list"):
         fix_list.extend(audit_res.fix_list)
-        
+
+    # 2026-08-21: defense-in-depth, order-preserving dedup. The real
+    # source of duplicates (FactWrapper.__getattr__ appending on every
+    # access, not just the first) is fixed above via placeholder_fields
+    # gating -- this is a no-op for that case now, but also guards
+    # against audit_res.fix_list itself ever containing a real duplicate
+    # finding, which this fix doesn't otherwise touch or verify.
+    fix_list = list(dict.fromkeys(fix_list))
+
     return PreviewResult(
         is_preview=True,
         publishable=False,
