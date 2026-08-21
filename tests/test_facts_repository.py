@@ -121,6 +121,35 @@ def test_unconfirmed_site_cannot_audit():
         pass
 
 
+# 8. Per-service faqs survive the round trip through this repository.
+#
+# 2026-08-21, Opus 5 review of §6 sub-slice 2b: map_to_business_facts()
+# rebuilt each Service as Service(name=..., description=...), dropping any
+# "faqs" key entirely -- BusinessFacts.model_dump() (the write side) already
+# persists Service.faqs, so a real business's confirmed per-service FAQ
+# content was silently discarded on every load through this repository.
+# Reproduced directly: stored with a real faqs list, reloaded with
+# faqs == []. This is the real production path (run_ai_readiness_audit /
+# map_to_business_facts), not just the site_engine rendering layer, so a
+# rendering-level test alone could never have caught it.
+def test_service_faqs_survive_the_confirmed_facts_round_trip():
+    rows = _full_rows()
+    for r in rows:
+        if r["field_name"] == "services":
+            r["field_value"] = json.dumps([
+                {"name": "Preventive cleanings", "description": "Exams, digital X-rays, and hygiene visits."},
+                {"name": "Dental implants", "description": "Permanent tooth replacement placed in-house.",
+                 "faqs": [{"question": "Are implants covered by insurance?", "answer": "Coverage varies by plan."}]},
+                {"name": "Emergency care", "description": "Same-day appointments for pain and breaks."}])
+    bf = _repo(rows).load_business_facts(SITE_ID)
+    implants = next(s for s in bf.services if s.name == "Dental implants")
+    assert len(implants.faqs) == 1, "per-service faqs were dropped on load from the real facts repository"
+    assert implants.faqs[0].question == "Are implants covered by insurance?"
+    # Services with no faqs key at all must not crash or fabricate anything.
+    cleanings = next(s for s in bf.services if s.name == "Preventive cleanings")
+    assert cleanings.faqs == []
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

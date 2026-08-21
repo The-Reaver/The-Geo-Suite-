@@ -21,7 +21,7 @@ The EAV convention (field_name -> BusinessFacts field):
     subtype, street, locality, region, postal_code, country, telephone, email,
     last_updated, tagline
   JSON-encoded (field_value is a JSON string):
-    services       -> [{"name": ..., "description": ...}, ...]
+    services       -> [{"name": ..., "description": ..., "faqs": [{"question": ..., "answer": ...}, ...]}, ...]
     faqs           -> [{"question": ..., "answer": ...}, ...]
     service_areas  -> ["Portland", ...]
     credentials    -> ["ADA membership", ...]
@@ -140,8 +140,22 @@ def map_to_business_facts(site: dict, client: dict, fact_rows: list[dict]) -> Bu
             return _nap_value(nap, field)
         return ""
 
-    services = [Service(name=s.get("name", ""), description=s.get("description", ""))
-                for s in facts.get("services", []) if isinstance(s, dict) and s.get("name")]
+    # 2026-08-21, Opus 5 review of §6 sub-slice 2b: this rebuild dropped
+    # per-service faqs entirely -- the write side (BusinessFacts.model_dump())
+    # already persists them, so a real business's confirmed FAQ content was
+    # silently discarded on every reload through this repository, making
+    # the whole feature unreachable from this real persisted-facts path.
+    # Reproduced directly: stored with a real faqs list, reloaded with
+    # faqs == []. Same shape as this repo's own documented "faqs" EAV
+    # field just above, applied per-service instead of business-wide.
+    services = [
+        Service(
+            name=s.get("name", ""), description=s.get("description", ""),
+            faqs=[FAQ(question=q.get("question", ""), answer=q.get("answer", ""))
+                  for q in (s.get("faqs") or []) if isinstance(q, dict) and q.get("question")],
+        )
+        for s in facts.get("services", []) if isinstance(s, dict) and s.get("name")
+    ]
     faqs = [FAQ(question=q.get("question", ""), answer=q.get("answer", ""))
             for q in facts.get("faqs", []) if isinstance(q, dict) and q.get("question")]
     rating = None

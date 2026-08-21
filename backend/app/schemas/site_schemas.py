@@ -56,9 +56,40 @@ def _strip_control_chars(value: str) -> str:
     return _CONTROL_CHARS_RE.sub("", value)
 
 
+class FAQ(BaseModel):
+    question: str
+    answer: str
+
+    # 2026-08-21, Opus 5 review of §6 sub-slice 2b: an empty-or-whitespace-
+    # only question/answer validated cleanly (bare str fields are only
+    # required to be PRESENT, not non-empty -- the same gap MenuItem.name
+    # already closed once this session) and rendered as a real, visible
+    # but blank accordion item: <details><summary>   </summary><p></p></details>.
+    # Reproduced directly. Fixed the same way, for both fields -- this
+    # applies to BusinessFacts.faqs (business-wide) too, not just the new
+    # Service.faqs path, since the same latent bug existed there already
+    # and was simply never exercised by a real blank entry until now.
+    @field_validator("question", "answer")
+    @classmethod
+    def _required_after_stripping(cls, value: str) -> str:
+        cleaned = _strip_control_chars(value)
+        if not cleaned.strip():
+            raise ValueError("FAQ.question and FAQ.answer must not be empty")
+        return cleaned
+
+
 class Service(BaseModel):
+    # 2026-08-21: §6 sub-slice 2b (practice-area pages). faqs is optional
+    # and per-service, distinct from BusinessFacts.faqs (business-wide,
+    # rendered only on the homepage) -- a real practice-area page (e.g. a
+    # law firm's "Family Law" page) can carry its own, more specific
+    # questions than the business's general FAQ list. Reuses the existing
+    # FAQ shape (moved above Service in this file so it can be referenced
+    # directly, no forward-ref/model_rebuild needed) rather than inventing
+    # a parallel one.
     name: str
     description: str
+    faqs: List[FAQ] = Field(default_factory=list)
 
     @field_validator("name", "description")
     @classmethod
@@ -107,16 +138,6 @@ class MenuItem(BaseModel):
     @classmethod
     def _no_control_chars_list(cls, values: List[str]) -> List[str]:
         return [_strip_control_chars(v) for v in values]
-
-
-class FAQ(BaseModel):
-    question: str
-    answer: str
-
-    @field_validator("question", "answer")
-    @classmethod
-    def _no_control_chars(cls, value: str) -> str:
-        return _strip_control_chars(value)
 
 
 class Testimonial(BaseModel):

@@ -1485,6 +1485,109 @@ def test_service_closer_escapes_html_in_business_and_service_names():
         "no service page's closer ever embedded and escaped the raw business name -- test doesn't exercise the vulnerable path"
 
 
+# --- §6 sub-slice 2b: per-service FAQs ---------------------------------
+
+def _dentist_with_service_faqs():
+    # A fully-featured fixture (rating/same_as/service_areas/credentials),
+    # not the sparse single-service one used for quick manual smoke tests
+    # -- reusing an under-featured fixture already produced a false
+    # "regression" earlier this session (Slice C.2) for reasons entirely
+    # unrelated to the feature under test. _dentist() already clears the
+    # real audit gate; this only adds faqs to one of its services.
+    f = _dentist()
+    f.services[1].faqs = [
+        FAQ(question="Are implants covered by insurance?",
+            answer="Coverage varies by plan; we verify benefits before any procedure."),
+        FAQ(question="How long is the recovery?",
+            answer="Most patients return to normal activity within a few days."),
+    ]
+    return f
+
+
+def test_service_faqs_render_as_real_accordion_when_present():
+    d = _gen(_dentist_with_service_faqs())
+    page = open(os.path.join(d, "service-dental-implants.html"), encoding="utf-8").read()
+    assert "<details><summary>Are implants covered by insurance?</summary>" in page
+    assert "Coverage varies by plan" in page
+    assert "<details><summary>How long is the recovery?</summary>" in page
+    assert '<div class="faq">' in page
+
+
+def test_service_page_has_no_faq_section_when_service_has_no_faqs():
+    # Gating check: a service with no faqs supplied gets no section at
+    # all -- never a fabricated "no questions yet" placeholder.
+    d = _gen(_dentist())  # plain fixture, no faqs on any service
+    page = open(os.path.join(d, "service-dental-implants.html"), encoding="utf-8").read()
+    assert "Questions about" not in page
+    assert "<details>" not in page
+
+
+def test_service_faqs_are_included_in_markdown_mirror():
+    # 2026-08-21: the closer sentence and per-service FAQs are both real
+    # content that could have created a fresh HTML/markdown divergence --
+    # the same defect class already fixed once for menu.md. Proves the
+    # .md mirror (declared via <link rel="alternate">, the whole point of
+    # which is carrying the same substance for an AI crawler) actually
+    # carries both.
+    d = _gen(_dentist_with_service_faqs())
+    md = open(os.path.join(d, "service-dental-implants.md"), encoding="utf-8").read()
+    assert "Are implants covered by insurance?" in md
+    assert "Coverage varies by plan" in md
+    assert "How long is the recovery?" in md
+    # The closer sentence (industry-aware prose) should also be present
+    # now, not just the raw description -- closes the pre-existing gap
+    # the Opus review of sub-slice 2 flagged but explicitly left out of
+    # scope at the time.
+    dental_markers = ("clinical evaluation", "any treatment begins", "genuinely yours to make")
+    assert any(m in md for m in dental_markers), f"closer sentence missing from markdown mirror: {md!r}"
+
+
+def test_service_faqs_escape_html_in_question_and_answer():
+    facts = _dentist_with_service_faqs()
+    facts.services[1].faqs = [FAQ(question="Is <b>implant</b> surgery safe?", answer="Yes, & we explain every step.")]
+    d = _gen(facts)
+    page = open(os.path.join(d, "service-dental-implants.html"), encoding="utf-8").read()
+    assert "<b>implant</b>" not in page
+    assert "&lt;b&gt;implant&lt;/b&gt;" in page
+    assert "Yes, &amp; we explain" in page
+
+
+def test_service_faqs_do_not_regress_the_real_audit_gate():
+    d = _gen(_dentist_with_service_faqs())
+    r = audit_engine.run_audit(d, cwv=GOOD_CWV)
+    assert r.passed is True, f"adding real per-service FAQs regressed the publish gate: {r.fix_list[:5]}"
+
+
+def test_service_faq_answer_cannot_forge_a_markdown_heading_in_the_mirror():
+    # 2026-08-21, Opus 5 review: _CONTROL_CHARS_RE deliberately allows real
+    # newlines through at intake (needed for legitimate multi-line HTML
+    # content) -- but a markdown mirror is not HTML. Reproduced directly: a
+    # multi-line FAQ answer containing an embedded "## " line rendered as a
+    # REAL document-level markdown heading in the generated .md file.
+    facts = _dentist_with_service_faqs()
+    facts.services[1].faqs = [FAQ(
+        question="What if I have more questions?",
+        answer="Call our office.\n## Fake Heading\nAsk for anything you like at no cost.")]
+    d = _gen(facts)
+    md = open(os.path.join(d, "service-dental-implants.md"), encoding="utf-8").read()
+    assert "\n## Fake Heading" not in md, "a multi-line FAQ answer forged a real markdown heading"
+    assert "Fake Heading" in md, "the answer's real text should still be present, just neutralized"
+
+
+def test_faq_question_or_answer_cannot_be_empty():
+    for bad in (
+        lambda: FAQ(question="", answer="A real answer."),
+        lambda: FAQ(question="   ", answer="A real answer."),
+        lambda: FAQ(question="A real question?", answer=""),
+        lambda: FAQ(question="A real question?", answer="   "),
+    ):
+        try:
+            bad()
+            assert False, "expected ValueError for an empty FAQ question/answer"
+        except ValueError:
+            pass
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 

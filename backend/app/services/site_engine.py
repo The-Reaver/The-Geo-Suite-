@@ -786,7 +786,34 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
         f"{_esc(s.description)} {_esc(closer)}</p>\n"
         f"      <p>Return to the <a href=\"index.html\">home page</a> "
         f"or read <a href=\"about.html\">about our team</a>.</p>")
-        
+
+    # 2026-08-21, §6 sub-slice 2b: Service.faqs is optional and per-service
+    # (distinct from BusinessFacts.faqs, which is business-wide and only
+    # ever rendered on the homepage) -- a real practice-area page can carry
+    # its own, more specific questions. Gated on real supplied data, same
+    # as every other optional section this session (never fabricated
+    # filler like "what to expect"/"our process" with no real content
+    # behind it). Reuses _wrap_faq() (site_design/templates/__init__.py)
+    # for the real <details>/<summary> accordion markup and CSS every
+    # template already declares, rather than a second, parallel FAQ
+    # renderer -- same "one real helper, no template file changes" pattern
+    # already proven for the homepage FAQ section and the menu-page slice.
+    #
+    # getattr, not s.faqs directly: this module's own docstring guarantees
+    # the engine "can be exercised against the audit grader with any
+    # object that carries the same fields" -- several existing tests
+    # (test_site_design_variation.py) build duck-typed SimpleNamespace
+    # service stand-ins that predate this field. A bare s.faqs would raise
+    # AttributeError on every one of them; reproduced directly (4 real
+    # test failures) before switching to getattr.
+    service_faqs = getattr(s, "faqs", None)
+    if service_faqs:
+        faq_rows = [f"      <h3>{_esc(q.question)}</h3>\n      <p>{_esc(q.answer)}</p>" for q in service_faqs]
+        content += (f'\n    <section aria-label="Frequently asked questions about {_esc(s.name)}">\n'
+                    f"      <h2>Questions about {_esc(s.name)}</h2>\n" + "\n".join(faq_rows) + "\n    </section>")
+        from .site_design.templates import _wrap_faq
+        content = _wrap_faq(content)
+
     blocks = {
         "head": head,
         "title": title,
@@ -1093,6 +1120,36 @@ def _build_llms_full(f: _F, base: str, pages: list[str]) -> str:
 # =============================================================================
 
 
+def _md_safe(text: str) -> str:
+    """Neutralizes free text before it becomes one line/paragraph inside a
+    markdown mirror.
+
+    2026-08-21, Opus 5 review of §6 sub-slice 2b: _CONTROL_CHARS_RE
+    (site_schemas.py) deliberately allows tab/newline/CR through at
+    intake (matching the XML Char production, needed for legitimate
+    multi-line descriptions rendered as HTML, where a raw newline is
+    harmless). But a markdown mirror is not HTML -- an embedded newline
+    followed by "#"/"-"/"*"/">" can forge a new heading/list/blockquote
+    at the document level. Reproduced directly: a multi-line FAQ answer
+    containing an embedded "## " line rendered as a real markdown
+    heading in the generated .md file. Collapses embedded newlines/
+    excess whitespace to single spaces (so free text can only ever be
+    prose within its own paragraph, never start a new block) and escapes
+    a leading block-starter character if the text's own first character
+    happens to be one.
+
+    Deliberately not applied inside _md_mirror() itself or globally to
+    every paragraph -- some callers (the menu-page mirror) legitimately
+    construct real markdown headings themselves ("## " + category), and
+    that construction must keep working. Applied at the specific call
+    sites that interpolate raw, business-supplied free text this diff
+    introduced (the FAQ content), not to code-authored markdown structure."""
+    flat = " ".join(text.split())
+    if flat[:1] in ("#", "-", "*", ">"):
+        flat = "\\" + flat
+    return flat
+
+
 def _md_mirror(f: _F, title: str, paragraphs: list[str]) -> str:
     out = [f"# {title}", ""]
     out.extend(paragraphs)
@@ -1203,10 +1260,27 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
                     "Services: " + (_oxford([s.name for s in (f.services or [])]) or "on request")]),
         encoding="utf-8")
     written.append("index.md")
+    if f.services:
+        # 2026-08-21, §6 sub-slice 2b: the closer sentence and per-service
+        # FAQs (both real content, both new to this pass) were about to
+        # become a fresh HTML/markdown-mirror divergence -- the same
+        # "the markdown mirror carries less than the real page" gap
+        # already fixed once for menu.md. Closed here rather than left as
+        # a second instance of a defect this repo already has a fix
+        # pattern for.
+        from . import site_prose
+        from .site_design import engine as design_engine
+        prose_seed = design_engine.compute_seed(f)
     for s in (f.services or []):
         slug = _slug(s.name)
+        closer = site_prose.service_closer_for(f.subtype, prose_seed, slug, f.business_name, str(s.name))
+        paragraphs = [s.description, _md_safe(closer)]
+        service_faqs = getattr(s, "faqs", None)
+        if service_faqs:
+            paragraphs.append(f"Questions about {s.name}:")
+            paragraphs.extend(f"- {_md_safe(q.question)} {_md_safe(q.answer)}" for q in service_faqs)
         (out / f"service-{slug}.md").write_text(
-            _md_mirror(f, f"{s.name} in {f.locality}", [s.description]), encoding="utf-8")
+            _md_mirror(f, f"{s.name} in {f.locality}", paragraphs), encoding="utf-8")
         written.append(f"service-{slug}.md")
     if f.menu_items:
         # 2026-08-21, Opus 5 review: this used to be one generic sentence
