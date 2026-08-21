@@ -63,17 +63,36 @@ P_SLATE = Palette("Slate", "#F8FAFC", "#FFFFFF", "#0F172A", "#475569", "#E2E8F0"
 # verified against this module's own contrast_ratio() before being added
 # -- weakest margin is Sky at 13.93, well clear of the 4.5 floor
 # assert_wcag() enforces on the whole list below.
+#
+# 2026-08-21, Opus 5 review of the first cut of this slice found two
+# real defects, both fixed in the values below:
+# 1. assert_wcag() only ever checked ink/bg -- every template's primary
+#    CTA button/band renders background:var(--accent);color:#fff, and 5
+#    of the 12 new accents (Mint, Olive, Amber, Sky, Indigo) shipped that
+#    pairing below WCAG's 3:1 floor for large-scale UI text (Mint
+#    measured 2.54:1). accent/accent_dark for those five are now real
+#    Tailwind-scale darker steps (e.g. emerald-700/800 for Mint), each
+#    independently re-verified at white/accent >= 4.6 -- comfortably
+#    clear of both the 3:1 floor assert_wcag() now enforces and the
+#    stricter 4.5:1 normal-text bar, not just barely passing.
+# 2. Terracotta was Orange's own ramp shifted one step darker (identical
+#    ink and accent_soft, accent == Orange's accent_dark) -- not a
+#    genuinely new option. Redesigned as a real muted clay/rust tone
+#    (accent saturation ~0.47 vs. Orange's ~0.90 at a similar hue angle
+#    -- the same "muted earthy tone vs. vivid saturated tone" distinction
+#    real design systems use), with its own ink/bg/accent_soft, none
+#    shared with Orange.
 
 # Dental/Medical, additional options
 P_MINT = Palette("Mint", "#F7FDFB", "#FFFFFF", "#06281F", "#3F6B5C", "#DCEEE7",
-                 "#10B981", "#047857", "#D1FAE5", "#34D399", "#10B981", "#B45309")
+                 "#047857", "#065F46", "#D1FAE5", "#34D399", "#047857", "#B45309")
 
 P_INDIGO = Palette("Indigo", "#F5F6FF", "#FFFFFF", "#1E1B4B", "#4C4A75", "#E0E1FA",
-                   "#6366F1", "#4338CA", "#E0E7FF", "#818CF8", "#6366F1", "#B45309")
+                   "#4F46E5", "#4338CA", "#E0E7FF", "#818CF8", "#4F46E5", "#B45309")
 
 # Home Services, additional options
 P_AMBER = Palette("Amber", "#FFFBF5", "#FFFFFF", "#431E07", "#7C4A1B", "#FDEBD3",
-                  "#D97706", "#B45309", "#FEF3C7", "#F59E0B", "#D97706", "#B45309")
+                  "#B45309", "#92400E", "#FEF3C7", "#F59E0B", "#B45309", "#D97706")
 
 P_CHARCOAL = Palette("Charcoal", "#FAFAFA", "#FFFFFF", "#171717", "#52525B", "#E4E4E7",
                      "#27272A", "#18181B", "#F4F4F5", "#52525B", "#27272A", "#B45309")
@@ -94,16 +113,16 @@ P_BLUSH = Palette("Blush", "#FFF8F8", "#FFFFFF", "#4A1015", "#8B4A52", "#FCE4E6"
 
 # Food/Restaurant, additional options
 P_OLIVE = Palette("Olive", "#FBFBF3", "#FFFFFF", "#292B12", "#565A2B", "#E9EAD4",
-                  "#65A30D", "#4D7C0F", "#ECFCCB", "#84CC16", "#65A30D", "#B45309")
+                  "#4D7C0F", "#3F6212", "#ECFCCB", "#84CC16", "#4D7C0F", "#B45309")
 
-P_TERRACOTTA = Palette("Terracotta", "#FEF8F5", "#FFFFFF", "#431407", "#7C3A21", "#FBE3D6",
-                       "#C2410C", "#9A3412", "#FFEDD5", "#EA580C", "#C2410C", "#B45309")
+P_TERRACOTTA = Palette("Terracotta", "#FDF6F0", "#FFFFFF", "#3D1E0F", "#6B4A3A", "#EDE0D5",
+                       "#8B4B32", "#6B3623", "#F0DFD2", "#A0623F", "#8B4B32", "#B45309")
 
 # General-purpose -- no named industry family maps to these; they only
 # ever surface through palette_for()'s `else` branch, widening the
 # fallback instead of adding a 6th named family.
 P_SKY = Palette("Sky", "#F0F9FF", "#FFFFFF", "#0C2A3D", "#3B6478", "#DEF0FA",
-               "#0284C7", "#075985", "#E0F2FE", "#38BDF8", "#0284C7", "#B45309")
+               "#0369A1", "#075985", "#E0F2FE", "#38BDF8", "#0369A1", "#B45309")
 
 P_STONE = Palette("Stone", "#FAFAF9", "#FFFFFF", "#1C1917", "#57534E", "#E7E5E4",
                   "#78716C", "#57534E", "#F5F5F4", "#A8A29E", "#78716C", "#B45309")
@@ -135,7 +154,17 @@ def assert_wcag():
     for p in PALETTES:
         # body ink vs bg
         assert contrast_ratio(p.ink, p.bg) >= 4.5, f"Palette {p.name} fails body contrast"
-        # large text accent vs bg (optional but good practice)
-        # assert contrast_ratio(p.accent, p.bg) >= 3.0, f"Palette {p.name} fails large contrast"
+        # 2026-08-21, Opus 5 review of Slice C.1: both of these were
+        # previously unchecked -- this line was commented out from the
+        # start, and white-on-accent was never checked at all. Every
+        # template's primary CTA button/band renders
+        # background:var(--accent);color:#fff, so a palette whose accent
+        # doesn't clear WCAG's 3:1 floor for large-scale UI text against
+        # both white and its own bg ships an unreadable button, not just
+        # a theoretical risk (5 of the first 12 new palettes did exactly
+        # this before being fixed).
+        assert contrast_ratio("#FFFFFF", p.accent) >= 3.0, \
+            f"Palette {p.name} fails white-on-accent button-text contrast"
+        assert contrast_ratio(p.accent, p.bg) >= 3.0, f"Palette {p.name} fails large-text accent contrast"
 
 assert_wcag()

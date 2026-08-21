@@ -64,17 +64,99 @@ def test_palettes_wcag_contrast():
 # authoritative contrast gate for every entry; these lock in the actual
 # size/variety so a future edit can't silently shrink the library back
 # down without a test noticing.
+#
+# 2026-08-21, Opus 5 review of the first cut of this slice: this test
+# originally compared .name only -- a color-identical clone (different
+# name, same hex values) would have passed, and did in mutation testing.
+# Now also asserts every accent hex is unique, and a sibling test below
+# independently re-verifies both WCAG checks and genuine visual
+# distinctness within each family, so a future weakening of
+# assert_wcag() or a near-duplicate palette can't slip through with only
+# assert_wcag() itself as the sole gate.
 def test_palette_library_has_real_variety():
     assert len(palettes.PALETTES) >= 20, \
         f"expected >= 20 palettes, got {len(palettes.PALETTES)}"
     names = [p.name for p in palettes.PALETTES]
     assert len(names) == len(set(names)), f"duplicate palette names: {names}"
+    accents = [p.accent for p in palettes.PALETTES]
+    assert len(accents) == len(set(accents)), f"duplicate accent colors: {accents}"
 
     representative_subtypes = ["Dentist", "Plumber", "Attorney", "Hair Salon", "Restaurant"]
     for subtype in representative_subtypes:
         seen = {palettes.palette_for(subtype, seed).name for seed in range(8)}
         assert len(seen) >= 4, \
             f"{subtype}'s industry family must resolve to >= 4 distinct palettes, got {seen}"
+
+
+def _luminance(hex_color):
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+
+    def srgb(c):
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b)
+
+
+def _contrast(hex1, hex2):
+    l1, l2 = _luminance(hex1), _luminance(hex2)
+    bright, dark = max(l1, l2), min(l1, l2)
+    return (bright + 0.05) / (dark + 0.05)
+
+
+def _hue_sat(hex_color):
+    import colorsys
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    return h * 360, s
+
+
+# 2026-08-21, Opus 5 review of Slice C.1: assert_wcag() only ever checked
+# ink/bg, and only for palettes actually reachable through this module's
+# own PALETTES list -- but no test independently re-verified the white-
+# on-accent button contrast every template's primary CTA relies on
+# (background:var(--accent);color:#fff). 5 of the first 12 new palettes
+# shipped that pairing below WCAG's 3:1 floor (Mint measured 2.54:1)
+# before being fixed; this test re-implements the check independently
+# (mirroring test_palettes_wcag_contrast's own reimplementation style for
+# ink/bg) over the FULL 20-palette list, not just the 4 reachable via one
+# subtype, so a future weakening of assert_wcag() can't silently regress
+# this.
+def test_all_palettes_pass_button_text_contrast_independently():
+    for p in palettes.PALETTES:
+        cr = _contrast("#FFFFFF", p.accent)
+        assert cr >= 3.0, f"{p.name}: white text on accent {p.accent} is {cr:.2f}, below the 3:1 floor"
+
+
+# 2026-08-21, Opus 5 review of Slice C.1: caught a real near-duplicate
+# hex-uniqueness alone can't detect -- Terracotta was Orange's own accent
+# ramp shifted one step darker (same hue, same high saturation), not a
+# genuinely new option. Within each named industry family, every pair of
+# palettes must differ in hue by >= 8 degrees or in saturation by >= 0.15
+# -- the same "muted earthy tone vs. vivid saturated tone" distinction a
+# hex-only uniqueness check would miss.
+def test_palette_family_members_are_visually_distinct():
+    families = {
+        "Dentist": ["Teal", "Blue", "Mint", "Indigo"],
+        "Plumber": ["Red", "Steel", "Amber", "Charcoal"],
+        "Attorney": ["Navy", "Slate", "Burgundy", "Forest"],
+        "Hair Salon": ["Rose", "Teal", "Lavender", "Blush"],
+        "Restaurant": ["Orange", "Red", "Olive", "Terracotta"],
+    }
+    by_name = {p.name: p for p in palettes.PALETTES}
+    for subtype, names in families.items():
+        pals = [by_name[n] for n in names]
+        for i in range(len(pals)):
+            for j in range(i + 1, len(pals)):
+                h1, s1 = _hue_sat(pals[i].accent)
+                h2, s2 = _hue_sat(pals[j].accent)
+                hue_delta = min(abs(h1 - h2), 360 - abs(h1 - h2))
+                sat_delta = abs(s1 - s2)
+                assert hue_delta >= 8 or sat_delta >= 0.15, (
+                    f"{pals[i].name} and {pals[j].name} (both in the {subtype!r} family) "
+                    f"are too visually similar: hue delta {hue_delta:.1f}, sat delta {sat_delta:.2f}"
+                )
 
 
 def test_typography_library_has_real_variety():
