@@ -271,16 +271,35 @@ def _rules_by_selector_merged(rules):
     return merged
 
 
+# 2026-08-21, Opus 5 review of the previous fix commit: this originally
+# resolved a :hover rule's inherited size/weight via _selector_base(),
+# which returns only the FIRST whitespace token of a selector -- correct
+# for a single compound token like ".dir-call:hover" (base ".dir-call"),
+# but wrong for a DESCENDANT :hover selector like "X Y:hover", where it
+# resolves to the ancestor "X" instead of the real un-hovered self "X Y".
+# Proven by mutation to produce both a false negative (a real violation
+# hidden because the unrelated ancestor happens to declare a large
+# font-size) and a false positive (a compliant rule flagged because the
+# ancestor declares no font-size at all, even though "X Y" itself does).
+# Now resolves the exact un-hovered self first (the same selector text
+# with only its own trailing pseudo-class stripped), falling back to
+# _selector_base()'s ancestor lookup only if that misses.
+def _self_without_pseudo(selector: str) -> str:
+    return re.sub(r":[a-zA-Z-]+$", "", selector.strip()).strip()
+
+
 def _resolve_size_weight(selector: str, decl: str, rules_by_selector: dict):
-    base = _selector_base(selector)
-    base_decl = rules_by_selector.get(base, "")
+    self_sel = _self_without_pseudo(selector)
+    fallback_decl = rules_by_selector.get(self_sel, "")
+    if not fallback_decl and self_sel != selector:
+        fallback_decl = rules_by_selector.get(_selector_base(selector), "")
     size = _declared_px(decl, "font-size")
-    if size == 0.0 and selector != base:
-        size = _declared_px(base_decl, "font-size")
+    if size == 0.0 and selector != self_sel:
+        size = _declared_px(fallback_decl, "font-size")
     if "font-weight" in decl.replace(" ", "").lower():
         weight = _declared_weight(decl)
-    elif selector != base:
-        weight = _declared_weight(base_decl)
+    elif selector != self_sel:
+        weight = _declared_weight(fallback_decl)
     else:
         weight = _declared_weight(decl)
     return size, weight

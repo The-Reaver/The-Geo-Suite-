@@ -28,13 +28,23 @@ CSS_BASE = """
   nav.primary{display:flex;gap:24px;align-items:center}
   nav.primary a{color:var(--muted);font-size:15px;font-weight:500}
   nav.primary a:hover{color:var(--ink);text-decoration:none}
-  .call-pill{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark);padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px;min-height:40px}
-  /* 2026-08-21, Opus 5 review of a later slice's contrast fixes: caught
-     this pre-existing instance of the same bug -- white on var(--accent)
-     at .call-pill's own inherited 14px/600 fails 4.5:1 for 2 of 20
-     palettes. accent-dark is safe by construction at any size (>=5.18:1
-     on every palette). */
-  .call-pill:hover{background:var(--accent-dark);color:#fff;text-decoration:none}
+  /* 2026-08-21, Opus 5 review: the call-pill link is rendered inside
+     nav.primary (it's one of the nav CTA links), so the plain
+     nav.primary anchor rule and its own hover rule (same specificity as
+     the two below, but declared LATER in the cascade) were silently
+     winning the `color` property on every state -- this template was
+     the only one of the 9 whose nav CTA didn't mark color !important,
+     so its "fix" below never actually rendered. Resting state really
+     showed var(--muted) at the plain nav link's own 15px/500, not
+     accent-dark/14px/600; hovering showed var(--ink) on
+     var(--accent-dark), which is <=1.22:1 on 19 of 20 palettes and
+     exactly 1.00:1 (ink and accent_dark are the same hex) on Navy --
+     invisible text, strictly worse than the pre-fix var(--ink)-on-
+     var(--accent) it replaced. !important on both matches every other
+     template's own nav CTA pattern -- each already marks its CTA's
+     color !important for exactly this reason. */
+  .call-pill{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark) !important;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px;min-height:40px}
+  .call-pill:hover{background:var(--accent-dark);color:#fff !important;text-decoration:none}
   @media(max-width:860px){nav.primary a:not(.call-pill){display:none}}
 
   .layout{display:grid;grid-template-columns:1fr 320px;gap:52px;padding:56px 0}

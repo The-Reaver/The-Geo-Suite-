@@ -42,7 +42,20 @@ CSS_BASE = """
   .hours-list li{padding:4px 0;color:var(--muted);font-size:15px}
 
   .faq{display:grid;gap:14px;max-width:780px;margin:0 auto}
-  
+  /* 2026-08-21, Opus 5 review: the shared _wrap_faq() helper
+     (templates/__init__.py) now turns the real FAQ content into a real
+     accordion (details/summary elements) for every template -- but this
+     file had no details/summary CSS at all before, the mirror-image of
+     the dead-CSS bug _wrap_faq() itself fixed: real markup with nothing
+     to style it, rendering as an unstyled native disclosure triangle
+     with the answer collapsed by default. */
+  details{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:4px 22px}
+  summary{cursor:pointer;font-weight:600;padding:18px 0;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:17px}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";color:var(--accent);font-size:22px;font-weight:400}
+  details[open] summary::after{content:"–"}
+  details p{color:var(--muted);margin:0 0 18px}
+
   /* 2026-08-21, Opus 5 review of Slice C.3: site_engine.py's _footer()
      emits a classless <footer> -- this never matched anything until
      _footer_class() was wired in at both call sites. */

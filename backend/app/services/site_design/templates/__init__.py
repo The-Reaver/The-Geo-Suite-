@@ -82,12 +82,25 @@ def _wrap_faq(faq_html: str) -> str:
     template's CSS actually defines -- instead of the real, styled .faq
     class on an inner wrapper. Centralized here so a new template can't
     reintroduce the same gap by copying the old, broken
-    .replace('<section ', 'class="faq-sec"') pattern."""
+    .replace('<section ', 'class="faq-sec"') pattern.
+
+    2026-08-21, Opus 5 review: the div-open and div-close steps used to
+    run unconditionally -- safe only because site_engine.py's real
+    faq_block always contains both an <h2> and a </section>, which
+    nothing here actually asserted. Now only opens the div if the <h2>
+    substitution really matched (an unmatched <h2> means no div was
+    opened, so nothing gets closed either), and closes it before
+    </section> when one exists, or at the very end otherwise -- so this
+    can never emit an unbalanced </div> or leave one un-closed."""
     def _pair(m):
         return f'<details><summary>{m.group(1)}</summary><p>{m.group(2)}</p></details>'
     wrapped = re.sub(r"<h3>(.*?)</h3>\s*<p>(.*?)</p>", _pair, faq_html, flags=re.S)
-    wrapped = re.sub(r"(<h2[^>]*>.*?</h2>)", r'\1\n<div class="faq">', wrapped, count=1, flags=re.S)
-    return wrapped.replace("</section>", "</div>\n    </section>", 1)
+    wrapped, n = re.subn(r"(<h2[^>]*>.*?</h2>)", r'\1\n<div class="faq">', wrapped, count=1, flags=re.S)
+    if n == 0:
+        return wrapped
+    if "</section>" in wrapped:
+        return wrapped.replace("</section>", "</div>\n    </section>", 1)
+    return wrapped + "</div>"
 
 
 def _footer_class(footer_html: str, class_name: str) -> str:
