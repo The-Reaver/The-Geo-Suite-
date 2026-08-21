@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2, _footer_class
+from . import Template, _inject_css, _wrap_h2, _footer_class, _wrap_faq
 import re
 
 # Site Generator robustness push, Slice C.3 (2026-08-21): second of two
@@ -41,7 +41,15 @@ CSS_BASE = """
      the same accent-soft/accent-dark pairing already proven safe at any
      size for Trust Panel's/Framed Gallery's call buttons. */
   .dir-call{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent-dark) !important;padding:9px 16px;border-radius:8px;font-weight:600;font-size:14px}
-  .dir-call:hover{background:var(--accent);color:#fff !important;text-decoration:none}
+  /* 2026-08-21, Opus 5 review: this used to say background:var(--accent),
+     inheriting .dir-call's own 14px/600 font-size -- white on var(--accent)
+     at that size is 3.56-3.74:1 for 2 of 20 palettes, below the 4.5:1
+     bar. accent-dark is safe by construction at any size (>=5.18:1 on
+     every palette), so hover uses that instead of re-deriving a size
+     threshold for a state this project's own contrast scanner can't
+     safely check (font-size is usually inherited, not redeclared, on
+     :hover rules). */
+  .dir-call:hover{background:var(--accent-dark);color:#fff !important;text-decoration:none}
   @media(max-width:760px){nav.primary a:not(.dir-call){display:none}}
 
   .hero{padding:44px 0 0}
@@ -211,7 +219,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     if blocks["faq_block"]:
         html.append('<div class="wrap"><section class="block">')
-        html.append(blocks["faq_block"].replace('<section ', '<section class="faq-sec" '))
+        html.append(_wrap_faq(blocks["faq_block"]))
         html.append('</section></div>')
 
     html.append('    </article>')

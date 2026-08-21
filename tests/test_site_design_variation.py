@@ -214,10 +214,20 @@ def _selector_base(selector: str) -> str:
 # variable name's closing paren immediately follows "accent", which only
 # ever occurs for the literal `--accent` custom property.
 #
-# :hover rules are skipped: they often don't redeclare font-size (relying
-# on inheritance from the base rule), and this is a simple text-based CSS
-# parser with no cross-rule inheritance resolution -- checking a :hover
-# rule in isolation would produce false failures, not real coverage.
+# 2026-08-21, Opus 5 review of the footer/contrast fix commit: this test
+# originally skipped every :hover selector outright, reasoning that a
+# :hover rule "often doesn't redeclare font-size, relying on inheritance
+# from the base rule" -- but that's exactly backwards as a reason to
+# SKIP: a :hover rule that inherits its size FROM the base rule is
+# real CSS cascade behavior (both rules match the same hovered element;
+# properties the :hover rule doesn't redeclare keep the base rule's
+# value), not something this checker can't know. The blanket skip was a
+# 100% false-negative filter -- every one of the 4 rules it excused
+# (.call-btn:hover, .dir-call:hover, .tl-call:hover, .call-pill:hover,
+# each inheriting 14-15px/600 from their un-hovered base rule) was a real
+# live bug. Now resolved instead of skipped: a :hover rule's own
+# font-size/font-weight take priority if declared, else fall back to its
+# base selector's declared value.
 #
 # A selector is also skipped if a MORE SPECIFIC descendant selector (e.g.
 # ".band h2" for ".band") exists in the same file and itself declares a
@@ -241,6 +251,41 @@ def _has_color_overriding_descendant(selector: str, rules) -> bool:
     return False
 
 
+def _rules_by_selector_merged(rules):
+    # 2026-08-21, Opus 5 review: a plain {sel: decl for sel, decl in rules}
+    # dict comprehension is last-write-wins on the WHOLE decl string --
+    # editorial_minimal.py declares ".band" twice (once at top level, once
+    # inside a @media block, e.g. ".band{padding:32px}"), and the second,
+    # narrower declaration was silently replacing the first, dropping
+    # "background:var(--accent)" from what base-selector lookups could
+    # see. Real CSS cascade merges same-selector rules property-by-
+    # property (last value per property wins, not last rule wins
+    # wholesale); this approximates that safely for our purposes by
+    # concatenating every declaration block seen for a selector, so a
+    # property mentioned in an earlier rule is never lost just because a
+    # later, narrower rule for the same selector doesn't redeclare it.
+    merged = {}
+    for sel, decl in rules:
+        sel = sel.strip()
+        merged[sel] = (merged[sel] + ";" + decl) if sel in merged else decl
+    return merged
+
+
+def _resolve_size_weight(selector: str, decl: str, rules_by_selector: dict):
+    base = _selector_base(selector)
+    base_decl = rules_by_selector.get(base, "")
+    size = _declared_px(decl, "font-size")
+    if size == 0.0 and selector != base:
+        size = _declared_px(base_decl, "font-size")
+    if "font-weight" in decl.replace(" ", "").lower():
+        weight = _declared_weight(decl)
+    elif selector != base:
+        weight = _declared_weight(base_decl)
+    else:
+        weight = _declared_weight(decl)
+    return size, weight
+
+
 def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
     modules = [editorial_minimal, split_modern, bold_cinematic, trust_panel,
                boutique_editorial, framed_gallery, directory_listing,
@@ -248,11 +293,9 @@ def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
     for mod in modules:
         css = mod.CSS_BASE
         rules = _parse_css_rules(css)
-        rules_by_selector = {sel.strip(): decl for sel, decl in rules}
+        rules_by_selector = _rules_by_selector_merged(rules)
         for selector, decl in rules:
             selector = selector.strip()
-            if ":hover" in selector:
-                continue
             if "color:#fff" not in decl.replace(" ", "").lower():
                 continue
             base = _selector_base(selector)
@@ -263,8 +306,7 @@ def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
                 continue
             if _has_color_overriding_descendant(selector, rules):
                 continue
-            size = _declared_px(decl, "font-size")
-            weight = _declared_weight(decl)
+            size, weight = _resolve_size_weight(selector, decl, rules_by_selector)
             qualifies = size >= 24 or (size >= 18.66 and weight >= 700)
             assert qualifies, (
                 f"{mod.__name__} {selector!r}: white text on var(--accent) at "
@@ -547,6 +589,58 @@ def test_every_template_adds_its_own_class_to_the_shared_footer():
         assert re.search(r'<footer class="[^"]+">', service_html), \
             f"{tmpl.name}'s render_service must add its own class to the real, classless <footer> _footer() emits"
         assert "<footer>\n" not in service_html, f"{tmpl.name}'s render_service left the shared footer classless"
+
+
+# 2026-08-21, Opus 5 review of the footer/contrast fix commit: found that
+# site_engine.py's real faq_block output (plain <h3>/<p> pairs, never
+# <details>/<summary>) never matched any of the 9 templates' own
+# .faq/details/summary/summary::after accordion CSS -- the identical "CSS
+# rule matches nothing real" defect class as the footer bug, still shipped
+# in the two brand-new C.4 templates. Fixed via a shared _wrap_faq()
+# helper (templates/__init__.py). This proves the fix directly against
+# real, site_engine.py-shaped faq_block markup (not a placeholder), and
+# that no template drops or mangles the real question/answer text while
+# converting it.
+def test_every_template_renders_real_faq_accordion_markup():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    real_faq_block = (
+        '    <section id="faq" aria-label="Frequently asked questions">\n'
+        '      <h2>Frequently asked questions</h2>\n'
+        '      <h3>Do you offer emergency service?</h3>\n'
+        '      <p>Yes, 24/7.</p>\n'
+        '      <h3>Are you licensed?</h3>\n'
+        '      <p>Yes, fully licensed and insured.</p>\n'
+        '    </section>'
+    )
+    blocks = {
+        "head": "<!DOCTYPE html><html><head><style></style></head>",
+        "nav": '<nav aria-label="Primary"><a href="index.html">Home</a></nav>',
+        "footer": "  <footer>\n    <p>Acme Plumbing</p>\n  </footer>",
+        "p1_html": "<p>p1</p>",
+        "p2_html": "<p>p2</p>",
+        "services_block": '<h2 id="services">Services</h2><ul><li>Item</li></ul>',
+        "areas_block": "",
+        "about_block": "<section><h2>About</h2></section>",
+        "faq_block": real_faq_block,
+        "rating_html": "",
+        "stats_band": "",
+        "location_html": "",
+        "cookie": '<div id="cookie-consent"></div>',
+    }
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert "<details>" in html and "<summary>" in html, \
+            f"{tmpl.name} must render real <details>/<summary> FAQ accordion markup, not flat <h3>/<p>"
+        assert "Do you offer emergency service?" in html, \
+            f"{tmpl.name} dropped or mangled the real FAQ question text"
+        assert "Yes, fully licensed and insured." in html, \
+            f"{tmpl.name} dropped or mangled the real FAQ answer text"
+        assert html.count("<details>") == 2, \
+            f"{tmpl.name} rendered {html.count('<details>')} FAQ accordion items, expected 2"
 
 
 # 2026-08-20, Site Generator robustness push Slice A: site_engine.py now

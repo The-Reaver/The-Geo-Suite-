@@ -68,6 +68,28 @@ def _wrap_h2(block_html: str, kicker: str, k_class: str = "k") -> str:
     return block_html.replace("</h2>", "</h2></div>", 1)
 
 
+def _wrap_faq(faq_html: str) -> str:
+    """Converts site_engine.py's flat <h3>/<p> FAQ pairs into real
+    <details>/<summary> accordion items, wrapped in a <div class="faq">
+    -- matching the .faq{...}/details{...}/summary{...}/summary::after{...}
+    accordion CSS every template already declares.
+
+    2026-08-21, Opus 5 review of the footer/contrast fix commit: found
+    this dead across all 9 templates, the same "CSS rule matches nothing
+    real" defect class as the footer bug. site_engine.py's faq_block only
+    ever emits plain <h3>/<p> pairs, never <details>/<summary>, and every
+    template applied class="faq-sec" to the outer <section> -- a class no
+    template's CSS actually defines -- instead of the real, styled .faq
+    class on an inner wrapper. Centralized here so a new template can't
+    reintroduce the same gap by copying the old, broken
+    .replace('<section ', 'class="faq-sec"') pattern."""
+    def _pair(m):
+        return f'<details><summary>{m.group(1)}</summary><p>{m.group(2)}</p></details>'
+    wrapped = re.sub(r"<h3>(.*?)</h3>\s*<p>(.*?)</p>", _pair, faq_html, flags=re.S)
+    wrapped = re.sub(r"(<h2[^>]*>.*?</h2>)", r'\1\n<div class="faq">', wrapped, count=1, flags=re.S)
+    return wrapped.replace("</section>", "</div>\n    </section>", 1)
+
+
 def _footer_class(footer_html: str, class_name: str) -> str:
     """Add this template's own class to site_engine.py's shared _footer()
     output.

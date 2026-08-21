@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2, _footer_class
+from . import Template, _inject_css, _wrap_h2, _footer_class, _wrap_faq
 import re
 
 # Site Generator robustness push, Slice C.2 (2026-08-21): the first of two
@@ -29,7 +29,12 @@ CSS_BASE = """
   nav.primary a{color:var(--muted);font-size:15px;font-weight:500}
   nav.primary a:hover{color:var(--ink);text-decoration:none}
   .call-pill{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark);padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px;min-height:40px}
-  .call-pill:hover{background:var(--accent);color:#fff;text-decoration:none}
+  /* 2026-08-21, Opus 5 review of a later slice's contrast fixes: caught
+     this pre-existing instance of the same bug -- white on var(--accent)
+     at .call-pill's own inherited 14px/600 fails 4.5:1 for 2 of 20
+     palettes. accent-dark is safe by construction at any size (>=5.18:1
+     on every palette). */
+  .call-pill:hover{background:var(--accent-dark);color:#fff;text-decoration:none}
   @media(max-width:860px){nav.primary a:not(.call-pill){display:none}}
 
   .layout{display:grid;grid-template-columns:1fr 320px;gap:52px;padding:56px 0}
@@ -170,7 +175,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     if blocks["faq_block"]:
         html.append('<div class="wrap"><section class="block">')
-        html.append(blocks["faq_block"].replace('<section ', '<section class="faq-sec" '))
+        html.append(_wrap_faq(blocks["faq_block"]))
         html.append('</section></div>')
 
     html.append('    </article>')

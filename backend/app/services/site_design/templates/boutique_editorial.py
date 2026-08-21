@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _footer_class
+from . import Template, _inject_css, _footer_class, _wrap_faq
 import re
 
 # Site Generator robustness push, Slice C.2 (2026-08-21): the second of
@@ -159,7 +159,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     if blocks["faq_block"]:
         html.append('<div class="wrap"><section class="block">')
-        html.append(blocks["faq_block"].replace('<section ', '<section class="faq-sec" '))
+        html.append(_wrap_faq(blocks["faq_block"]))
         html.append('</section></div>')
 
     html.append('    </article>')

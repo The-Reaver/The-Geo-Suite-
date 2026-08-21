@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2, _footer_class
+from . import Template, _inject_css, _wrap_h2, _footer_class, _wrap_faq
 import re
 
 # Site Generator robustness push, Slice C.4 (2026-08-21): first of two new
@@ -38,7 +38,10 @@ CSS_BASE = """
      failed the real 4.5:1 bar this size needed. Switched to the
      accent-soft/accent-dark pairing already proven safe at any size. */
   .tl-call{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark) !important;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;min-height:40px}
-  .tl-call:hover{background:var(--accent);color:#fff !important;text-decoration:none}
+  /* 2026-08-21, Opus 5 review: white on var(--accent) at .tl-call's own
+     inherited 14px/600 fails 4.5:1 for 2 of 20 palettes. accent-dark is
+     safe by construction at any size (>=5.18:1 on every palette). */
+  .tl-call:hover{background:var(--accent-dark);color:#fff !important;text-decoration:none}
   @media(max-width:720px){nav.primary a:not(.tl-call){display:none}}
 
   .hero{padding:64px 0 48px;text-align:center}
@@ -176,7 +179,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
     if blocks["faq_block"]:
         html.append('<div class="wrap"><section class="block">')
-        html.append(blocks["faq_block"].replace('<section ', '<section class="faq-sec" '))
+        html.append(_wrap_faq(blocks["faq_block"]))
         html.append('</section></div>')
 
     html.append('    </article>')

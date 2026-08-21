@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _footer_class
+from . import Template, _inject_css, _footer_class, _wrap_faq
 import re
 
 CSS_BASE = """
@@ -97,7 +97,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
         html.append('</div>')
 
     html.append(blocks["about_block"])
-    html.append(blocks["faq_block"])
+    html.append(_wrap_faq(blocks["faq_block"]))
         
     html.append('    </article>')
     html.append('  </main>')

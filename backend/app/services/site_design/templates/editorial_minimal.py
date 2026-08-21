@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2, _footer_class
+from . import Template, _inject_css, _wrap_h2, _footer_class, _wrap_faq
 import re
 
 CSS_BASE = """
@@ -26,7 +26,17 @@ CSS_BASE = """
      safe by construction at any size, not by clearing a numeric
      threshold. */
   .call-btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark) !important;padding:11px 18px;border-radius:999px;font-weight:600;font-size:15px;min-height:44px}
-  .call-btn:hover{background:var(--accent);color:#fff !important;text-decoration:none}
+  /* 2026-08-21, Opus 5 review of the footer/contrast fix commit: this
+     used to say background:var(--accent), inheriting .call-btn's own
+     15px/600 font-size -- a regression from the ORIGINAL hover rule
+     (background:var(--accent-dark)), which was safe by construction
+     (white text on accent-dark is >=5.18:1 on every one of the 20
+     palettes, the worst case, well above the 4.5:1 normal-text needs at
+     any size). Switched back to accent-dark rather than re-deriving a
+     size threshold, since :hover rules don't reliably redeclare
+     font-size and this test file's automated scanner can't safely check
+     inherited sizing on them either. */
+  .call-btn:hover{background:var(--accent-dark);color:#fff !important;text-decoration:none}
   @media(max-width:720px){nav.primary a:not(.call-btn){display:none}}
   
   .hero{padding:76px 0 56px}
@@ -183,7 +193,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
     
     if blocks["faq_block"]:
         html.append('<div class="wrap">')
-        html.append(blocks["faq_block"].replace('<section ', '<section class="faq-sec" '))
+        html.append(_wrap_faq(blocks["faq_block"]))
         html.append('</div>')
         
     html.append('    </article>')
