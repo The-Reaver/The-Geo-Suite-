@@ -507,35 +507,48 @@ def test_new_c4_templates_are_reachable_for_real_facts():
 
 # 2026-08-21, industry-aware template selection sub-slice: proves "vast
 # per industry" is real, not just "at least one template exists per
-# family" -- every one of the 5 named families' own 4 templates
-# (engine.py's DENTAL_MEDICAL_TEMPLATES / HOME_SERVICES_TEMPLATES /
-# LEGAL_FINANCE_TEMPLATES / BEAUTY_SALON_TEMPLATES /
-# FOOD_RESTAURANT_TEMPLATES) is independently reachable for a real
-# subtype belonging to that family. If a future edit narrowed a family
-# back down to effectively 1-2 real options (e.g. by accident during a
-# refactor), this catches it directly instead of relying on the general
-# per-template reachability tests above, which don't prove per-family
-# completeness.
+# family" -- every one of the 5 named families' own 4 templates is
+# independently reachable for a real subtype belonging to that family,
+# AND that no template outside that family is ever selected for it.
+#
+# 2026-08-21, Opus 5 review found this test's first draft was vacuous in
+# two ways, both fixed here:
+# 1. expected_names was derived from engine.py's own family lists (the
+#    exact code under test), making the assertion tautological --
+#    mutation-proven to still pass 407/407 even when a family was
+#    narrowed to a single template repeated 4 times. Now hardcoded
+#    independently, so a real narrowing shows up as a real mismatch.
+# 2. The check was `seen_names >= expected_names` (a superset check,
+#    "did we see at least these"), which says nothing about whether a
+#    FOREIGN template also got selected -- mutation-proven to still pass
+#    407/407 with template_for() reverted entirely to the pre-slice blind
+#    TEMPLATES[seed % 9], since a blind selector still eventually
+#    surfaces every family's own names too, just alongside 5 others. Now
+#    asserts every single selection is IN the family (fails fast on the
+#    first foreign template) and that all 4 real ones are eventually
+#    seen -- together this is real containment, not just presence.
 def test_every_named_family_has_real_variety():
     families = {
-        "Dentist": engine.DENTAL_MEDICAL_TEMPLATES,
-        "Plumber": engine.HOME_SERVICES_TEMPLATES,
-        "Attorney": engine.LEGAL_FINANCE_TEMPLATES,
-        "Hair Salon": engine.BEAUTY_SALON_TEMPLATES,
-        "Restaurant": engine.FOOD_RESTAURANT_TEMPLATES,
+        "Dentist": {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern"},
+        "Plumber": {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern"},
+        "Attorney": {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal"},
+        "Hair Salon": {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal"},
+        "Restaurant": {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern"},
     }
-    for subtype, family in families.items():
-        expected_names = {t.name for t in family}
+    for subtype, expected_names in families.items():
         seen_names = set()
         for i in range(400):
             f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
             theme = engine.select_theme(f)
+            assert theme.template.name in expected_names, (
+                f"subtype={subtype!r} selected {theme.template.name!r}, which is outside "
+                f"its own family {expected_names} -- template selection must stay confined "
+                "to the business's real industry family"
+            )
             seen_names.add(theme.template.name)
-            if seen_names >= expected_names:
-                break
-        assert seen_names >= expected_names, (
-            f"subtype={subtype!r}'s family must reach all {len(expected_names)} of its own "
-            f"templates, only reached {seen_names} of {expected_names}"
+        assert seen_names == expected_names, (
+            f"subtype={subtype!r}'s family must reach all 4 of its own templates, "
+            f"only reached {seen_names} of {expected_names}"
         )
 
 
@@ -861,12 +874,20 @@ def _assert_templates_pass_real_audit_gate(template_subtypes: dict):
                 business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype,
                 locality="Austin", region="TX", postal_code="78701", country="US",
                 telephone="555-0100", street="123 Main St",
-                services=[types.SimpleNamespace(name="Fixing leaks", description="We fix them.")],
+                # 2026-08-21, Opus 5 review: this content used to be
+                # hardcoded plumbing-specific text ("Fixing leaks",
+                # "Quality plumbing", g.page/example-plumbing) regardless
+                # of which real subtype/family was under test -- harmless
+                # to the audit score (which doesn't grade topical
+                # relevance) but genuinely incoherent once the subtype
+                # here can be Dentist/Attorney/Hair Salon/Restaurant.
+                # Kept industry-neutral instead.
+                services=[types.SimpleNamespace(name="Great service", description="We do it well.")],
                 service_areas=["Austin"],
-                same_as=["https://g.page/example-plumbing"],
+                same_as=["https://g.page/example"],
                 hours=["Mon-Fri 8:00-17:00"], faqs=[],
-                credentials=["Texas licensed"], last_updated="2026-07-25",
-                tagline="Quality plumbing",
+                credentials=["Licensed"], last_updated="2026-07-25",
+                tagline="Quality service",
                 rating=types.SimpleNamespace(value=4.9, count=218),
             )
             theme = engine.select_theme(f)

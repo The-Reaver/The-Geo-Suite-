@@ -8,10 +8,14 @@ import re
 # single-column reading measure (like a magazine page, not a marketing
 # landing page), an accent-bordered offset hero instead of a centered or
 # split one, and a dotted-rule menu-style service list instead of cards
-# or a grid. Style name, not an industry claim -- template selection
-# (select_theme()) is still industry-blind pure hash, so section copy
-# stays generic ("What we offer"/"Where we serve"), never assuming this
-# lands on a beauty/food business specifically.
+# or a grid. Style name, not an industry claim about THIS FILE's own
+# copy -- section copy stays generic ("What we offer"/"Where we serve"),
+# never authored as if it assumes a specific vertical, even though
+# select_theme() (2026-08-21, industry-aware template selection) now
+# does place this template in the Beauty/Salon and Food/Restaurant
+# families specifically (plus the general fallback for anything else) --
+# the two facts don't contradict: which businesses CAN land here is now
+# industry-aware, but the words on the page still don't presume one.
 CSS_BASE = """
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
