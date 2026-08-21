@@ -1,4 +1,4 @@
-from . import Template, _inject_css
+from . import Template, _inject_css, _footer_class
 import re
 
 CSS_BASE = """
@@ -34,6 +34,9 @@ CSS_BASE = """
 
   .faq{display:grid;gap:14px;max-width:800px;margin:0 auto}
 
+  /* 2026-08-21, Opus 5 review of Slice C.3: site_engine.py's _footer()
+     emits a classless <footer> -- this never matched anything until
+     _footer_class() was wired in at both call sites. */
   footer.site{background:var(--dark);color:#fff;padding:72px 0 40px;margin-top:24px}
   footer.site a{color:rgba(255,255,255,.82)}
 """
@@ -91,7 +94,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
         
     html.append('    </article>')
     html.append('  </main>')
-    html.append(blocks["footer"])
+    html.append(_footer_class(blocks["footer"], "site"))
     html.append(blocks["cookie"])
     html.append('</body></html>')
     return "\n".join(html)
@@ -112,7 +115,7 @@ def render_service(facts, base_url, theme, blocks) -> str:
     html.append(blocks["content"])
     html.append('    </article></section>')
     html.append('  </main>')
-    html.append(blocks["footer"])
+    html.append(_footer_class(blocks["footer"], "site"))
     html.append(blocks["cookie"])
     html.append('</body></html>')
     return "\n".join(html)

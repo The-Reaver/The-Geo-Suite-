@@ -66,3 +66,19 @@ def _wrap_h2(block_html: str, kicker: str, k_class: str = "k") -> str:
         block_html, count=1,
     )
     return block_html.replace("</h2>", "</h2></div>", 1)
+
+
+def _footer_class(footer_html: str, class_name: str) -> str:
+    """Add this template's own class to site_engine.py's shared _footer()
+    output.
+
+    2026-08-21, Opus 5 review of Slice C.3: _footer() (site_engine.py)
+    returns a bare, classless <footer> tag -- it has no way to know which
+    template will render it, so it can't emit footer.site/footer.clinic/
+    etc. itself. Every template's own footer.<name>{...} CSS rule was
+    therefore silently matching nothing: footers rendered with zero
+    visual treatment (plain default browser stacking) on every generated
+    site, across every template, since the very first one. This wasn't
+    caught earlier because nothing ever asserted the class was actually
+    present -- only that the CSS rule existed."""
+    return footer_html.replace("<footer>", f'<footer class="{class_name}">', 1)

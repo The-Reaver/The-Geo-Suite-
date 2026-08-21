@@ -100,7 +100,12 @@ def test_subtype_is_specific_not_generic():
 def test_footer_nap_matches_schema():
     d = _gen(_dentist())
     html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
-    footer = re.search(r"<footer>.*?</footer>", html, re.S).group(0)
+    # 2026-08-21, Opus 5 review of Slice C.3: every template now applies
+    # its own class to the shared <footer> tag site_engine.py emits
+    # (previously classless, so every template's own footer CSS silently
+    # matched nothing) -- match any <footer ...> opening tag, not just a
+    # bare one, so this test doesn't couple to which template rendered it.
+    footer = re.search(r"<footer[^>]*>.*?</footer>", html, re.S).group(0)
     footer_digits = set(re.findall(r"\d", re.sub(r"<[^>]+>", " ", footer)))
     assert "5035550142" in re.sub(r"\D", "", re.sub(r"<[^>]+>", " ", footer))
     assert "Cedar Ridge Dental" in footer

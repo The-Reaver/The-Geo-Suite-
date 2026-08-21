@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2
+from . import Template, _inject_css, _wrap_h2, _footer_class
 import re
 
 CSS_BASE = """
@@ -17,19 +17,22 @@ CSS_BASE = """
   nav.primary{display:flex;gap:26px;align-items:center}
   nav.primary a{color:var(--muted);font-size:15px;font-weight:500}
   nav.primary a:hover{color:var(--ink);text-decoration:none}
-  .call-btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff !important;padding:11px 18px;border-radius:999px;font-weight:600;font-size:15px;min-height:44px}
-  .call-btn:hover{background:var(--accent-dark);text-decoration:none}
+  /* 2026-08-21, Opus 5 review of Slice C.3: white text on var(--accent)
+     at 15px only clears WCAG's 3:1 floor (assert_wcag(), valid only for
+     large-scale text) -- 2 of 20 palettes (Teal 3.74:1, Orange 3.56:1)
+     genuinely failed the real 4.5:1 bar this size needed. Switched to
+     the same accent-soft/accent-dark pairing already proven safe for
+     every palette in Trust Panel's/Framed Gallery's call buttons --
+     safe by construction at any size, not by clearing a numeric
+     threshold. */
+  .call-btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-dark) !important;padding:11px 18px;border-radius:999px;font-weight:600;font-size:15px;min-height:44px}
+  .call-btn:hover{background:var(--accent);color:#fff !important;text-decoration:none}
   @media(max-width:720px){nav.primary a:not(.call-btn){display:none}}
   
   .hero{padding:76px 0 56px}
   .eyebrow{display:inline-block;background:var(--accent-soft);color:var(--accent-dark);font-size:13px;font-weight:600;letter-spacing:.02em;padding:6px 13px;border-radius:999px;margin-bottom:22px}
   .hero h1{font-size:clamp(34px,5vw,52px);max-width:16ch;font-family:var(--disp);}
   .hero p.lede{font-size:20px;color:var(--muted);max-width:52ch;margin:20px 0 0}
-  .hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px;align-items:center}
-  .btn-primary{background:var(--accent);color:#fff !important;padding:14px 26px;border-radius:999px;font-weight:600;min-height:48px;display:inline-flex;align-items:center}
-  .btn-primary:hover{background:var(--accent-dark);text-decoration:none}
-  .btn-ghost{padding:14px 22px;border-radius:999px;border:1px solid var(--border);color:var(--ink) !important;font-weight:600;background:var(--surface)}
-  .btn-ghost:hover{border-color:var(--accent);text-decoration:none}
   .rating{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:15px;margin-top:26px}
   .stars{color:var(--gold);letter-spacing:2px;font-size:16px}
   
@@ -51,7 +54,6 @@ CSS_BASE = """
   
   .band{background:var(--accent);color:#fff;border-radius:20px;padding:44px;display:flex;flex-wrap:wrap;gap:28px;align-items:center;justify-content:space-between}
   .band h2{color:#fff;font-size:28px;max-width:20ch}
-  .band .btn-primary{background:#fff;color:var(--accent-dark) !important}
   /* 2026-08-21, Opus 5 review: white text on var(--accent) only clears
      WCAG's 3:1 floor (assert_wcag() in palettes.py), which is only a
      valid bar for large-scale text -- this line used to render at 17px
@@ -117,7 +119,11 @@ def _format_nav(nav_html: str, phone: str) -> str:
 """
 
 def _format_footer(footer_html: str, blocks: dict) -> str:
-    return footer_html
+    # 2026-08-21, Opus 5 review of Slice C.3: this was a pure no-op --
+    # site_engine.py's _footer() emits a classless <footer>, so
+    # footer.site{...} below never matched anything. See _footer_class()
+    # for the full story (the same fix applied to all nine templates).
+    return _footer_class(footer_html, "site")
 
 # 2026-08-21: _wrap_h2() moved to templates/__init__.py (shared) so a
 # future new template can't reintroduce the id-attribute bug this fixed

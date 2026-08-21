@@ -1,4 +1,4 @@
-from . import Template, _inject_css
+from . import Template, _inject_css, _footer_class
 import re
 
 # Site Generator robustness push, Slice C.2 (2026-08-21): the second of
@@ -107,7 +107,10 @@ def _format_nav(nav_html: str, phone: str) -> str:
 def render_index(facts, base_url, theme, blocks) -> str:
     head = _apply_css(blocks["head"], theme)
     nav = _format_nav(blocks["nav"], facts.telephone).replace("Your Business", facts.business_name)
-    footer = blocks["footer"]
+    # 2026-08-21, Opus 5 review of Slice C.3: site_engine.py's _footer()
+    # emits a classless <footer> -- footer.boutique{...} below never
+    # matched anything without this.
+    footer = _footer_class(blocks["footer"], "boutique")
 
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav, '  <main id="main">', '    <article>']
 
@@ -175,7 +178,7 @@ def render_service(facts, base_url, theme, blocks) -> str:
     html.append(blocks["content"])
     html.append('    </article></section>')
     html.append('  </main>')
-    html.append(blocks["footer"])
+    html.append(_footer_class(blocks["footer"], "boutique"))
     html.append(blocks["cookie"])
     html.append('</body></html>')
     return "\n".join(html)

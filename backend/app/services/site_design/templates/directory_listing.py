@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2
+from . import Template, _inject_css, _wrap_h2, _footer_class
 import re
 
 # Site Generator robustness push, Slice C.3 (2026-08-21): second of two
@@ -34,8 +34,14 @@ CSS_BASE = """
   nav.primary{display:flex;gap:20px;align-items:center}
   nav.primary a{color:var(--muted);font-size:14px;font-weight:500}
   nav.primary a:hover{color:var(--ink);text-decoration:none}
-  .dir-call{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff !important;padding:9px 16px;border-radius:8px;font-weight:600;font-size:14px}
-  .dir-call:hover{background:var(--accent-dark);text-decoration:none}
+  /* 2026-08-21, Opus 5 review of Slice C.3: white text on var(--accent)
+     at 14px only clears WCAG's 3:1 floor (assert_wcag(), valid only for
+     large-scale text) -- 2 of 20 palettes (Teal 3.74:1, Orange 3.56:1)
+     genuinely failed the real 4.5:1 bar this size needed. Switched to
+     the same accent-soft/accent-dark pairing already proven safe at any
+     size for Trust Panel's/Framed Gallery's call buttons. */
+  .dir-call{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent-dark) !important;padding:9px 16px;border-radius:8px;font-weight:600;font-size:14px}
+  .dir-call:hover{background:var(--accent);color:#fff !important;text-decoration:none}
   @media(max-width:760px){nav.primary a:not(.dir-call){display:none}}
 
   .hero{padding:44px 0 0}
@@ -90,8 +96,24 @@ CSS_BASE = """
   .mobile-call-bar{display:none}
   @media(max-width:640px){
     .mobile-call-bar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--accent);padding:12px 20px;align-items:center;justify-content:center;box-shadow:0 -4px 12px rgba(0,0,0,.12)}
-    .mobile-call-bar a{color:#fff !important;font-weight:700;font-size:16px;text-decoration:none}
-    footer.directory{padding-bottom:88px}
+    /* 2026-08-21, Opus 5 review of Slice C.3: 16px/700 didn't genuinely
+       clear the WCAG large-text threshold (needs >=18.66px at bold) --
+       2 of 20 palettes failed the real 4.5:1 bar. This is exactly the
+       kind of full-width prominent CTA where colored-fill-with-white-text
+       is the right visual language, so bumped size instead of switching
+       to the accent-soft/accent-dark pattern used elsewhere. */
+    .mobile-call-bar a{color:#fff !important;font-weight:700;font-size:19px;text-decoration:none}
+    /* 2026-08-21, Opus 5 review of Slice C.3: this rule never applied at
+       all -- site_engine.py's _footer() emits a classless <footer>, so
+       footer.directory{...} matched nothing (fixed above via
+       _footer_class()), and even once fixed it targeted the wrong
+       element: site_engine.py renders the cookie-consent block AFTER the
+       footer, making it -- not the footer -- the real last in-flow
+       element the fixed mobile call bar could cover. Padding on body
+       reserves space at the actual bottom of the page regardless of DOM
+       specifics, so the sticky bar can't cover the cookie-consent
+       Accept/Decline buttons, a compliance-relevant control. */
+    body{padding-bottom:88px}
   }
 """
 
@@ -137,7 +159,10 @@ def _mobile_call_bar(phone: str) -> str:
 def render_index(facts, base_url, theme, blocks) -> str:
     head = _apply_css(blocks["head"], theme)
     nav = _format_nav(blocks["nav"], facts.telephone).replace("Your Business", facts.business_name)
-    footer = blocks["footer"]
+    # 2026-08-21, Opus 5 review of Slice C.3: site_engine.py's _footer()
+    # emits a classless <footer> -- footer.directory{...} above never
+    # matched anything without this.
+    footer = _footer_class(blocks["footer"], "directory")
 
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav, '  <main id="main">', '    <article>']
 
@@ -206,7 +231,7 @@ def render_service(facts, base_url, theme, blocks) -> str:
     html.append(blocks["content"])
     html.append('    </article></section>')
     html.append('  </main>')
-    html.append(blocks["footer"])
+    html.append(_footer_class(blocks["footer"], "directory"))
     html.append(_mobile_call_bar(facts.telephone))
     html.append(blocks["cookie"])
     html.append('</body></html>')

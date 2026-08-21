@@ -5,7 +5,7 @@ from . import palettes
 from . import typography
 from .templates import (
     editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial,
-    framed_gallery, directory_listing,
+    framed_gallery, directory_listing, timeline_flow, compact_utility,
 )
 
 Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "hero_style"])
@@ -21,6 +21,12 @@ Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "h
 # "canvas" instead of shadow/color-fill for depth; Directory Listing puts
 # an "at a glance" rating+location strip near the top and adds a real
 # sticky mobile call bar, neither of which any prior template has.
+#
+# Slice C.4: grew from 7 to 9 (top of the planned 8-10 range). Timeline
+# Flow renders services as a connected vertical timeline with real
+# CSS-counter-driven numbering; Compact Utility is a tight, restrained
+# "spec sheet" density none of the other eight (all spacious/decorative)
+# attempt.
 TEMPLATES = [
     editorial_minimal.TemplateEditorialMinimal,
     split_modern.TemplateSplitModern,
@@ -29,6 +35,8 @@ TEMPLATES = [
     boutique_editorial.TemplateBoutiqueEditorial,
     framed_gallery.TemplateFramedGallery,
     directory_listing.TemplateDirectoryListing,
+    timeline_flow.TemplateTimelineFlow,
+    compact_utility.TemplateCompactUtility,
 ]
 
 def compute_seed(facts: Any) -> int:

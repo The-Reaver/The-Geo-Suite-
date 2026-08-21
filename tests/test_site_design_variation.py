@@ -4,6 +4,7 @@ Tests determinism, variation, WCAG contrast, and template coverage of the
 site_design engine. No pytest — standalone-runnable with a __main__ runner.
 """
 import os
+import re
 import sys
 import types
 import tempfile
@@ -18,7 +19,10 @@ if BACKEND not in sys.path:
 from app.services.site_engine import generate_site
 from app.services import audit_engine
 from app.services.site_design import engine, palettes, typography
-from app.services.site_design.templates import editorial_minimal, boutique_editorial
+from app.services.site_design.templates import (
+    editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial,
+    framed_gallery, directory_listing, timeline_flow, compact_utility,
+)
 from app.services.site_design.engine import Theme
 
 
@@ -177,6 +181,97 @@ def test_band_white_text_on_accent_qualifies_as_large_text():
             )
 
 
+def _parse_css_rules(css: str):
+    # Strip /* ... */ comments first -- several templates put explanatory
+    # comments between related rules (e.g. between ".band" and ".band h2"),
+    # and without this the naive brace-scanning regex below captures the
+    # comment text as part of the NEXT rule's "selector," which then fails
+    # to startswith() match against its real, uncommented selector string.
+    css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+    return re.findall(r'([^{}]+)\{([^{}]*)\}', css)
+
+
+def _selector_base(selector: str) -> str:
+    sel = selector.strip().split()[0]
+    return sel.split(":")[0]
+
+
+# 2026-08-21, Opus 5 review of Slice C.3: the test above only ever checked
+# 2 hardcoded modules (editorial_minimal/boutique_editorial) and 2
+# hardcoded selectors (.band h2/.band .sub) -- a scope narrow enough that
+# the exact same defect class (white text on var(--accent) below the WCAG
+# large-text threshold) slipped through undetected in this same C.3 commit,
+# in directory_listing.py's brand-new .dir-call and .mobile-call-bar a
+# rules. This generalizes the guard across every template's full CSS_BASE
+# and every selector, present and future, instead of a hand-picked list.
+#
+# Only a rule whose OWN declaration block sets color:#fff, and whose
+# background -- either declared directly on that same selector, or on its
+# "base" selector (the first compound/descendant token, e.g. ".dir-call"
+# for ".dir-call:hover") -- is exactly var(--accent), is checked. The
+# substring match "background:var(--accent)" deliberately does not
+# false-positive against "--accent-soft"/"--accent-dark": the exact
+# variable name's closing paren immediately follows "accent", which only
+# ever occurs for the literal `--accent` custom property.
+#
+# :hover rules are skipped: they often don't redeclare font-size (relying
+# on inheritance from the base rule), and this is a simple text-based CSS
+# parser with no cross-rule inheritance resolution -- checking a :hover
+# rule in isolation would produce false failures, not real coverage.
+#
+# A selector is also skipped if a MORE SPECIFIC descendant selector (e.g.
+# ".band h2" for ".band") exists in the same file and itself declares a
+# color -- that descendant rule governs whatever real text renders inside
+# it, so the ancestor's own color is just an inheritance fallback, never
+# itself the color actual text renders in. This is a real, structural
+# case, not a loophole: site_engine.py's _stats_band_html() always wraps
+# its real text in child elements (h2/.sub), never directly under
+# class="band", so ".band"'s own "color:#fff" never reaches the page
+# un-overridden. Confirmed by first running this test without the
+# exclusion and finding it flagged exactly that -- a container reset, not
+# a rendered-text bug -- while still correctly catching the real
+# .dir-call/.mobile-call-bar bugs this test exists to guard, neither of
+# which has any such descendant override.
+def _has_color_overriding_descendant(selector: str, rules) -> bool:
+    prefix = selector.strip() + " "
+    for other_sel, other_decl in rules:
+        other_sel = other_sel.strip()
+        if other_sel.startswith(prefix) and "color:" in other_decl.replace(" ", "").lower():
+            return True
+    return False
+
+
+def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
+    modules = [editorial_minimal, split_modern, bold_cinematic, trust_panel,
+               boutique_editorial, framed_gallery, directory_listing,
+               timeline_flow, compact_utility]
+    for mod in modules:
+        css = mod.CSS_BASE
+        rules = _parse_css_rules(css)
+        rules_by_selector = {sel.strip(): decl for sel, decl in rules}
+        for selector, decl in rules:
+            selector = selector.strip()
+            if ":hover" in selector:
+                continue
+            if "color:#fff" not in decl.replace(" ", "").lower():
+                continue
+            base = _selector_base(selector)
+            base_decl = rules_by_selector.get(base, "")
+            bg_here = "background:var(--accent)" in decl.replace(" ", "").lower()
+            bg_base = "background:var(--accent)" in base_decl.replace(" ", "").lower()
+            if not (bg_here or bg_base):
+                continue
+            if _has_color_overriding_descendant(selector, rules):
+                continue
+            size = _declared_px(decl, "font-size")
+            weight = _declared_weight(decl)
+            qualifies = size >= 24 or (size >= 18.66 and weight >= 700)
+            assert qualifies, (
+                f"{mod.__name__} {selector!r}: white text on var(--accent) at "
+                f"{size}px/{weight} does not qualify as WCAG large text"
+            )
+
+
 # 2026-08-21, Opus 5 review of Slice C.1: caught a real near-duplicate
 # hex-uniqueness alone can't detect -- Terracotta was Orange's own accent
 # ramp shifted one step darker (same hue, same high saturation), not a
@@ -252,8 +347,11 @@ def test_variation_across_businesses():
     # just by chance of the hash distribution over this exact set) --
     # raised to >=6, matching what's actually observed, not the full
     # registry size, so this doesn't become flaky against an unchanging
-    # small sample.
-    assert len(templates_seen) >= 6, f"Expected >= 6 templates, got {len(templates_seen)}: {templates_seen}"
+    # small sample. Slice C.4 grew the registry to 9; 7 of those 9 show up
+    # in this same fixed list (Bold Cinematic and Compact Utility don't,
+    # again just by chance of the hash distribution over this exact set)
+    # -- raised to >=7, same "observed, not registry size" reasoning.
+    assert len(templates_seen) >= 7, f"Expected >= 7 templates, got {len(templates_seen)}: {templates_seen}"
     assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
 
 
@@ -296,6 +394,20 @@ def test_new_c2_templates_are_reachable_for_real_facts():
 # templates.
 def test_new_c3_templates_are_reachable_for_real_facts():
     for target in ("Framed Gallery", "Directory Listing"):
+        found = False
+        for i in range(200):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+            theme = engine.select_theme(f)
+            if theme.template.name == target:
+                found = True
+                break
+        assert found, f"{target} must be reachable for real facts"
+
+
+# 2026-08-21, Slice C.4: same guarantee for the third batch of new
+# templates.
+def test_new_c4_templates_are_reachable_for_real_facts():
+    for target in ("Timeline Flow", "Compact Utility"):
         found = False
         for i in range(200):
             f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
@@ -358,6 +470,9 @@ _CSS_MARKER = {
     # 2026-08-21, Slice C.3: same again.
     "framed_gallery": "header.frame-top",
     "directory_listing": "header.directory",
+    # 2026-08-21, Slice C.4: same again.
+    "timeline_flow": "header.timeline-top",
+    "compact_utility": "header.utility",
 }
 
 
@@ -387,6 +502,51 @@ def test_interior_pages_use_their_own_templates_css():
                     f"{tmpl.name}'s {page_name} page leaked {other_name}'s CSS marker {other_marker!r} "
                     "-- interior pages must stay in their own theme"
                 )
+
+
+# 2026-08-21, Opus 5 review of Slice C.3: site_engine.py's _footer()
+# returns a bare, classless <footer> tag -- every template's own
+# footer.<name>{...} CSS rule was silently matching nothing, on every
+# generated site, for every template, since the very first one. Went
+# undetected because test_interior_pages_use_their_own_templates_css's
+# own synthetic blocks["footer"] fixture already had a class baked in
+# by hand ('<footer class="site">footer</footer>' above), unlike the
+# real site_engine.py output -- this uses the real, classless shape
+# instead, so it can only pass if the template genuinely adds its own
+# class.
+def test_every_template_adds_its_own_class_to_the_shared_footer():
+    f = _F(business_name="Acme Plumbing", domain="acme.com", subtype="Plumber",
+           telephone="555-0100", locality="Austin")
+    real_footer = "  <footer>\n    <p>Acme Plumbing</p>\n  </footer>"
+    blocks = {
+        "head": "<!DOCTYPE html><html><head><style></style></head>",
+        "nav": '<nav aria-label="Primary"><a href="index.html">Home</a></nav>',
+        "footer": real_footer,
+        "p1_html": "<p>p1</p>",
+        "p2_html": "<p>p2</p>",
+        "services_block": '<h2 id="services">Services</h2><ul><li>Item</li></ul>',
+        "areas_block": "",
+        "about_block": "<section><h2>About</h2></section>",
+        "faq_block": "",
+        "rating_html": "",
+        "stats_band": "",
+        "location_html": "",
+        "cookie": '<div id="cookie-consent"></div>',
+    }
+    pal = palettes.palette_for("Plumber", 0)
+    typ = engine.typography.typography_for(0)
+    interior_blocks = dict(blocks, content="<h1>Test Service</h1><p>content</p>")
+    for tmpl in engine.TEMPLATES:
+        theme = Theme(template=tmpl, palette=pal, typography=typ, hero_style="gradient")
+        html = tmpl.render_index(f, "https://acme.com", theme, blocks)
+        assert re.search(r'<footer class="[^"]+">', html), \
+            f"{tmpl.name}'s render_index must add its own class to the real, classless <footer> _footer() emits"
+        assert "<footer>\n" not in html, f"{tmpl.name}'s render_index left the shared footer classless"
+
+        service_html = tmpl.render_service(f, "https://acme.com", theme, interior_blocks)
+        assert re.search(r'<footer class="[^"]+">', service_html), \
+            f"{tmpl.name}'s render_service must add its own class to the real, classless <footer> _footer() emits"
+        assert "<footer>\n" not in service_html, f"{tmpl.name}'s render_service left the shared footer classless"
 
 
 # 2026-08-20, Site Generator robustness push Slice A: site_engine.py now
@@ -528,6 +688,12 @@ def test_new_c2_templates_pass_the_real_audit_gate():
 # templates.
 def test_new_c3_templates_pass_the_real_audit_gate():
     _assert_templates_pass_real_audit_gate({"Framed Gallery", "Directory Listing"})
+
+
+# 2026-08-21, Slice C.4: same guarantee for the third batch of new
+# templates.
+def test_new_c4_templates_pass_the_real_audit_gate():
+    _assert_templates_pass_real_audit_gate({"Timeline Flow", "Compact Utility"})
 
 
 # ---------------------------------------------------------------------------
