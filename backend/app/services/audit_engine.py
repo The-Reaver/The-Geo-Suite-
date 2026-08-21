@@ -222,6 +222,17 @@ _LOCAL_BUSINESS_SUBTYPES = {
     # A representative slice of schema.org LocalBusiness subtypes; the check is
     # "a specific subtype, not the generic base", so membership OR "ends in a
     # known specific noun" both count, but generic LocalBusiness never does.
+    #
+    # 2026-08-21: must cover every real @type site_engine.py's _schema_type()
+    # can actually emit -- both its direct _HUMAN passthrough keys and its
+    # _SCHEMA_MAP overrides. "NailSalon"/"DaySpa" (from _SCHEMA_MAP's
+    # "Nail Salon"/"Med Spa" entries) were missing, causing _find_local_business()
+    # to fall back to the generic node (is_specific_subtype=False) for those two
+    # real, valid subtypes -- the same "duplicated classification list drifts"
+    # defect class already found and fixed twice this session for
+    # template/palette family selection. Verified: a "Nail Salon" business
+    # scored 76 (catastrophic, ~9 cascading Entity Consistency failures) before
+    # this fix, purely from this omission.
     "Dentist", "Physician", "MedicalClinic", "Plumber", "Electrician",
     "Restaurant", "CafeOrCoffeeShop", "Bakery", "HairSalon", "BeautySalon",
     "AutoRepair", "Attorney", "LegalService", "AccountingService",
@@ -229,6 +240,7 @@ _LOCAL_BUSINESS_SUBTYPES = {
     "Notary", "Optician", "VeterinaryCare",
     "ProfessionalService", "HomeAndConstructionBusiness", "ChildCare",
     "DryCleaningOrLaundry", "MovingCompany", "PestControl", "GeneralContractor",
+    "NailSalon", "DaySpa",
 }
 
 

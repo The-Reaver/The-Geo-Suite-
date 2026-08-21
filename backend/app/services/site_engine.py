@@ -67,7 +67,14 @@ _HUMAN = {
 def _human(subtype: str) -> str:
     if subtype in _HUMAN:
         return _HUMAN[subtype]
+    # 2026-08-21: a subtype that already contains a space before a capital
+    # letter (e.g. "Hair Salon", one of _SCHEMA_MAP's own override keys) got
+    # a SECOND space inserted by the regex below, rendering "hair  salon"
+    # in real, visible prose -- found while manually verifying Slice 1's
+    # new industry-aware prose. re.sub(r"\s+", " ", ...) collapses it back
+    # to one space regardless of how many the regex introduced.
     spaced = re.sub(r"(?<!^)(?=[A-Z])", " ", subtype or "").lower()
+    spaced = re.sub(r"\s+", " ", spaced).strip()
     return spaced or "local business"
 
 _SCHEMA_MAP = {
@@ -450,56 +457,36 @@ def _index_main(f: _F, base: str) -> str:
     creds = _oxford(list(f.credentials or []))
     rating = getattr(f, "rating", None)
 
-    # --- Paragraph 1: answer-first. Opening clause is emphasized. -------------
-    open_clause = f"{f.business_name} is a {human} in {loc}"
-    p1_rest = (
-        f", serving {areas}. The practice provides {svc_phrase}, and every "
-        f"engagement starts with a clear written plan so you know what is "
-        f"recommended, why it matters, and what it will cost before any work "
-        f"begins. "
-        f"Clients choose {f.business_name} because appointments start on time, "
-        f"the work is explained in plain language, and estimates are given up "
-        f"front with no surprise billing afterward. "
+    # --- Paragraph 1/2/about prose: industry-aware, not one universal template.
+    # 2026-08-21: this used to be a single hardcoded paragraph template
+    # ("Every project... written estimate... materials and options are
+    # explained... chase anyone down after the visit") applied verbatim to
+    # every subtype -- a dental practice, a restaurant, a law firm all got
+    # literally the same contractor-flavored sentences with only the
+    # business name substituted in. Confirmed via a real rendered
+    # screenshot (not just an audit-score check) that this read as
+    # generic regardless of which of the 9 templates it was wrapped in --
+    # growing template count alone could never have fixed content. Moved
+    # to site_prose.py, which selects real, industry-appropriate phrasing
+    # via the same shared palettes.industry_family_for() classifier
+    # template_for()/palette_for() already use, so a business's prose,
+    # palette, and template all agree on its industry. Structural shape
+    # (an emphasized opening clause in p1, one emphasized clause in p2,
+    # one emphasized clause in about) is preserved exactly, since that's
+    # what audit_engine.py's real DOM-parsing checks (chunk-length mean,
+    # emphasis density) actually measure -- same shape, genuinely
+    # different, industry-real words.
+    from .site_design import engine as design_engine
+    from . import site_prose
+    prose_seed = design_engine.compute_seed(f)
+    open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b = site_prose.prose_for(
+        f.subtype, prose_seed, f.business_name, human, loc, areas, svc_phrase, creds
     )
-    if creds:
-        p1_rest += (f"The team holds {creds}, and the same people handle your "
-                    f"work from the first call through to follow-up. ")
-    p1_rest += (
-        f"New clients are welcomed the same way returning ones are, with time "
-        f"set aside to answer questions before anything is scheduled, and the "
-        f"office files insurance and paperwork directly so you are not left to "
-        f"sort out reimbursement afterward. "
-        f"Whether you need routine help or an urgent visit, the fastest way to "
-        f"be seen is to call the office and describe your situation, and a member "
-        f"of the team will find the earliest appointment that fits your schedule. "
-        f'You can also read more <a href="about.html">about {f.business_name} and how we work</a> '
-        f"before you get in touch."
-    )
+
     p1_html = f"      <p><strong>{_esc(open_clause)},</strong>{_esc_inline(p1_rest)}</p>"
     p1_words = _wc(open_clause) + _wc(p1_rest)
     emph_words = _wc(open_clause)
 
-    # --- Paragraph 2: approach. One clause emphasized. ------------------------
-    em_clause = "Doing the job right the first time is the foundation of everything here"
-    p2_a = (
-        f"Every project at {f.business_name} begins with a full assessment and a "
-        f"written estimate, so you understand the recommendation and the price "
-        f"before you agree to anything. "
-    )
-    p2_b = (
-        f", because catching a small problem early is far cheaper and less "
-        f"disruptive than repairing it after it fails. "
-        f"The team serves {areas} and keeps the schedule tight, so most jobs are "
-        f"completed in a single visit without a second trip or a referral "
-        f"elsewhere. "
-        f"For clients who have been let down before, {f.business_name} files the "
-        f"paperwork directly and stands behind the work, so you are not left to "
-        f"chase anyone down after the visit ends. "
-        f"The same standards apply to routine and complex jobs alike: the same "
-        f"people who quote the work also carry it out, materials and options are "
-        f"explained before they are used, and anything unexpected is discussed "
-        f"with you first rather than added quietly to the final bill."
-    )
     p2_html = ("      <p>" + _esc_inline(p2_a) + f"<em>{_esc(em_clause)}</em>"
                + _esc_inline(p2_b) + "</p>")
     p2_words = _wc(p2_a) + _wc(em_clause) + _wc(p2_b)
@@ -518,23 +505,9 @@ def _index_main(f: _F, base: str) -> str:
         areas_block = ("    <h2>Areas we serve</h2>\n    <ul>\n" + area_items + "\n    </ul>")
 
     # --- About teaser paragraph (chunk #3, one emphasized clause) -------------
-    about_em = "plain-language estimates and up-front pricing are the difference clients mention most"
-    about_a = (
-        f"{f.business_name} has served {areas} for years, and the same team sees "
-        f"returning clients season after season. That continuity lets us track "
-        f"the long-term picture rather than treating each visit in isolation, "
-        f"which is how small issues get caught before they become expensive "
-        f"ones. If you are comparing options in {f.locality}, the "
-    )
-    about_b = (
-        f", along with a team that answers the phone and follows through on what "
-        f"it promises. New clients are treated with the same care as long-standing "
-        f"ones, and every visit is documented so the next one picks up exactly "
-        f"where the last left off rather than starting from scratch. "
-        f"Booking is straightforward, the first conversation is unhurried, and "
-        f"you will always know who you are dealing with and what happens next "
-        f"before you commit to anything."
-    )
+    # about_a/about_em/about_b now come from site_prose.prose_for() above,
+    # alongside p1/p2 -- same industry-aware source, not a separate
+    # hardcoded template.
     about_html = ("      <p>" + _esc_inline(about_a) + f"<strong>{_esc(about_em)}</strong>"
                   + _esc_inline(about_b) + "</p>")
     emph_words += _wc(about_em)

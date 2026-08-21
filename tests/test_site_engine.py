@@ -97,6 +97,83 @@ def test_subtype_is_specific_not_generic():
 
 
 # 4. NAP single-source — footer NAP matches JSON-LD NAP after normalization.
+# 3b. _SCHEMA_MAP-derived subtypes must be recognized as specific LocalBusiness
+#     subtypes by the real audit engine, not just present as a JSON-LD string.
+#     audit_engine.py's own _LOCAL_BUSINESS_SUBTYPES allowlist is a second,
+#     independently-maintained list of the same schema.org subtypes site_engine.py's
+#     _SCHEMA_MAP/_HUMAN can emit -- these two lists had drifted (missing
+#     "NailSalon"/"DaySpa"), so a real "Nail Salon" business fell back to the
+#     generic-node path (is_specific_subtype=False), cascading into ~9 failed
+#     Entity Consistency checks and a 76 score instead of ~99. Guards against
+#     that specific drift recurring for the two _SCHEMA_MAP override entries.
+def test_schema_map_override_subtypes_score_well():
+    for name, subtype, domain in [
+        ("Glamour Nail Bar", "Nail Salon", "glamour-nail-bar.example"),
+        ("Serenity Med Spa", "Med Spa", "serenity-med-spa.example"),
+    ]:
+        facts = BusinessFacts(
+            business_name=name, subtype=subtype,
+            street="10 Beauty Ave", locality="Austin", region="TX",
+            postal_code="78701", telephone="+1-512-555-0100", domain=domain,
+            hours=["Mon-Fri 9:00-18:00"], service_areas=["Austin"],
+            services=[
+                Service(name="Signature service", description="A real, specific service with a genuine, informative description of what is offered."),
+                Service(name="Second service", description="A second real, distinct service with its own genuine, informative description of the offering."),
+            ],
+            credentials=["Licensed professional"],
+            faqs=[FAQ(question="What should I expect?", answer="A clear, professional experience tailored to your needs."),
+                  FAQ(question="How do I book?", answer="Call or visit our website to schedule an appointment.")],
+            same_as=["https://g.page/example-business"],
+            rating=Rating(value=4.7, count=88), last_updated="2026-08-21",
+            tagline="Example")
+        d = _gen(facts)
+        r = audit_engine.run_audit(d, cwv=GOOD_CWV)
+        assert r.normalized_score >= 93, (
+            f"{subtype} scored {r.normalized_score}, expected >= 93 "
+            "-- likely a _LOCAL_BUSINESS_SUBTYPES/_SCHEMA_MAP drift regression"
+        )
+        assert r.passed is True
+
+
+# 3c. Opening prose formatting -- no double commas / double spaces.
+#     Found while manually verifying Slice 1's new industry-aware prose
+#     (site_prose.py): p1_html's f-string already appends "," after
+#     open_clause (which itself ends "... in {locality}, {region}"), so
+#     every one of the 12 prose variants' p1_rest previously ALSO started
+#     with a leading comma -- pre-existing (confirmed via diff against the
+#     prior hardcoded template, which had the same bug), but far more
+#     visible now that real, varied prose renders it. Separately,
+#     _human() double-spaced any subtype that already contains a space
+#     before a capital letter and isn't a literal _HUMAN key (e.g.
+#     "Hair Salon" -> "hair  salon"), since its space-insertion regex
+#     doesn't check for an existing space.
+def test_opening_prose_has_no_double_commas_or_spaces():
+    for subtype in ("Dentist", "Hair Salon", "Nail Salon", "Med Spa", "Auto Repair", "Real Estate"):
+        facts = BusinessFacts(
+            business_name="Example Business", subtype=subtype,
+            street="1 Main St", locality="Portland", region="OR",
+            postal_code="97201", telephone="+1-503-555-0142",
+            domain=f"{subtype.lower().replace(' ', '-')}.example",
+            hours=["Mon-Fri 8:00-17:00"], service_areas=["Portland", "Beaverton"],
+            services=[Service(name="Signature Service", description="A real service description.")],
+            same_as=["https://g.page/example"], rating=Rating(value=4.8, count=100),
+            last_updated="2026-08-21", tagline="Example")
+        html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+        idx = html.find("</script>")
+        # Strip HTML comments and tags entirely (not to a space) so adjacent
+        # inline elements collapse the same way a browser renders them --
+        # e.g. "...OR,</strong>, serving..." must be checked as "OR,,",
+        # which a naive space-substitution (or checking raw markup) would
+        # miss since the two commas sit on either side of a closing tag.
+        visible = re.sub(r"<!--.*?-->", "", html[idx:], flags=re.S)
+        visible = re.sub(r"<[^>]+>", "", visible)
+        assert ",," not in visible, f"{subtype}: double comma in rendered prose"
+        low = visible.lower()
+        assert "  salon" not in low and "  spa" not in low and "  repair" not in low and "  estate" not in low, (
+            f"{subtype}: double space in rendered _human() text"
+        )
+
+
 def test_footer_nap_matches_schema():
     d = _gen(_dentist())
     html = open(os.path.join(d, "index.html"), encoding="utf-8").read()

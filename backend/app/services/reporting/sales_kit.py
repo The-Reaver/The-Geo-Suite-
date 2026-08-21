@@ -32,12 +32,27 @@ from .render_html import _colors, _esc, _score_gauge  # reuse, don't duplicate
 
 # A fictional, clearly-labeled HBOT clinic — never presented as a real business.
 # Real facts, real generator, real audit; only the business itself is illustrative.
+#
+# 2026-08-21: business_name/domain feed select_theme()'s seed
+# (sha256(business_name|domain)), so this fixture's identity string
+# deterministically pins one specific template+palette forever. The
+# original name/domain happened to hash to Editorial Minimal + Blue --
+# byte-for-byte identical to what the original pre-session 3-template/
+# 8-palette engine already produced for this exact fixture, confirmed by
+# diffing against the initial commit. That meant every bare "Site
+# Generator" click (the demo's own zero-context fallback path) looked
+# untouched by an entire session of design-library growth, not because
+# the new engine wasn't live, but by pure hash coincidence on this one
+# fixture. Changed to a name that hashes onto Trust Panel -- one of the
+# two Dental/Medical-family templates actually added this session, and
+# thematically apt for a medical business (its whole design is a
+# persistent trust-fact sidebar).
 ILLUSTRATIVE_HBOT_EXAMPLE = BusinessFacts(
-    business_name="Example Hyperbaric Wellness (illustrative)",
+    business_name="Meridian Hyperbaric Wellness (illustrative)",
     subtype="MedicalClinic",
     street="100 Example Way", locality="Example City", region="CA",
     postal_code="90001", telephone="+1-555-010-0100",
-    domain="example-hyperbaric-illustrative.example",
+    domain="meridian-hyperbaric-illustrative.example",
     hours=["Mon-Fri 8:00-17:00", "Sat 9:00-13:00"],
     service_areas=["Example City", "Example County"],
     services=[
