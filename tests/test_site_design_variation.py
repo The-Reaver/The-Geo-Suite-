@@ -404,14 +404,21 @@ def test_variation_across_businesses():
     # 2026-08-21, Slice C.2: raised from >=3 to >=5 -- all 5 registered
     # templates were observed across this exact business list at the
     # time. Slice C.3 grew the registry to 7, but only 6 of those 7 show
-    # up in this specific fixed 12-business list (Split Modern doesn't,
-    # just by chance of the hash distribution over this exact set) --
-    # raised to >=6, matching what's actually observed, not the full
-    # registry size, so this doesn't become flaky against an unchanging
-    # small sample. Slice C.4 grew the registry to 9; 7 of those 9 show up
-    # in this same fixed list (Bold Cinematic and Compact Utility don't,
-    # again just by chance of the hash distribution over this exact set)
-    # -- raised to >=7, same "observed, not registry size" reasoning.
+    # up in this specific fixed 12-business list -- raised to >=6,
+    # matching what's actually observed, not the full registry size, so
+    # this doesn't become flaky against an unchanging small sample. Slice
+    # C.4 grew the registry to 9; 7 of those 9 showed up -- raised to
+    # >=7.
+    #
+    # 2026-08-21, industry-aware template selection: re-measured directly
+    # after select_theme() stopped being subtype-blind for template
+    # choice (each business here now only ever reaches its own real
+    # industry family's 4 templates, not any of the 9) -- still exactly
+    # 7 distinct templates observed across this same fixed list (Directory
+    # Listing and Timeline Flow don't land here, since none of these 12
+    # subtypes' families happen to hash onto them this time), so the
+    # >=7 floor holds without needing to change, verified fresh rather
+    # than assumed to still be true.
     assert len(templates_seen) >= 7, f"Expected >= 7 templates, got {len(templates_seen)}: {templates_seen}"
     assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
 
@@ -439,44 +446,116 @@ def test_bold_cinematic_is_reachable_for_real_facts():
 # through the real, unconditional select_theme() modulo -- same
 # reachability guarantee test_bold_cinematic_is_reachable_for_real_facts
 # already established for the third template.
+#
+# 2026-08-21, industry-aware template selection sub-slice: select_theme()
+# is no longer subtype-blind for template choice -- "Plumber" only ever
+# reaches the Home Services family now, which neither of these two
+# templates belongs to. Switched each target to a real subtype from its
+# own actual family (Trust Panel -> Dental/Medical, Boutique Editorial ->
+# Beauty/Salon), matching engine.py's own family assignments exactly
+# rather than a blind subtype every template used to share.
 def test_new_c2_templates_are_reachable_for_real_facts():
-    for target in ("Trust Panel", "Boutique Editorial"):
+    for target, subtype in (("Trust Panel", "Dentist"), ("Boutique Editorial", "Hair Salon")):
         found = False
         for i in range(200):
-            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
             theme = engine.select_theme(f)
             if theme.template.name == target:
                 found = True
                 break
-        assert found, f"{target} must be reachable for real facts"
+        assert found, f"{target} must be reachable for real facts (subtype={subtype!r})"
 
 
 # 2026-08-21, Slice C.3: same guarantee for the second batch of new
 # templates.
+#
+# 2026-08-21, industry-aware template selection sub-slice: switched each
+# target to a real subtype from its own family (Framed Gallery ->
+# Food/Restaurant; Directory Listing stays on "Plumber" -- Home Services
+# is its only family, and it was already reachable through it).
 def test_new_c3_templates_are_reachable_for_real_facts():
-    for target in ("Framed Gallery", "Directory Listing"):
+    for target, subtype in (("Framed Gallery", "Restaurant"), ("Directory Listing", "Plumber")):
         found = False
         for i in range(200):
-            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
             theme = engine.select_theme(f)
             if theme.template.name == target:
                 found = True
                 break
-        assert found, f"{target} must be reachable for real facts"
+        assert found, f"{target} must be reachable for real facts (subtype={subtype!r})"
 
 
 # 2026-08-21, Slice C.4: same guarantee for the third batch of new
 # templates.
+#
+# 2026-08-21, industry-aware template selection sub-slice: switched
+# Timeline Flow to a real subtype from one of its own families
+# (Dental/Medical or Legal/Finance -- "Plumber" reaches neither); Compact
+# Utility stays on "Plumber" since Home Services is one of its real
+# families.
 def test_new_c4_templates_are_reachable_for_real_facts():
-    for target in ("Timeline Flow", "Compact Utility"):
+    for target, subtype in (("Timeline Flow", "Attorney"), ("Compact Utility", "Plumber")):
         found = False
         for i in range(200):
-            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber")
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
             theme = engine.select_theme(f)
             if theme.template.name == target:
                 found = True
                 break
-        assert found, f"{target} must be reachable for real facts"
+        assert found, f"{target} must be reachable for real facts (subtype={subtype!r})"
+
+
+# 2026-08-21, industry-aware template selection sub-slice: proves "vast
+# per industry" is real, not just "at least one template exists per
+# family" -- every one of the 5 named families' own 4 templates
+# (engine.py's DENTAL_MEDICAL_TEMPLATES / HOME_SERVICES_TEMPLATES /
+# LEGAL_FINANCE_TEMPLATES / BEAUTY_SALON_TEMPLATES /
+# FOOD_RESTAURANT_TEMPLATES) is independently reachable for a real
+# subtype belonging to that family. If a future edit narrowed a family
+# back down to effectively 1-2 real options (e.g. by accident during a
+# refactor), this catches it directly instead of relying on the general
+# per-template reachability tests above, which don't prove per-family
+# completeness.
+def test_every_named_family_has_real_variety():
+    families = {
+        "Dentist": engine.DENTAL_MEDICAL_TEMPLATES,
+        "Plumber": engine.HOME_SERVICES_TEMPLATES,
+        "Attorney": engine.LEGAL_FINANCE_TEMPLATES,
+        "Hair Salon": engine.BEAUTY_SALON_TEMPLATES,
+        "Restaurant": engine.FOOD_RESTAURANT_TEMPLATES,
+    }
+    for subtype, family in families.items():
+        expected_names = {t.name for t in family}
+        seen_names = set()
+        for i in range(400):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
+            theme = engine.select_theme(f)
+            seen_names.add(theme.template.name)
+            if seen_names >= expected_names:
+                break
+        assert seen_names >= expected_names, (
+            f"subtype={subtype!r}'s family must reach all {len(expected_names)} of its own "
+            f"templates, only reached {seen_names} of {expected_names}"
+        )
+
+
+# 2026-08-21, industry-aware template selection sub-slice: a subtype that
+# doesn't match any of the 5 named families (e.g. a mover) must still be
+# able to reach any of the 9 templates -- the same guarantee every
+# business had before template selection became industry-aware, now
+# scoped to only the businesses actually outside a named family.
+def test_general_fallback_still_reaches_all_nine_templates():
+    expected_names = {t.name for t in engine.TEMPLATES}
+    seen_names = set()
+    for i in range(400):
+        f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Moving Company")
+        theme = engine.select_theme(f)
+        seen_names.add(theme.template.name)
+        if seen_names >= expected_names:
+            break
+    assert seen_names >= expected_names, (
+        f"general fallback must reach all 9 templates, only reached {seen_names}"
+    )
 
 
 def test_generate_site_with_variations():
@@ -755,7 +834,7 @@ def test_location_renders_across_all_templates():
 # actually hash to each new template, exactly like
 # test_bold_cinematic_is_reachable_for_real_facts finds a real seed
 # rather than forcing the template directly.
-def _assert_templates_pass_real_audit_gate(template_names):
+def _assert_templates_pass_real_audit_gate(template_subtypes: dict):
     # 2026-08-21: this file's own bare-bones _F() fixture (same_as=[], no
     # rating -- used elsewhere in this file only to prove business
     # names/subtypes render, never to prove a score) does NOT clear the
@@ -765,48 +844,57 @@ def _assert_templates_pass_real_audit_gate(template_names):
     # real site needs real sameAs/rating data to pass, same as
     # test_site_engine.py's _dentist()/_plumber() fixtures already
     # supply.
+    #
+    # 2026-08-21, industry-aware template selection sub-slice: this used
+    # to take a bare set of template names and search for all of them
+    # under one shared subtype ("Plumber") -- broke the moment
+    # select_theme() became subtype-aware, since a batched set can span
+    # multiple real families (e.g. Trust Panel is Dental/Medical,
+    # Boutique Editorial is Beauty/Salon; no single subtype reaches
+    # both). Now takes {template_name: real_subtype_from_its_own_family}
+    # and searches each independently with its own correct subtype.
     GOOD_CWV = {"lcp_s": 1.8, "inp_ms": 120, "cls": 0.05}
-    remaining = set(template_names)
-    for i in range(200):
-        if not remaining:
+    for target, subtype in template_subtypes.items():
+        found = False
+        for i in range(200):
+            f = _F(
+                business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype,
+                locality="Austin", region="TX", postal_code="78701", country="US",
+                telephone="555-0100", street="123 Main St",
+                services=[types.SimpleNamespace(name="Fixing leaks", description="We fix them.")],
+                service_areas=["Austin"],
+                same_as=["https://g.page/example-plumbing"],
+                hours=["Mon-Fri 8:00-17:00"], faqs=[],
+                credentials=["Texas licensed"], last_updated="2026-07-25",
+                tagline="Quality plumbing",
+                rating=types.SimpleNamespace(value=4.9, count=218),
+            )
+            theme = engine.select_theme(f)
+            if theme.template.name != target:
+                continue
+            found = True
+            with tempfile.TemporaryDirectory() as tmp:
+                generate_site(f, tmp)
+                r = audit_engine.run_audit(tmp, cwv=GOOD_CWV)
+                assert r.passed is True, f"{target} scored {r.normalized_score}, expected to pass"
             break
-        f = _F(
-            business_name=f"Business {i}", domain=f"biz{i}.example", subtype="Plumber",
-            locality="Austin", region="TX", postal_code="78701", country="US",
-            telephone="555-0100", street="123 Main St",
-            services=[types.SimpleNamespace(name="Fixing leaks", description="We fix them.")],
-            service_areas=["Austin"],
-            same_as=["https://g.page/example-plumbing"],
-            hours=["Mon-Fri 8:00-17:00"], faqs=[],
-            credentials=["Texas licensed"], last_updated="2026-07-25",
-            tagline="Quality plumbing",
-            rating=types.SimpleNamespace(value=4.9, count=218),
-        )
-        theme = engine.select_theme(f)
-        if theme.template.name not in remaining:
-            continue
-        remaining.discard(theme.template.name)
-        with tempfile.TemporaryDirectory() as tmp:
-            generate_site(f, tmp)
-            r = audit_engine.run_audit(tmp, cwv=GOOD_CWV)
-            assert r.passed is True, f"{theme.template.name} scored {r.normalized_score}, expected to pass"
-    assert not remaining, f"never found a seed landing on: {remaining}"
+        assert found, f"never found a seed landing on {target!r} (subtype={subtype!r})"
 
 
 def test_new_c2_templates_pass_the_real_audit_gate():
-    _assert_templates_pass_real_audit_gate({"Trust Panel", "Boutique Editorial"})
+    _assert_templates_pass_real_audit_gate({"Trust Panel": "Dentist", "Boutique Editorial": "Hair Salon"})
 
 
 # 2026-08-21, Slice C.3: same guarantee for the second batch of new
 # templates.
 def test_new_c3_templates_pass_the_real_audit_gate():
-    _assert_templates_pass_real_audit_gate({"Framed Gallery", "Directory Listing"})
+    _assert_templates_pass_real_audit_gate({"Framed Gallery": "Restaurant", "Directory Listing": "Plumber"})
 
 
 # 2026-08-21, Slice C.4: same guarantee for the third batch of new
 # templates.
 def test_new_c4_templates_pass_the_real_audit_gate():
-    _assert_templates_pass_real_audit_gate({"Timeline Flow", "Compact Utility"})
+    _assert_templates_pass_real_audit_gate({"Timeline Flow": "Attorney", "Compact Utility": "Plumber"})
 
 
 # ---------------------------------------------------------------------------
