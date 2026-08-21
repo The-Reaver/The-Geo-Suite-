@@ -5,7 +5,7 @@ from uuid import uuid4
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.app.schemas.site_schemas import BusinessFacts, Service, FAQ, Rating
+from backend.app.schemas.site_schemas import BusinessFacts, Service, FAQ, Rating, MenuItem
 from backend.app.services.site_pipeline import generate_and_store
 from backend.app.repositories.content_pages_repository import InMemoryContentPagesRepository
 from backend.app.repositories.schema_records_repository import InMemorySchemaRecordsRepository
@@ -124,6 +124,46 @@ class TestSitePipeline(unittest.TestCase):
 
         self.assertEqual(res["score"], audit_res.normalized_score)
         self.assertEqual(res["passed"], audit_res.passed)
+
+    def test_business_with_menu_items_publishes_without_error(self):
+        # 2026-08-21, Opus 5 review of the menu-page slice: menu.html fell
+        # through _page_type_for() to the "other" fallback, which
+        # content_pages_repository.py's _VALID_PAGE_TYPES (and the real DB
+        # CHECK constraint) both reject -- a business with real menu_items
+        # passed the audit and compliance gates and then raised a raw
+        # ValueError on save, a real HTTP 500 on the one route this whole
+        # pipeline exists to serve. No test before this one ever called
+        # generate_and_store() with menu_items set, which is exactly how
+        # this slipped through five rounds of otherwise-thorough review.
+        cafe_facts = BusinessFacts(
+            business_name="Riverside Cafe", subtype="Restaurant",
+            street="10 River St", locality="Portland", region="OR",
+            postal_code="97201", country="US", telephone="555-0177",
+            domain="riverside-cafe-pipeline.example",
+            service_areas=["Portland"],
+            same_as=["https://g.page/riverside-cafe"],
+            rating=Rating(value=4.6, count=87), last_updated="2026-08-21",
+            menu_items=[
+                MenuItem(name="House Salad", description="Greens.", price="$9", category="Starters"),
+                MenuItem(name="Grilled Salmon", description="Seasonal veg.", price="$24", category="Entrees"),
+            ],
+        )
+        cafe_site_id = uuid4()
+        res = generate_and_store(
+            cafe_site_id, cafe_facts,
+            content_repo=self.content_repo,
+            schema_repo=self.schema_repo,
+            opt_repo=self.opt_repo,
+            audit_repo=self.audit_repo,
+            cwv=None,
+            trigger="manual",
+        )
+        self.assertTrue(res["passed"], "the cafe fixture must clear the real audit gate")
+
+        pages = self.content_repo.list_pages(cafe_site_id)
+        page_types = [p["page_type"] for p in pages]
+        self.assertIn("menu", page_types, "the real menu page must be saved with its own page_type, not dropped or mislabeled")
+        self.assertNotIn("other", page_types)
 
 
 if __name__ == "__main__":

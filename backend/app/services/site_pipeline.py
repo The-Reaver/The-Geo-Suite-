@@ -14,8 +14,17 @@ from .audit_engine import run_audit
 # and everything that *did* exist past "about.html" (privacy.html,
 # accessibility.html) silently fell through the old "default fallback" and
 # got mislabeled page_type "about" in the content repo.
+#
+# 2026-08-21, Opus 5 review of the menu-page slice: "menu.html" fell through
+# to _page_type_for()'s "other" fallback, which content_pages_repository.py's
+# _VALID_PAGE_TYPES (and the real DB CHECK constraint) both reject -- every
+# food-service business with real menu_items generated a site that passed
+# the audit AND compliance gates and then 500'd on save, the exact
+# "silently mislabeled/rejected page type" defect class this file's own
+# comment already documents being fixed once for privacy/accessibility.
 _STATIC_PAGE_TYPES = {
     "index.html": "home",
+    "menu.html": "menu",
     "about.html": "about",
     "privacy.html": "privacy",
     "accessibility.html": "accessibility",

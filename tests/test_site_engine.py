@@ -650,11 +650,21 @@ def test_menu_page_generated_only_when_menu_items_present():
     assert 'href="menu.html"' not in nav_html2, "nav must not link to a menu page that was never generated"
 
 
-def test_menu_page_groups_by_category_with_real_dl_structure():
+def test_menu_page_groups_by_category_with_real_ul_structure():
+    # 2026-08-21, Opus 5 review round 2: switched from <dl>/<dt>/<dd> to
+    # <ul>/<li> -- a <dt> with no following <dd> (the common case: an item
+    # with a name and price but no description) is invalid HTML5. <ul>/<li>
+    # has no such pairing requirement, and doesn't cost anything on the
+    # audit side since Category 2's structured-element count only ever
+    # evaluates index.html, never interior pages.
     d = _gen(_cafe_with_menu())
     html = open(os.path.join(d, "menu.html"), encoding="utf-8").read()
     assert "<h1>" in html and "Menu" in html
     assert "<h2>" in html and "Starters" in html and "Entrees" in html
+    # Real, position-based order check -- a split()-based containment check
+    # (the round-1 version of this test) still passes even if the category
+    # order comes out reversed, since it never actually compares positions.
+    assert html.index("Starters") < html.index("Entrees"), "categories must render in first-seen order"
     starters_section = html.split("Starters")[1].split("Entrees")[0]
     assert "House Salad" in starters_section
     assert "Grilled Salmon" not in starters_section, "items must be grouped into their own category, not all sections"
@@ -662,8 +672,60 @@ def test_menu_page_groups_by_category_with_real_dl_structure():
     assert "Grilled Salmon" in entrees_section and "Veggie Burger" in entrees_section
     assert "$24" in html and "$16" in html and "$9" in html
     assert "gluten-free" in html and "vegetarian" in html
-    assert "<dl>" in html and "<dt>" in html and "<dd>" in html
+    assert "<ul>" in html and "<li>" in html
+    assert "<dt>" not in html and "<dd>" not in html and "<dl>" not in html
     assert "subject to change" in html, "a real menu with prices needs the accuracy disclaimer"
+
+
+def test_menu_page_category_grouping_strips_and_case_folds():
+    # 2026-08-21, Opus 5 review round 2: category grouping used to key on
+    # raw, unstripped, case-sensitive text -- a whitespace-only category
+    # ("   ") was truthy in Python so the "Menu" fallback never fired
+    # (rendering an empty <h2>), and "Drinks"/"drinks"/"Drinks " produced
+    # three visually-identical sections instead of one. Same
+    # truthiness-not-content bug class already documented and fixed once
+    # in this file for _loc()'s region handling.
+    facts = _cafe_with_menu(menu_items=[
+        MenuItem(name="Latte", price="$4", category="   "),
+        MenuItem(name="Mocha", price="$5", category="Drinks"),
+        MenuItem(name="Chai", price="$4", category="drinks"),
+        MenuItem(name="Tea", price="$3", category="Drinks "),
+    ])
+    d = _gen(facts)
+    html = open(os.path.join(d, "menu.html"), encoding="utf-8").read()
+    assert html.count("<h2>") == 2, "whitespace-only and duplicate-cased categories must collapse, not multiply sections"
+    assert "<h2></h2>" not in html, "a whitespace-only category must fall back to a real label, not render an empty heading"
+    assert "<h2>Menu</h2>" in html, "the whitespace-only item must land in the honest 'Menu' fallback section"
+    drinks_section = html.split("<h2>Drinks</h2>", 1)[1]
+    assert "Mocha" in drinks_section and "Chai" in drinks_section and "Tea" in drinks_section, (
+        "differently-cased/whitespace-padded 'Drinks' variants must all land in the same section"
+    )
+
+
+def test_menu_item_name_cannot_be_empty():
+    import pytest
+    with pytest.raises(Exception):
+        MenuItem(name="", price="$3")
+    with pytest.raises(Exception):
+        MenuItem(name="\x01\x02  ", price="$3")  # only control chars/whitespace
+
+
+def test_menu_md_mirror_and_llms_full_carry_real_menu_content():
+    # 2026-08-21, Opus 5 review round 2: menu.md used to be one generic
+    # sentence with zero real items, even though menu.html declares it as
+    # its markdown mirror via <link rel="alternate"> -- the whole point of
+    # a mirror is carrying the same substance. llms-full.txt had the same
+    # gap: real Services/FAQ sections existed, but menu items appeared
+    # nowhere except the bare menu.html URL in the trailing page list.
+    d = _gen(_cafe_with_menu())
+    md = open(os.path.join(d, "menu.md"), encoding="utf-8").read()
+    assert "House Salad" in md and "$9" in md
+    assert "Grilled Salmon" in md and "$24" in md
+    assert "Starters" in md and "Entrees" in md
+
+    llms_full = open(os.path.join(d, "llms-full.txt"), encoding="utf-8").read()
+    assert "House Salad" in llms_full and "$9" in llms_full
+    assert "Grilled Salmon" in llms_full and "$24" in llms_full
 
 
 def test_menu_page_escapes_html_in_item_fields():
@@ -697,6 +759,14 @@ def test_menu_page_included_in_sitemap_and_llms():
 
 
 def test_cafe_with_menu_still_passes_the_real_audit_gate():
+    # Honest scope, per Opus 5 review round 2: this proves adding a menu
+    # page doesn't REGRESS the publish gate -- it does not and cannot prove
+    # the menu page itself moves the score, since Category 2 (the only
+    # category sensitive to a page's own content/structure) only ever
+    # evaluates index.html, never interior pages. The real assertion that
+    # the menu page's content is genuinely present and correct lives in
+    # test_menu_page_groups_by_category_with_real_ul_structure and
+    # test_menu_md_mirror_and_llms_full_carry_real_menu_content instead.
     d = _gen(_cafe_with_menu())
     r = audit_engine.run_audit(d, cwv=GOOD_CWV)
     assert r.passed, f"cafe-with-menu site scored {r.normalized_score}, expected a real pass"

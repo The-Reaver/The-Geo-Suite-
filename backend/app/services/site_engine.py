@@ -788,6 +788,51 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
     return theme.template.render_service(f, base, theme, blocks)
 
 
+def _menu_groups(f: _F) -> list[tuple[str, list]]:
+    """Group f.menu_items by category, preserving first-seen order -- the
+    business's own supplied order is the only real signal for section
+    sequencing, no assumed ordering like "Appetizers before Entrees".
+    Items with no category (or a category that's empty once whitespace is
+    stripped) fall back to a literal "Menu" label -- the same
+    truthiness-not-content bug already documented and fixed once in this
+    file for _loc()'s region handling.
+
+    Category keys are stripped and case-folded for grouping/dedup (" Drinks"
+    and "drinks " must land in the same section, not three visually
+    identical ones), while the DISPLAYED heading keeps the first-seen
+    casing/spacing rather than a normalized form. Shared by the HTML page
+    and the markdown mirror/llms-full.txt so both surfaces agree on section
+    boundaries."""
+    groups: dict[str, list] = {}
+    labels: dict[str, str] = {}
+    for item in (f.menu_items or []):
+        raw = (item.category or "").strip()
+        label = raw if raw else "Menu"
+        key = label.lower()
+        if key not in groups:
+            groups[key] = []
+            labels[key] = label
+        groups[key].append(item)
+    return [(labels[key], items) for key, items in groups.items()]
+
+
+def _menu_item_line(item: Any) -> str:
+    """One item's real text, no markup -- shared by the markdown mirror and
+    llms-full.txt so both carry the same substance the HTML page does."""
+    parts = [item.name]
+    if item.price:
+        parts.append(f"({item.price})")
+    line = " ".join(parts)
+    extra = []
+    if item.description:
+        extra.append(item.description)
+    if item.dietary_tags:
+        extra.append(_oxford(list(item.dietary_tags)))
+    if extra:
+        line += " — " + "; ".join(extra)
+    return line
+
+
 def _build_menu_page(f: _F, base: str) -> str:
     """Site Generator page-structure taxonomy, slice 1. Reuses the generic
     "chrome + content" render_service template method exactly like
@@ -796,37 +841,41 @@ def _build_menu_page(f: _F, base: str) -> str:
     this method identically for styling only. Only called from
     generate_site() when f.menu_items is genuinely non-empty (the honesty
     gate lives at the call site, matching every other conditional page in
-    this file); this function assumes real data is present."""
+    this file); this function assumes real data is present.
+
+    2026-08-21, Opus 5 review: switched from <dl>/<dt>/<dd> to <ul>/<li>.
+    A <dl> name-value group requires one or more <dt> followed by one or
+    more <dd> per HTML5's content model -- a common real case (a drinks
+    list with just a name and price, no description) produced a <dt> with
+    no following <dd>, invalid HTML. <ul>/<li> has no such pairing
+    requirement and needed no audit-scoring tradeoff to switch to:
+    audit_engine.py's Category 2 (the only category that cares about
+    ul/ol/table/pre/dl counts at all) only ever evaluates index.html, never
+    interior pages like this one -- verified directly at run_audit()'s call
+    site before this change, not assumed."""
     canonical = f"{base}/menu.html"
     title = f"Menu — {f.business_name}"
     desc = f"Menu for {f.business_name}, a {_human(f.subtype)} in {_loc(f)}."
     head = _head(f, base, canonical, title, desc, "menu.md")
 
-    # Group by category, preserving first-seen order -- the business's own
-    # supplied order is the only real signal for section sequencing; no
-    # assumed ordering like "Appetizers before Entrees".
-    groups: dict[str, list] = {}
-    for item in (f.menu_items or []):
-        groups.setdefault(item.category or "Menu", []).append(item)
-
     content_lines = [f"      <h1>Menu — {_esc(f.business_name)}</h1>"]
-    for category, items in groups.items():
+    for category, items in _menu_groups(f):
         content_lines.append(f"      <h2>{_esc(category)}</h2>")
-        content_lines.append("      <dl>")
+        content_lines.append("      <ul>")
         for item in items:
-            dt = f"        <dt>{_esc(item.name)}"
+            li = f"        <li>{_esc(item.name)}"
             if item.price:
-                dt += f' <span class="price">{_esc(item.price)}</span>'
-            dt += "</dt>"
-            content_lines.append(dt)
-            dd_parts = []
+                li += f' <span class="price">{_esc(item.price)}</span>'
+            extra = []
             if item.description:
-                dd_parts.append(_esc(item.description))
+                extra.append(_esc(item.description))
             if item.dietary_tags:
-                dd_parts.append(_esc(_oxford(list(item.dietary_tags))))
-            if dd_parts:
-                content_lines.append(f"        <dd>{' &middot; '.join(dd_parts)}</dd>")
-        content_lines.append("      </dl>")
+                extra.append(_esc(_oxford(list(item.dietary_tags))))
+            if extra:
+                li += " &mdash; " + " &middot; ".join(extra)
+            li += "</li>"
+            content_lines.append(li)
+        content_lines.append("      </ul>")
     # Real pricing is a genuine accuracy/liability surface, unlike generic
     # marketing prose -- worth a plain disclaimer, not skipped.
     content_lines.append('      <p class="menu-disclaimer">Menu items and prices are subject to change.</p>')
@@ -1005,6 +1054,15 @@ def _build_llms_full(f: _F, base: str, pages: list[str]) -> str:
         for s in f.services:
             lines.append(f"- **{s.name}**: {s.description}")
         lines.append("")
+    if f.menu_items:
+        # The menu is exactly the kind of retrievable content a GEO-focused
+        # llms-full.txt should carry -- before this fix only the bare
+        # menu.html URL appeared, in the trailing ## Pages list.
+        for category, items in _menu_groups(f):
+            lines.append(f"## Menu — {category}")
+            for item in items:
+                lines.append(f"- {_menu_item_line(item)}")
+            lines.append("")
     if f.faqs:
         lines.append("## FAQ")
         for q in f.faqs:
@@ -1139,9 +1197,18 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
             _md_mirror(f, f"{s.name} in {f.locality}", [s.description]), encoding="utf-8")
         written.append(f"service-{slug}.md")
     if f.menu_items:
+        # 2026-08-21, Opus 5 review: this used to be one generic sentence
+        # with zero real items -- menu.html declares this as its markdown
+        # mirror via <link rel="alternate">, whose whole point is carrying
+        # the same substance, so an AI crawler following that link got a
+        # page that mirrored nothing. Real category/item content now
+        # shared with _build_llms_full via _menu_groups/_menu_item_line.
+        menu_paragraphs = [f"Menu for {f.business_name} in {f.locality}."]
+        for category, items in _menu_groups(f):
+            menu_paragraphs.append(f"## {category}")
+            menu_paragraphs.extend(f"- {_menu_item_line(item)}" for item in items)
         (out / "menu.md").write_text(
-            _md_mirror(f, f"Menu — {f.business_name}",
-                       [f"Menu for {f.business_name} in {f.locality}."]),
+            _md_mirror(f, f"Menu — {f.business_name}", menu_paragraphs),
             encoding="utf-8")
         written.append("menu.md")
     (out / "about.md").write_text(

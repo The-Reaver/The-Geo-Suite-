@@ -20,6 +20,13 @@ import re
 # -- it's a light accent-soft tint with dark text, the same
 # provably-safe pattern Trust Panel already uses.
 CSS_BASE = """
+  /* 2026-08-21, Opus 5 review of the menu-page slice: .price and
+     .menu-disclaimer (site_engine.py's _build_menu_page) had zero CSS
+     backing in any of the 9 templates -- the exact "markup class
+     matches no real CSS" defect already fixed once this session for
+     the shared footer/FAQ/lede. */
+  .price{font-weight:600;color:var(--accent)}
+  .menu-disclaimer{color:var(--muted);font-size:14px;margin-top:28px}
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}

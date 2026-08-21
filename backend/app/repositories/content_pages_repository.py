@@ -10,7 +10,12 @@ from typing import Protocol, Any
 # generate_site() never writes a standalone FAQ page (FAQs render as a
 # section of index.html) -- removing it would be a behavior change to a
 # public-shaped constant with no evidence it's actually unused elsewhere.
-_VALID_PAGE_TYPES = {"home", "service", "faq", "about", "privacy", "accessibility"}
+# "menu" added 2026-08-21 alongside site_engine.py's new menu.html page --
+# must stay in sync with the real DB CHECK constraint in
+# supabase/migrations/20260820160000_site_pipeline_tables.sql (widened in
+# the same commit as this constant, per tests/test_site_pipeline_migration.py's
+# own guard against exactly this kind of drift).
+_VALID_PAGE_TYPES = {"home", "service", "menu", "faq", "about", "privacy", "accessibility"}
 _VALID_STATUSES = {"draft", "in_review", "approved", "published"}
 
 def page_to_row(site_id: Any, *, slug: str, title: str, page_type: str, body_json: Any, status: str = "draft", version: int = 1) -> dict:

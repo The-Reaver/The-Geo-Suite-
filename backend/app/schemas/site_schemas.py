@@ -83,7 +83,22 @@ class MenuItem(BaseModel):
     category: str = ""
     dietary_tags: List[str] = Field(default_factory=list)
 
-    @field_validator("name", "description", "price", "category")
+    @field_validator("name")
+    @classmethod
+    def _name_required_after_stripping(cls, value: str) -> str:
+        # 2026-08-21, Opus 5 review: a bare `str` field is required to be
+        # present, not non-empty -- name="" (or a value that's only control
+        # characters/whitespace) validated cleanly and rendered as an
+        # anonymous priced item ("<li> <span class="price">$3</span>"),
+        # fabricated structure around no real name. name is the one field
+        # this whole feature exists to display; reject it outright rather
+        # than silently rendering nothing where a real name belongs.
+        cleaned = _strip_control_chars(value)
+        if not cleaned.strip():
+            raise ValueError("MenuItem.name must not be empty")
+        return cleaned
+
+    @field_validator("description", "price", "category")
     @classmethod
     def _no_control_chars(cls, value: str) -> str:
         return _strip_control_chars(value)
