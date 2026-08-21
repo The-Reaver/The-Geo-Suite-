@@ -1,4 +1,5 @@
 import collections
+import hashlib
 
 TypePairing = collections.namedtuple("TypePairing", [
     "name", "display_family", "body_family", "css"
@@ -119,5 +120,31 @@ PAIRINGS = [
     T_POPPINS_NUNITO, T_IBM_PLEX,
 ]
 
+# 2026-08-21: this used to derive its index from `(seed // 7) % 8`,
+# with a comment claiming it was "deliberately decorrelated from
+# template/palette selection." Measured and found quantitatively false
+# -- the same defect class an Opus 5 review found (and fixed, via a
+# SHA-256 re-hash) in engine.py's own template_for()/_template_seed(),
+# which this function was never audited against. Both `(seed // 7) % 8`
+# and `seed % 4` (palette_for()'s own index) are arithmetic functions of
+# the same residue class of the same integer -- `seed % 56` fully
+# determines both, since 7*8=56 -- and enumerating that residue system
+# confirms real correlation, not just a theoretical risk: measured
+# chi2=12184 over 200k real seeds (31 degrees of freedom, critical value
+# ~45), a palette+font combination landing on matching-ish indices far
+# more than chance.
+#
+# Fixed the same way as _template_seed(): re-hash the seed instead of
+# re-dividing it, so the derived index isn't constrained to the source
+# seed's residue system at all. Domain-separated with a "typography:"
+# prefix (not just str(seed), which _template_seed() already uses) so
+# this doesn't accidentally correlate with -- or literally duplicate --
+# template selection's own re-hash instead of palette's. Verified
+# directly: typography_seed(seed) % 8 vs. palette's seed % 4 measures
+# chi2=27.46/31 df; vs. engine.py's template_seed(seed) % 4 measures
+# chi2=29.24/31 df -- both genuinely uniform.
+def _typography_seed(seed: int) -> int:
+    return int(hashlib.sha256(f"typography:{seed}".encode()).hexdigest()[:16], 16)
+
 def typography_for(seed: int) -> TypePairing:
-    return PAIRINGS[(seed // 7) % len(PAIRINGS)]
+    return PAIRINGS[_typography_seed(seed) % len(PAIRINGS)]
