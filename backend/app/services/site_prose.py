@@ -1209,10 +1209,19 @@ def _prose_family_for(subtype):
             and re.search(r"\brestaurants?\b|\bcafes?\b", s)
             and not re.search(r"\bsalons?\b|\bspas?\b|\bnails?\b|\bbeauty\b", s)):
         coarse = palettes.INDUSTRY_FAMILY_FOOD_RESTAURANT
+    # 2026-08-21, Opus review round 5: \bdent (a prefix with no closing \b)
+    # matched the standalone word "dent" in "Paintless Dent Repair" -- a
+    # common real auto-body subtype -- which suppressed this override (it
+    # thought "dent" was real dental evidence) and ALSO defeated the safety
+    # net below (same open prefix in _REAL_WORD_MARKERS), so the family
+    # never demoted either. Narrowed to real dental words only. Broadened
+    # "veterinary" to a "veterinar" prefix so "Veterinarian" (finding #5,
+    # the more natural English noun) is excluded here too, matching the
+    # same fix applied to _REAL_WORD_MARKERS below.
     if (coarse == palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL
             and re.search(r"\brepairs?\b", s)
-            and "veterinary" not in s
-            and not re.search(r"\bdent|\bphysicians?\b|\bmedical\b", s)):
+            and "veterinar" not in s
+            and not re.search(r"\bdentals?\b|\bdentists?\b|\bdentistry\b|\bdentures?\b|\bdenturists?\b|\bphysicians?\b|\bmedical\b", s)):
         coarse = palettes.INDUSTRY_FAMILY_HOME_SERVICES
 
     # 2026-08-21, Opus review round 4: the two overrides above only catch
@@ -1235,20 +1244,45 @@ def _prose_family_for(subtype):
     # two specific overrides above, not a replacement for them: a genuine
     # positive match (like "restaurant") still routes to the better,
     # more-specific family instead of settling for "general".
+    # 2026-08-21, Opus review round 5: two of these markers were still
+    # unbounded/incomplete -- \bdent (fixed above and here) and
+    # \bveterinary\b (missed the more natural "Veterinarian" noun, a real
+    # regression from the round-4 commit that introduced this dict: before
+    # it, "VeterinaryCare" resolved through the coarse classifier alone).
     _REAL_WORD_MARKERS = {
-        palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL: r"\bdent|\bphysicians?\b|\bmedical\b|\bvets?\b|\bveterinary\b",
+        palettes.INDUSTRY_FAMILY_DENTAL_MEDICAL: r"\bdentals?\b|\bdentists?\b|\bdentistry\b|\bdentures?\b|\bdenturists?\b|\bphysicians?\b|\bmedical\b|\bvets?\b|\bveterinar",
         palettes.INDUSTRY_FAMILY_HOME_SERVICES: r"\bplumb|\bhvac\b|\belectric|\brepairs?\b|\bcontractors?\b",
         palettes.INDUSTRY_FAMILY_LEGAL_FINANCE: r"\blaws?\b|\battorneys?\b|\bfinanc|\bestates?\b",
         palettes.INDUSTRY_FAMILY_BEAUTY_SALON: r"\bsalons?\b|\bbeauty\b|\bspas?\b|\bnails?\b",
         palettes.INDUSTRY_FAMILY_FOOD_RESTAURANT: r"\bfoods?\b|\brestaurants?\b|\bcafes?\b",
     }
     marker = _REAL_WORD_MARKERS.get(coarse)
-    if marker and not re.search(marker, s):
-        coarse = palettes.INDUSTRY_FAMILY_GENERAL
+    if not marker or not re.search(marker, s):
+        # 2026-08-21, Opus review round 5 (finding #4): jumping straight to
+        # "general" here throws away genuine evidence for a DIFFERENT
+        # family -- "Flawless Nails Studio" has real \bnails?\b evidence
+        # (beauty_salon) but was demoted to general because the coarse
+        # classifier's own first-match-wins substring check had already
+        # (wrongly) landed on legal_finance via "law" inside "Flawless".
+        # Check every family's own real-word marker, not just the coarse
+        # guess's; only fall back to general if none of them have real
+        # support either (still the common case -- "Spanish Tapas Bar",
+        # "Corvette Restoration", "Lawn Care Service" all still land here).
+        coarse = next(
+            (fam for fam, mk in _REAL_WORD_MARKERS.items() if re.search(mk, s)),
+            palettes.INDUSTRY_FAMILY_GENERAL,
+        )
 
+    # 2026-08-21, Opus review round 5 (finding #3): a bare "estate" (e.g.
+    # "Estate Planning", a common legal-practice subtype with neither "law"
+    # nor "attorney" in it) used to be treated as sufficient real-estate
+    # evidence on its own. Now requires actual real-estate-specific
+    # language, and excludes the legal specialties that legitimately use
+    # the word "estate" without being a brokerage.
     if (coarse == palettes.INDUSTRY_FAMILY_LEGAL_FINANCE
-            and re.search(r"\bestates?\b", s)
-            and not re.search(r"\blaw\b|\battorneys?\b", s)):
+            and re.search(r"\brealtors?\b|\brealty\b|\breal\s+estates?\b|\bbrokers?\b|\bproperties\b|\bhomes?\b"
+                           r"|\bagents?\b|\bagenc(?:y|ies)\b", s)
+            and not re.search(r"\blaws?\b|\battorneys?\b|\bplanning\b|\btrusts?\b|\bwills?\b|\bprobate\b", s)):
         return "real_estate"
     if coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON and re.search(r"\bnails?\b|\bspas?\b", s):
         return "nail_spa"

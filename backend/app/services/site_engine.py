@@ -386,8 +386,27 @@ def _footer(f: _F, base: str) -> str:
 
 
 def _first_gbp(urls: list[str]) -> str | None:
+    # 2026-08-21, Opus 5 review round 5: this used to substring-match the
+    # whole URL string against known GBP hostnames, with no scheme or host
+    # check -- "javascript:alert(1)//g.page" matched "g.page" as a plain
+    # substring and rendered as a live, clickable javascript: link in the
+    # footer of every generated (and published) page. Reproduced end to
+    # end through the real /sales/preview route, past the compliance gate.
+    # Now requires a real http(s) URL whose *host* (not just some substring
+    # of the whole string) is one of the real GBP domains.
+    import urllib.parse
+
     for u in urls:
-        if re.search(r"(g\.page|google\.com/maps|business\.google\.com|maps\.app\.goo\.gl)", str(u), re.I):
+        try:
+            parsed = urllib.parse.urlparse(str(u))
+        except ValueError:
+            continue
+        if parsed.scheme not in ("http", "https"):
+            continue
+        host = (parsed.hostname or "").lower()
+        if host in ("g.page", "business.google.com", "maps.app.goo.gl"):
+            return u
+        if host in ("google.com", "www.google.com") and parsed.path.startswith("/maps"):
             return u
     return None
 

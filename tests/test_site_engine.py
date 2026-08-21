@@ -724,6 +724,111 @@ def test_known_substring_collisions_route_to_the_correct_prose_family():
     assert site_prose._prose_family_for("Nail Salon") == "nail_spa"
 
 
+def test_dent_repair_never_gets_dental_prose():
+    # 2026-08-21, Opus review round 5 (finding #2): \bdent (no closing \b)
+    # matched the standalone word "dent" in "Paintless Dent Repair" -- a
+    # common real auto-body subtype -- which suppressed BOTH the repair
+    # override and the safety net, so it kept dental_medical wholesale.
+    for subtype in ("Paintless Dent Repair", "Dent Repair", "Hail Dent Repair",
+                     "Mobile Dent Repair"):
+        assert site_prose._prose_family_for(subtype) == "home_services", subtype
+    # Real dental subtypes must be unaffected by the narrower marker.
+    for subtype in ("Dentist", "DentalClinic", "Dental Lab", "Dentures Studio"):
+        assert site_prose._prose_family_for(subtype) == "dental_medical", subtype
+
+    facts = _facts(subtype="Paintless Dent Repair", business_name="Straighten Up Auto",
+                    domain="dent-repair-real.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    body_start = html.find("<body")
+    text = re.sub(r"<[^>]+>", " ", html[body_start:]).lower()
+    for w in ("patient", "clinical", "treatment plan"):
+        assert not re.search(r"\b" + re.escape(w) + r"\b", text), f"found forbidden word {w!r}"
+
+
+def test_estate_planning_never_gets_real_estate_agency_prose():
+    # 2026-08-21, Opus review round 5 (finding #3): a bare "estate" (no
+    # "law"/"attorney") used to be treated as sufficient real-estate
+    # evidence on its own -- "Estate Planning", a common legal-practice
+    # subtype, got brokerage prose ("comparable sales", "yard sign")
+    # instead of its real legal-services prose.
+    assert site_prose._prose_family_for("Estate Planning") == "legal_finance"
+    assert site_prose._prose_family_for("Estate Sale Company") == "legal_finance"
+    # Real real-estate subtypes must still redirect correctly.
+    assert site_prose._prose_family_for("Real Estate") == "real_estate"
+    assert site_prose._prose_family_for("RealEstateAgent") == "real_estate"
+    assert site_prose._prose_family_for("Real Estate Agent") == "real_estate"
+
+    facts = _facts(subtype="Estate Planning", business_name="Cedar Trust Law",
+                    domain="estate-planning-real.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    body_start = html.find("<body")
+    text = re.sub(r"<[^>]+>", " ", html[body_start:]).lower()
+    for w in ("comparable sales", "yard sign", "listing", "buyers and sellers"):
+        assert w not in text, f"found forbidden phrase {w!r}"
+
+
+def test_veterinarian_still_gets_dental_medical_prose():
+    # 2026-08-21, Opus review round 5 (finding #5): the marker only checked
+    # "\bvets?\b|\bveterinary\b" -- missed "Veterinarian", the more natural
+    # English noun and a real regression from the commit under review
+    # (before it, VeterinaryCare-style subtypes resolved via the coarse
+    # classifier alone with no marker to miss).
+    assert site_prose._prose_family_for("Veterinarian Clinic") == "dental_medical"
+    assert site_prose._prose_family_for("VeterinarianClinic") == "dental_medical"
+
+
+def test_first_gbp_rejects_non_http_schemes_and_wrong_hosts():
+    # 2026-08-21, Opus review round 5 (finding #1, HIGH): _first_gbp used
+    # to substring-match the whole URL string against known GBP hostnames
+    # with no scheme or host check -- "javascript:alert(1)//g.page"
+    # matched "g.page" as a plain substring and rendered as a live,
+    # clickable javascript: link in the footer, reproduced end to end
+    # through the real /sales/preview route and past the compliance gate.
+    from app.services.site_engine import _first_gbp
+
+    malicious = [
+        "javascript:alert(document.domain)//g.page",
+        "javascript:alert(1)//maps.app.goo.gl",
+        "data:text/html,<script>alert(1)</script>#g.page",
+        "//g.page/evil",  # protocol-relative, no real scheme
+        "ftp://g.page/not-http",
+        "https://evil.example/g.page",  # "g.page" only in the path, wrong host
+        "https://evil.example/?u=google.com/maps",  # substring in query, wrong host
+    ]
+    for u in malicious:
+        assert _first_gbp([u]) is None, f"should have rejected {u!r}"
+
+    good = [
+        "https://g.page/cedar-ridge-dental",
+        "http://business.google.com/some-listing",
+        "https://maps.app.goo.gl/saguaro",
+        "https://www.google.com/maps/place/Cedar+Ridge",
+        "https://google.com/maps?q=cedar+ridge",
+    ]
+    for u in good:
+        assert _first_gbp([u]) == u, f"should have accepted {u!r}"
+
+    # A malicious entry ahead of a real one must not shadow it -- the real
+    # one should still be found.
+    assert _first_gbp(["javascript:alert(1)//g.page", "https://g.page/real"]) == "https://g.page/real"
+
+
+def test_same_as_javascript_url_never_reaches_rendered_footer():
+    # The raw URL legitimately still appears inside the JSON-LD `sameAs`
+    # array (declarative structured data, never executed by a browser) --
+    # the real risk is only the rendered, clickable <a href> in the
+    # footer, so isolate the check to the body content after </script>.
+    facts = _facts(same_as=["javascript:alert(document.domain)//g.page"],
+                    domain="javascript-same-as.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    script_end = html.rfind("</script>")
+    body = html[script_end:]
+    assert "javascript:" not in body, "javascript: URL reached the rendered page as a link"
+    assert "See our reviews on Google" not in body, (
+        "a GBP link rendered even though the only same_as entry was rejected"
+    )
+
+
 def test_spanish_restaurant_never_gets_nail_salon_prose():
     facts = _facts(subtype="Spanish Restaurant", business_name="Casa Iberia",
                     domain="spanish-restaurant-real.example")
@@ -880,7 +985,13 @@ def test_false_industry_claims_closed_for_untested_synonym_collisions():
     # dental_medical guess.
     assert site_prose._prose_family_for("Spanish Tapas Bar") == "general"
     assert site_prose._prose_family_for("Corvette Restoration") == "general"
-    assert site_prose._prose_family_for("Flawless Nails Studio") == "general"
+    # 2026-08-21, Opus review round 5 (finding #4): coarse lands on
+    # legal_finance ("law" inside "Flawless") with no real word support
+    # there, but "nails" IS real, unambiguous beauty-salon evidence in the
+    # same string -- the safety net now checks every family's marker, not
+    # just the (wrong) coarse guess's, so this correctly resolves to
+    # nail_spa instead of settling for generic prose.
+    assert site_prose._prose_family_for("Flawless Nails Studio") == "nail_spa"
 
     facts = _facts(subtype="Spanish Tapas Bar", business_name="Casa Iberia",
                     domain="spanish-tapas-real.example")
@@ -896,14 +1007,37 @@ def test_safety_net_does_not_regress_real_pascalcase_schema_types():
     # internal spaces -- a naive \bmedical\b never matches inside the
     # lowercased "medicalclinic". Every one of these must still route to
     # its real family, not fall back to "general".
+    #
+    # 2026-08-21, Opus review round 5 (finding #6): the original version of
+    # this test derived its own skip condition from
+    # palettes.industry_family_for() -- part of the classification chain
+    # under test -- and only asserted `!= "general"`, never the actual
+    # correct family. Mutation-proven: it would still pass if HairSalon
+    # started returning "food_restaurant", and would go vacuous (zero real
+    # assertions) if industry_family_for() itself regressed to
+    # always-general. Hardcoded the real expected family per key instead.
+    expected = {
+        "Dentist": "dental_medical",
+        "MedicalClinic": "dental_medical",
+        "Physician": "dental_medical",
+        "VeterinaryCare": "dental_medical",
+        "Plumber": "home_services",
+        "HVACBusiness": "home_services",
+        "Electrician": "home_services",
+        "AutoRepair": "home_services",
+        "RoofingContractor": "home_services",
+        "GeneralContractor": "home_services",
+        "Attorney": "legal_finance",
+        "RealEstateAgent": "real_estate",
+        "HairSalon": "beauty_salon",
+        "BeautySalon": "beauty_salon",
+        "Restaurant": "food_restaurant",
+    }
     from app.services.site_engine import _HUMAN
-    from app.services.site_design import palettes
-    for key in _HUMAN:
-        coarse = palettes.industry_family_for(key)
-        if coarse == palettes.INDUSTRY_FAMILY_GENERAL:
-            continue
+    for key, want in expected.items():
+        assert key in _HUMAN, f"{key!r} no longer a real schema key -- update this test's map"
         got = site_prose._prose_family_for(key)
-        assert got != "general", f"{key!r} (coarse={coarse!r}) wrongly demoted to general"
+        assert got == want, f"{key!r} -> {got!r}, expected {want!r}"
 
 
 def _base_url_for(facts) -> str:
