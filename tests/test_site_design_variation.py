@@ -16,7 +16,7 @@ if BACKEND not in sys.path:
     sys.path.insert(0, BACKEND)
 
 from app.services.site_engine import generate_site
-from app.services.site_design import engine, palettes
+from app.services.site_design import engine, palettes, typography
 from app.services.site_design.engine import Theme
 
 
@@ -55,6 +55,35 @@ def test_palettes_wcag_contrast():
         bright, dark = max(l1, l2), min(l1, l2)
         cr = (bright + 0.05) / (dark + 0.05)
         assert cr >= 4.5, f"Contrast {cr:.2f} < 4.5 for ink={p.ink} bg={p.bg}"
+
+
+# 2026-08-21, Slice C.1: grew the palette library from 8 to 20 and the
+# typography library from 3 to 8, per the operator's explicit correction
+# ("this library of templates, palettes, type pairings need to be vast").
+# assert_wcag() (palettes.py, runs at import time) is still the
+# authoritative contrast gate for every entry; these lock in the actual
+# size/variety so a future edit can't silently shrink the library back
+# down without a test noticing.
+def test_palette_library_has_real_variety():
+    assert len(palettes.PALETTES) >= 20, \
+        f"expected >= 20 palettes, got {len(palettes.PALETTES)}"
+    names = [p.name for p in palettes.PALETTES]
+    assert len(names) == len(set(names)), f"duplicate palette names: {names}"
+
+    representative_subtypes = ["Dentist", "Plumber", "Attorney", "Hair Salon", "Restaurant"]
+    for subtype in representative_subtypes:
+        seen = {palettes.palette_for(subtype, seed).name for seed in range(8)}
+        assert len(seen) >= 4, \
+            f"{subtype}'s industry family must resolve to >= 4 distinct palettes, got {seen}"
+
+
+def test_typography_library_has_real_variety():
+    assert len(typography.PAIRINGS) >= 8, \
+        f"expected >= 8 type pairings, got {len(typography.PAIRINGS)}"
+    names = [t.name for t in typography.PAIRINGS]
+    assert len(names) == len(set(names)), f"duplicate type pairing names: {names}"
+    seen = {typography.typography_for(seed).name for seed in range(80)}
+    assert len(seen) >= 8, f"expected all 8 pairings to be reachable via typography_for(), got {seen}"
 
 
 def test_variation_across_businesses():
