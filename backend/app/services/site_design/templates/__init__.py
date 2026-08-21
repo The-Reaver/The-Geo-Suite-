@@ -1,4 +1,5 @@
 import collections
+import html as _html
 import re
 
 Template = collections.namedtuple("Template", [
@@ -8,6 +9,26 @@ Template = collections.namedtuple("Template", [
     "render_about",
     "render_privacy"
 ])
+
+
+def _esc(text) -> str:
+    """Escape a facts field before it's interpolated into raw HTML.
+
+    2026-08-21, Opus review of the Slice 1 prose commit flagged one
+    unescaped business_name interpolation inside site_prose.py's <a> anchor
+    text (fixed in site_engine.py's _esc_inline). Verifying that fix
+    directly against a real XSS-payload business name surfaced a much
+    larger, real, pre-existing, fleet-wide instance of the identical
+    defect: every one of these 9 templates' own render_index()/render_about()
+    /render_service()/render_privacy() interpolates facts.business_name (and
+    most also facts.locality) DIRECTLY into <h1> and the nav-brand
+    replacement with zero escaping -- a genuine stored-XSS vector via the
+    business_name field on every generated homepage, present since these
+    templates were first written, not something this session's prose work
+    introduced. This shared helper (mirroring site_engine.py's own _esc())
+    is used at every one of those interpolation points instead.
+    """
+    return _html.escape(str(text or ""), quote=True)
 
 def _inject_css(head_html: str, palette, typography) -> str:
     # Build token CSS

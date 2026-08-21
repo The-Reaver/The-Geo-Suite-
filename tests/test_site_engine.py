@@ -444,6 +444,214 @@ def test_hours_omitted_when_none_but_address_and_directions_remain():
     assert 'class="directions-link"' in html, "the directions link must still render with no hours present"
 
 
+# 2026-08-21, Opus 5 review of the Slice 1 prose commit (c792e83) found 9
+# real bugs; the tests below lock in each fix. The review also prompted a
+# direct XSS/injection re-verification that surfaced a much broader,
+# genuinely severe, PRE-EXISTING vulnerability (unescaped business_name in
+# every template's <h1>/nav-brand, and a real </script> breakout via the
+# JSON-LD block) -- neither introduced by this session's prose work, both
+# fixed in the same pass since they were found while verifying the
+# reviewer's narrower anchor-text finding.
+
+from backend.app.services.site_engine import _human, _loc                 # noqa: E402
+from backend.app.services import site_prose                               # noqa: E402
+from backend.app.services.site_design import engine as design_engine      # noqa: E402
+
+
+def _facts(**overrides):
+    base = dict(
+        business_name="Example Business", subtype="Dentist",
+        street="100 Main St", locality="Portland", region="OR",
+        postal_code="97201", telephone="+1-503-555-0142", domain="example.example",
+        hours=["Mon-Fri 8:00-17:00"], service_areas=["Portland", "Beaverton"],
+        services=[Service(name="Signature Service", description="A real service description.")],
+        same_as=["https://g.page/example"], rating=Rating(value=4.8, count=100),
+        last_updated="2026-08-21", tagline="Example")
+    base.update(overrides)
+    return BusinessFacts(**base)
+
+
+# 11. Every prose variant's emphasized clause starts a NEW sentence (p2_a
+#     always ends ". " before it) and must be capitalized -- all 12 were
+#     lowercase before the review, rendering "...anything. getting the
+#     diagnosis right..." on every generated homepage.
+def test_em_clause_is_always_capitalized():
+    for fam_name, fns in site_prose._FAMILIES.items():
+        for fn in fns:
+            _, _, p2_a, em_clause, _, _, about_em, _ = fn(
+                "Example Business", "example business", "Portland, OR",
+                "Portland", "Signature Service", "")
+            assert p2_a.rstrip().endswith("."), f"{fam_name}/{fn.__name__}: p2_a must end a sentence"
+            assert em_clause[0].isupper(), f"{fam_name}/{fn.__name__}: em_clause must start capitalized, got {em_clause[:30]!r}"
+
+
+# 12. Real, end-to-end proof (not just the raw string) that the capitalized
+#     em_clause actually reaches the rendered page.
+def test_rendered_page_never_starts_a_sentence_lowercase_after_a_period():
+    for subtype in ("Dentist", "Attorney", "Restaurant", "Hair Salon"):
+        facts = _facts(subtype=subtype, domain=f"{subtype.lower().replace(' ','-')}-cap.example")
+        html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+        for m in re.finditer(r"<em>(.)", html):
+            assert m.group(1).isupper(), f"{subtype}: <em> clause starts lowercase: {m.group(0)!r}"
+
+
+# 13. _general_1's about paragraph used to read "...are what clients bring
+#     up first when they refer someone else matter more than any single
+#     project" -- two finite verbs with no punctuation between them.
+def test_general_1_about_paragraph_is_grammatical():
+    _, _, _, _, _, about_a, about_em, about_b = site_prose._general_1(
+        "Example Business", "example business", "Portland, OR", "Portland", "Signature Service", "")
+    full = about_a + about_em + about_b
+    assert " else matter " not in full, "still has the two-finite-verbs grammar break"
+    assert about_b.lstrip().startswith(","), "about_b must continue about_em as one clause, not start a new one"
+
+
+# 14. _human() must resolve _SCHEMA_MAP override keys ("HVAC", "Auto
+#     Repair", "Real Estate") to their real, authored _HUMAN values instead
+#     of mangling them via the regex fallback ("h v a c", "a auto repair").
+def test_human_resolves_schema_map_keys_correctly():
+    for subtype, expected in [
+        ("HVAC", "heating and cooling company"),
+        ("Auto Repair", "auto repair shop"),
+        ("Real Estate", "real estate agency"),
+        ("Hair Salon", "hair salon"),
+        ("Nail Salon", "nail salon"),
+        ("Med Spa", "med spa"),
+    ]:
+        assert _human(subtype) == expected, f"_human({subtype!r}) = {_human(subtype)!r}, expected {expected!r}"
+
+
+# 15. site_prose.py's <a href="about.html">about {business_name}...</a>
+#     interpolates business_name INSIDE the anchor's own visible text.
+#     _esc_inline() used to treat the whole "<a ...>...</a>" match as a
+#     pre-approved token and append it unescaped, leaving that inner text
+#     -- including business_name -- injectable, even though every other
+#     occurrence of business_name on the page was correctly escaped.
+def test_anchor_inner_text_is_escaped_not_just_the_tag_structure():
+    payload = "Acme <img src=x onerror=alert(1)> Dental"
+    facts = _facts(business_name=payload, domain="anchor-injection.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    assert "<img src=x onerror=" not in html, "raw payload survived inside the about.html anchor text"
+    assert "about.html\">about Acme &lt;img" in html, "anchor tag structure must still be literal, only its text escaped"
+
+
+# 16. A genuinely severe, pre-existing, fleet-wide bug found while
+#     verifying finding #15 above: every one of the 9 templates'
+#     render_index()/render_about()/render_service()/render_privacy()
+#     interpolated facts.business_name (and most, facts.locality) directly
+#     into <h1> and the nav-brand replacement with ZERO escaping -- a real,
+#     live, stored-XSS vector via business_name on every generated
+#     homepage, present since these templates were first written.
+def test_h1_and_nav_never_render_business_name_unescaped_across_all_templates():
+    payload = "Acme <img src=x onerror=alert(document.domain)> Dental"
+    seen_templates = set()
+    for subtype in ("Dentist", "Plumber", "Attorney", "Hair Salon", "Restaurant", "MovingCompany"):
+        for i in range(40):
+            facts = _facts(business_name=payload, subtype=subtype,
+                            domain=f"h1-xss-{subtype.lower().replace(' ','')}-{i}.example")
+            theme = design_engine.select_theme(facts)
+            seen_templates.add(theme.template.name)
+            d = _gen(facts)
+            html = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+            body_start = html.find("<body")
+            body = re.sub(r"<style.*?</style>", "", html[body_start:], flags=re.S)
+            assert "<img src=x onerror=" not in body, (
+                f"{subtype} on template {theme.template.name}: unescaped business_name in visible body"
+            )
+    assert len(seen_templates) == 9, f"only exercised {len(seen_templates)}/9 templates: {seen_templates}"
+
+
+# 17. A real, exploitable </script> breakout: a business_name containing a
+#     literal "</script>" survived verbatim into the JSON-LD block, and a
+#     browser's HTML parser treats that substring as the REAL closing tag
+#     of the JSON-LD <script>, letting whatever follows (a real <script>
+#     tag, in this reproduction) execute as live markup.
+def test_jsonld_cannot_be_used_to_break_out_of_its_script_tag():
+    payload = "Acme</script><script>alert(document.domain)</script>Dental"
+    facts = _facts(business_name=payload, domain="jsonld-breakout.example")
+    html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+    assert "</script><script>alert" not in html, "business_name broke out of the JSON-LD <script> tag"
+    import json
+    start = html.find('<script type="application/ld+json">') + len('<script type="application/ld+json">')
+    end = html.find("</script>", start)
+    parsed = json.loads(html[start:end])
+    biz = next(n for n in parsed["@graph"] if n.get("@id", "").endswith("#business"))
+    assert biz["name"] == payload, "JSON-LD must still round-trip to the real business name"
+
+
+# 18. BusinessFacts.region has no min_length -- an empty region used to
+#     produce visible double-comma/double-space artifacts ("in London, ,",
+#     "London,  00000") in 10+ separate places across this file (titles,
+#     meta descriptions, the visible <address> block, the accessibility
+#     page, the about page, footer NAP, markdown mirrors). All now route
+#     through one shared _loc() helper.
+def test_empty_region_never_produces_double_comma_or_space_anywhere():
+    facts = _facts(business_name="No Region LLC", subtype="Plumber",
+                    locality="London", region="", postal_code="00000",
+                    domain="no-region.example")
+    d = _gen(facts)
+    for name in os.listdir(d):
+        path = os.path.join(d, name)
+        if not (name.endswith(".html") or name.endswith(".md")):
+            continue
+        text = open(path, encoding="utf-8").read()
+        for line in text.split("\n"):
+            stripped = line.strip()
+            assert "London,  " not in stripped, f"{name}: double space after London: {stripped[:120]!r}"
+            assert "London, ," not in stripped, f"{name}: double comma after London: {stripped[:120]!r}"
+    assert _loc(facts) == "London"
+
+
+# 19. The industry_family_for() classifier used by palette/template
+#     selection is deliberately coarse ("estate" -> legal_finance, "spa"/
+#     "salon" -> beauty_salon) -- correct for color/layout, but prose
+#     asserts specific professional facts. A "Real Estate" business landing
+#     in legal_finance's prose literally said "direct access to the
+#     attorney handling your case"; "Nail Salon"/"Med Spa" landing in
+#     beauty_salon's hair-specific prose said "what your hair or skin can
+#     actually support" and offered "a color correction." Neither business
+#     type does either. A dedicated prose-only refinement (_prose_family_for)
+#     routes these to their own real_estate/nail_spa families instead.
+def test_real_estate_and_nail_salon_never_get_wrong_industry_prose_claims():
+    forbidden = {
+        "Real Estate": {"attorney", "law firm", "counsel", "legal", "case", "filed", "filings", "matter"},
+        "Nail Salon": {"hair", "stylist", "haircut", "trim"},
+        "Med Spa": {"hair", "stylist", "haircut", "trim"},
+    }
+
+    def visible_text(html):
+        body_start = html.find("<body")
+        body = html[body_start:] if body_start != -1 else html
+        body = re.sub(r"<style.*?</style>", "", body, flags=re.S)
+        body = re.sub(r"<script.*?</script>", "", body, flags=re.S)
+        body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+        body = re.sub(r"<[^>]+>", " ", body)
+        return body.lower()
+
+    for subtype, bad_words in forbidden.items():
+        for i in range(10):
+            facts = _facts(subtype=subtype,
+                            domain=f"wrong-industry-{subtype.lower().replace(' ','')}-{i}.example")
+            html = open(os.path.join(_gen(facts), "index.html"), encoding="utf-8").read()
+            text = visible_text(html)
+            for w in bad_words:
+                assert not re.search(r"\b" + re.escape(w) + r"\b", text), (
+                    f"{subtype} seed {i}: forbidden word {w!r} found -- wrong-industry prose claim"
+                )
+
+
+# 20. Real, direct assertion that Real Estate/Nail Salon/Med Spa actually
+#     reach their own dedicated families (not silently absorbed into the
+#     general fallback, which would also pass test 19 vacuously).
+def test_real_estate_and_nail_salon_route_to_their_own_families():
+    assert site_prose._prose_family_for("Real Estate") == "real_estate"
+    assert site_prose._prose_family_for("Nail Salon") == "nail_spa"
+    assert site_prose._prose_family_for("Med Spa") == "nail_spa"
+    # sanity: genuine legal/beauty subtypes still route to their real families
+    assert site_prose._prose_family_for("Attorney") == "legal_finance"
+    assert site_prose._prose_family_for("Hair Salon") == "beauty_salon"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 

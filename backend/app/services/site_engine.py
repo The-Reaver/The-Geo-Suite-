@@ -67,12 +67,27 @@ _HUMAN = {
 def _human(subtype: str) -> str:
     if subtype in _HUMAN:
         return _HUMAN[subtype]
-    # 2026-08-21: a subtype that already contains a space before a capital
-    # letter (e.g. "Hair Salon", one of _SCHEMA_MAP's own override keys) got
-    # a SECOND space inserted by the regex below, rendering "hair  salon"
-    # in real, visible prose -- found while manually verifying Slice 1's
-    # new industry-aware prose. re.sub(r"\s+", " ", ...) collapses it back
-    # to one space regardless of how many the regex introduced.
+    # 2026-08-21, Opus review: _SCHEMA_MAP keys ("HVAC", "Auto Repair",
+    # "Real Estate") aren't literal _HUMAN keys themselves -- only their
+    # PascalCase schema-type equivalents are. Falling straight to the
+    # regex spacer below mangled them: "HVAC" is all-caps with no
+    # lowercase letters for the regex to anchor spacing on, so it rendered
+    # "h v a c" letter by letter; "Auto Repair"/"Real Estate" rendered as
+    # bare, ungrammatical noun phrases ("a auto repair", "a real estate")
+    # instead of the real, authored _HUMAN values ("auto repair shop",
+    # "real estate agency"). Resolve through _SCHEMA_MAP first, but only
+    # USE that resolution when it lands on a real _HUMAN entry --
+    # "Nail Salon"/"Med Spa" map to schema types ("NailSalon"/"DaySpa")
+    # that aren't in _HUMAN either, so those still fall through to the
+    # regex spacer on the ORIGINAL subtype text below, which already
+    # renders them correctly ("nail salon", "med spa").
+    mapped = _SCHEMA_MAP.get((subtype or "").strip())
+    if mapped in _HUMAN:
+        return _HUMAN[mapped]
+    # A subtype that already contains a space before a capital letter
+    # (e.g. "Nail Salon") gets a SECOND space inserted by the regex below,
+    # rendering "nail  salon" -- re.sub(r"\s+", " ", ...) collapses it
+    # back to one space regardless of how many the regex introduced.
     spaced = re.sub(r"(?<!^)(?=[A-Z])", " ", subtype or "").lower()
     spaced = re.sub(r"\s+", " ", spaced).strip()
     return spaced or "local business"
@@ -116,6 +131,21 @@ class _F:
 
     def __getattr__(self, name):
         return getattr(object.__getattribute__(self, "f"), name, None)
+
+
+def _loc(f: "_F") -> str:
+    """"{locality}, {region}", or just locality when region is empty.
+
+    2026-08-21, Opus review: BusinessFacts.region is a bare str with no
+    min_length, so an empty region rendered visible double-space/trailing-
+    comma artifacts ("in London,  offering", "in London, .") everywhere this
+    pattern was inlined directly -- confirmed 10 separate occurrences across
+    this file (titles, meta descriptions, taglines, the markdown mirror, the
+    directions-link address line), not just the one _index_main() already
+    guarded. One shared helper instead of ten independent inline f-strings,
+    so this can't silently regress in an eleventh spot later.
+    """
+    return f"{f.locality}, {f.region}" if f.region else f.locality
 
 
 def _phone_digits(tel: str) -> str:
@@ -254,7 +284,22 @@ def _day_range(d1: str, d2: str) -> list[str]:
 
 def _jsonld_str(graph: dict) -> str:
     import json
-    return json.dumps(graph, indent=2, ensure_ascii=False)
+    raw = json.dumps(graph, indent=2, ensure_ascii=False)
+    # 2026-08-21, found while verifying the Opus review's HTML-injection
+    # finding: a business_name (or any other facts field reaching this
+    # graph) containing a literal "</script>" survives verbatim into this
+    # JSON-LD, and a browser's HTML parser treats that substring as the
+    # REAL closing tag of this <script type="application/ld+json"> block --
+    # reproduced directly: business_name =
+    # "Acme</script><script>alert(document.domain)</script>Dental" injected
+    # a real, executing <script> tag onto every generated homepage. Escaping
+    # "<", ">", "&" as JSON unicode escapes (valid JSON -- any real JSON-LD
+    # consumer decodes < back to "<" when parsing) closes this and the
+    # related HTML-comment-breakout vector, the same way most frameworks
+    # guard JSON embedded in a <script> tag.
+    return (raw.replace("<", "\\u003c")
+               .replace(">", "\\u003e")
+               .replace("&", "\\u0026"))
 
 
 # =============================================================================
@@ -305,7 +350,7 @@ def _footer(f: _F, base: str) -> str:
     phone = f.telephone
     tel_href = "+" + _phone_digits(phone) if not str(phone).strip().startswith("+") else phone
     nap = (f"{_esc(f.business_name)} &middot; {_esc(f.street)}, "
-           f"{_esc(f.locality)}, {_esc(f.region)} {_esc(f.postal_code)} &middot; "
+           f"{_esc(_loc(f))} {_esc(f.postal_code)} &middot; "
            f'<a href="tel:{_esc(tel_href)}">{_esc(phone)}</a>')
     lines = [f'    <p>{nap}</p>']
     gbp = _first_gbp(f.same_as or [])
@@ -334,12 +379,12 @@ def _first_gbp(urls: list[str]) -> str | None:
 
 
 def _index_title(f: _F) -> str:
-    return f"{f.business_name} — {f.subtype} in {f.locality}, {f.region}"
+    return f"{f.business_name} — {f.subtype} in {_loc(f)}"
 
 
 def _index_description(f: _F) -> str:
     svc = _oxford([s.name for s in (f.services or [])][:3]) or "professional services"
-    return f"{f.business_name} is a {_human(f.subtype)} in {f.locality}, {f.region} offering {svc}."
+    return f"{f.business_name} is a {_human(f.subtype)} in {_loc(f)} offering {svc}."
 
 
 _STAR_FILLED = "★"
@@ -422,7 +467,7 @@ def _location_html(f: _F) -> str:
     "Hours" section that said nothing -- now filtered before the presence
     check, same honesty gate as the empty-list case."""
     import urllib.parse
-    addr_line = f"{f.street}, {f.locality}, {f.region} {f.postal_code}"
+    addr_line = f"{f.street}, {_loc(f)} {f.postal_code}"
     query = urllib.parse.quote(f"{f.business_name}, {addr_line}")
     maps_url = f"https://www.google.com/maps/search/?api=1&query={query}"
     placeholder_fields = getattr(f, "placeholder_fields", None) or set()
@@ -432,7 +477,7 @@ def _location_html(f: _F) -> str:
         f'      <h2>Location &amp; hours in {_esc(f.locality)}</h2>',
         '      <address>',
         f'        {_esc(f.street)}<br>',
-        f'        {_esc(f.locality)}, {_esc(f.region)} {_esc(f.postal_code)}',
+        f'        {_esc(_loc(f))} {_esc(f.postal_code)}',
         '      </address>',
     ]
     if real_address:
@@ -450,7 +495,7 @@ def _location_html(f: _F) -> str:
 
 def _index_main(f: _F, base: str) -> str:
     human = _human(f.subtype)
-    loc = f"{f.locality}, {f.region}"
+    loc = _loc(f)
     areas = _oxford(list(f.service_areas or [])) or f.locality
     svc_names = [s.name for s in (f.services or [])]
     svc_phrase = _oxford(svc_names) if svc_names else "a full range of services"
@@ -548,13 +593,30 @@ def _index_main(f: _F, base: str) -> str:
     }
     return blocks
 
+_ANCHOR_RE = re.compile(r'(<a [^>]*>)(.*?)(</a>)', flags=re.S)
+
+
 def _esc_inline(text: str) -> str:
-    """Escape text that may contain an intentional <a> anchor we want to keep."""
+    """Escape text that may contain an intentional <a> anchor we want to keep.
+
+    2026-08-21, Opus review: every site_prose.py variant interpolates
+    business_name INTO the anchor's own visible text (e.g. "about {business_name}
+    and our approach"). Treating the whole "<a ...>...</a>" match as a single
+    pre-approved token and appending it unescaped left that inner text --
+    including business_name -- completely unescaped and injectable, even
+    though every other occurrence of business_name on the page is correctly
+    escaped. The anchor's opening/closing tags are trusted, hardcoded HTML
+    from this module (never user input), but the text BETWEEN them is not --
+    it is now escaped like everything else, only the tag structure passes
+    through literally.
+    """
     tokens = re.split(r'(<a [^>]*>.*?</a>)', text, flags=re.S)
     out = []
     for tok in tokens:
         if tok.startswith("<a "):
-            out.append(tok)
+            m = _ANCHOR_RE.match(tok)
+            open_tag, inner, close_tag = m.group(1), m.group(2), m.group(3)
+            out.append(open_tag + _html.escape(inner, quote=False) + close_tag)
         else:
             out.append(_html.escape(tok, quote=False))
     return "".join(out)
@@ -583,7 +645,7 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
     fname = f"service-{slug}.html"
     canonical = f"{base}/{fname}"
     title = f"{s.name} in {f.locality} — {f.business_name}"
-    desc = f"{s.name} from {f.business_name}, a {_human(f.subtype)} in {f.locality}, {f.region}."
+    desc = f"{s.name} from {f.business_name}, a {_human(f.subtype)} in {_loc(f)}."
     head = _head(f, base, canonical, title, desc, f"service-{slug}.md")
     
     content = (f"      <h1>{_esc(s.name)} in {_esc(f.locality)}</h1>\n"
@@ -611,14 +673,14 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
 def _build_about(f: _F, base: str) -> str:
     canonical = f"{base}/about.html"
     title = f"About {f.business_name} — {f.subtype} in {f.locality}"
-    desc = f"About {f.business_name}, a {_human(f.subtype)} serving {f.locality}, {f.region}."
+    desc = f"About {f.business_name}, a {_human(f.subtype)} serving {_loc(f)}."
     head = _head(f, base, canonical, title, desc, "about.md")
     creds = _oxford(list(f.credentials or []))
     cred_sentence = f" The team holds {_esc(creds)}." if creds else ""
     
     content = (f"      <h1>About {_esc(f.business_name)}</h1>\n"
         f"      <p>{_esc(f.business_name)} is a {_esc(_human(f.subtype))} based in "
-        f"{_esc(f.locality)}, {_esc(f.region)}, serving "
+        f"{_esc(_loc(f))}, serving "
         f"{_esc(_oxford(list(f.service_areas or [])) or f.locality)}.{cred_sentence} "
         "We explain every recommendation in plain language and give up-front "
         "estimates, so there are no surprises. Explore "
@@ -697,8 +759,8 @@ def _build_accessibility(f: _F, base: str) -> str:
         "link); it is not a claim of full WCAG conformance.</p>",
         "      <h2>Feedback</h2>",
         f"      <p>If you encounter an accessibility barrier on this site, contact us at "
-        f"{_esc(f.telephone)} or visit us at {_esc(f.street)}, {_esc(f.locality)}, "
-        f"{_esc(f.region)} {_esc(f.postal_code)}.</p>",
+        f"{_esc(f.telephone)} or visit us at {_esc(f.street)}, {_esc(_loc(f))} "
+        f"{_esc(f.postal_code)}.</p>",
     ]
     updated = f.last_updated or ""
     if updated:
@@ -751,7 +813,7 @@ def _build_sitemap(f: _F, base: str, pages: list[str], last_updated: str) -> str
 
 
 def _build_llms(f: _F, base: str, pages: list[str]) -> str:
-    tagline = f.tagline or f"{_human(f.subtype).capitalize()} in {f.locality}, {f.region}"
+    tagline = f.tagline or f"{_human(f.subtype).capitalize()} in {_loc(f)}"
     lines = [f"# {f.business_name}", "", f"> {tagline}", "", "## Pages"]
     for page in pages:
         label = "Home" if page == "index.html" else page.replace(".html", "").replace("-", " ").title()
@@ -762,7 +824,7 @@ def _build_llms(f: _F, base: str, pages: list[str]) -> str:
 
 def _build_llms_full(f: _F, base: str, pages: list[str]) -> str:
     lines = [f"# {f.business_name}", "",
-             f"{f.business_name} is a {_human(f.subtype)} in {f.locality}, {f.region}.", ""]
+             f"{f.business_name} is a {_human(f.subtype)} in {_loc(f)}.", ""]
     if f.services:
         lines.append("## Services")
         for s in f.services:
@@ -773,7 +835,7 @@ def _build_llms_full(f: _F, base: str, pages: list[str]) -> str:
         for q in f.faqs:
             lines += [f"### {q.question}", q.answer, ""]
     lines += ["## Contact",
-              f"{f.street}, {f.locality}, {f.region} {f.postal_code} · {f.telephone}", ""]
+              f"{f.street}, {_loc(f)} {f.postal_code} · {f.telephone}", ""]
     lines.append("## Pages")
     for page in pages:
         url = f"{base}/" if page == "index.html" else f"{base}/{page}"
@@ -789,7 +851,7 @@ def _build_llms_full(f: _F, base: str, pages: list[str]) -> str:
 def _md_mirror(f: _F, title: str, paragraphs: list[str]) -> str:
     out = [f"# {title}", ""]
     out.extend(paragraphs)
-    out += ["", f"{f.business_name} · {f.street}, {f.locality}, {f.region} "
+    out += ["", f"{f.business_name} · {f.street}, {_loc(f)} "
             f"{f.postal_code} · {f.telephone}"]
     return "\n".join(out) + "\n"
 
@@ -887,7 +949,7 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
     # Markdown mirrors (declared on each page via <link rel="alternate">)
     (out / "index.md").write_text(
         _md_mirror(f, _index_title(f),
-                   [f"{f.business_name} is a {_human(f.subtype)} in {f.locality}, {f.region}.",
+                   [f"{f.business_name} is a {_human(f.subtype)} in {_loc(f)}.",
                     "Services: " + (_oxford([s.name for s in (f.services or [])]) or "on request")]),
         encoding="utf-8")
     written.append("index.md")

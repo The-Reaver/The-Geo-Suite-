@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _footer_class, _wrap_faq
+from . import Template, _inject_css, _footer_class, _wrap_faq, _esc
 import re
 
 CSS_BASE = """
@@ -63,7 +63,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', blocks["nav"], '  <main id="main">', '    <article>']
     
     html.append('<section class="hero"><div class="wrap">')
-    html.append(f'<h1>{facts.business_name}</h1>')
+    html.append(f'<h1>{_esc(facts.business_name)}</h1>')
     html.append(blocks["p1_html"])
     if blocks.get("rating_html"):
         html.append(blocks["rating_html"])

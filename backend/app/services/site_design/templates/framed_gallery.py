@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _wrap_h2, _footer_class, _wrap_faq
+from . import Template, _inject_css, _wrap_h2, _footer_class, _wrap_faq, _esc
 import re
 
 # Site Generator robustness push, Slice C.3 (2026-08-21): first of two new
@@ -109,7 +109,7 @@ def _format_nav(nav_html: str, phone: str) -> str:
 
 def render_index(facts, base_url, theme, blocks) -> str:
     head = _apply_css(blocks["head"], theme)
-    nav = _format_nav(blocks["nav"], facts.telephone).replace("Your Business", facts.business_name)
+    nav = _format_nav(blocks["nav"], facts.telephone).replace("Your Business", _esc(facts.business_name))
     # 2026-08-21, Opus 5 review of Slice C.3: site_engine.py's _footer()
     # emits a classless <footer> -- footer.frame-bottom{...} below never
     # matched anything without this.
@@ -120,7 +120,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
     html.append('<div class="wrap"><div class="frame">')
 
     html.append('<div class="hero">')
-    html.append(f'<h1>{facts.business_name} in {facts.locality}</h1>')
+    html.append(f'<h1>{_esc(facts.business_name)} in {_esc(facts.locality)}</h1>')
     html.append(blocks["p1_html"])
     html.append(blocks["p2_html"])
     if blocks.get("rating_html"):
@@ -177,7 +177,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
 
 def render_service(facts, base_url, theme, blocks) -> str:
     head = _apply_css(blocks["head"], theme)
-    nav = _format_nav(blocks["nav"], facts.telephone).replace("Your Business", facts.business_name)
+    nav = _format_nav(blocks["nav"], facts.telephone).replace("Your Business", _esc(facts.business_name))
     html = [head, "<body>", '  <a href="#main" class="skip">Skip to content</a>', nav,
             '  <main id="main">', '    <div class="wrap"><div class="frame"><section class="block"><article>']
     html.append(blocks["content"])

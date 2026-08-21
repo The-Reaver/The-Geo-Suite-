@@ -1,4 +1,4 @@
-from . import Template, _inject_css, _footer_class, _wrap_faq
+from . import Template, _inject_css, _footer_class, _wrap_faq, _esc
 import re
 
 CSS_BASE = """
@@ -77,7 +77,7 @@ def render_index(facts, base_url, theme, blocks) -> str:
     # Split hero
     html.append('<div class="wrap hero-in">')
     html.append('<div>')
-    html.append(f'<h1>{facts.business_name}</h1>')
+    html.append(f'<h1>{_esc(facts.business_name)}</h1>')
     html.append(blocks["p1_html"])
     html.append(blocks["p2_html"])
     if blocks.get("rating_html"):

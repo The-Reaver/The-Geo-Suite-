@@ -82,7 +82,7 @@ def _dental_medical_0(business_name, human, loc, areas, svc_phrase, creds):
         f"evaluation, not a guess, so patients understand exactly what is "
         f"recommended and what the options are before agreeing to anything. "
     )
-    em_clause = "getting the diagnosis right the first time is what everything else depends on"
+    em_clause = "Getting the diagnosis right the first time is what everything else depends on"
     p2_b = (
         f", because catching a problem early is almost always simpler and less "
         f"costly to treat than waiting. The team serves {areas} and keeps "
@@ -136,7 +136,9 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"seen promptly, and the office coordinates directly with insurance so "
         f"billing surprises are rare. Appointment times are built around real "
         f"conversation, not a fixed slot that ends the moment the clock runs "
-        f"out. "
+        f"out. Records and imaging from a prior provider are reviewed before "
+        f"your first visit whenever they're available, so the team already has "
+        f"context instead of starting from nothing. "
         f'You can also read more <a href="about.html">about {business_name} and how the practice is run</a> '
         f"before scheduling."
     )
@@ -145,7 +147,7 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"anything, weighing the real options against a patient's actual "
         f"situation rather than defaulting to the same plan for everyone. "
     )
-    em_clause = "a treatment plan that is explained clearly is one a patient can actually agree to with confidence"
+    em_clause = "A treatment plan that is explained clearly is one a patient can actually agree to with confidence"
     p2_b = (
         f", and that clarity is treated as part of the care itself, not an "
         f"afterthought. The team serves {areas} and structures appointments so "
@@ -156,7 +158,10 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"are documented, options are laid out honestly, and the final decision "
         f"is always the patient's to make. If a plan needs to change partway "
         f"through, that change is discussed before it happens, not discovered "
-        f"on the bill afterward."
+        f"on the bill afterward. Second opinions are welcomed rather than "
+        f"treated as a challenge to the recommendation, because a patient who "
+        f"actually understands why a treatment is recommended is more likely to "
+        f"follow through with it."
     )
     about_a = (
         f"{business_name} has built a practice around patients in {areas} who "
@@ -172,7 +177,10 @@ def _dental_medical_1(business_name, human, loc, areas, svc_phrase, creds):
         f"coming in, and questions are answered before treatment, not after the "
         f"invoice. Booking a first visit is simple, and you will know exactly "
         f"what to expect before you walk in, including what it will actually "
-        f"cost once insurance is factored in."
+        f"cost once insurance is factored in. Follow-up calls after a "
+        f"procedure are routine here, not reserved for the cases that go "
+        f"wrong, and a real person answers when you call with a question "
+        f"instead of routing you to a general voicemail box."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -205,7 +213,7 @@ def _home_services_0(business_name, human, loc, areas, svc_phrase, creds):
         f"written estimate, so you understand the recommendation and the price "
         f"before agreeing to anything. "
     )
-    em_clause = "doing the job right the first time is the foundation of everything here"
+    em_clause = "Doing the job right the first time is the foundation of everything here"
     p2_b = (
         f", because catching a small problem early is far cheaper than "
         f"repairing it after it fails. The team serves {areas} and keeps the "
@@ -256,7 +264,8 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"long-standing ones, and same-day service is available for genuine "
         f"emergencies. The office confirms the appointment window in advance, "
         f"so you are not stuck waiting around all day for a truck that might "
-        f"show up. "
+        f"show up. Technicians call ahead when they are on the way, so you can "
+        f"plan around the visit instead of sitting by the door. "
         f'You can also read more <a href="about.html">about {business_name} and what we guarantee</a> '
         f"before you call."
     )
@@ -265,7 +274,7 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"the same goal, not a trade-off — a rushed repair that fails again in "
         f"a month costs everyone more than doing it right the first time. "
     )
-    em_clause = "a fast response only matters if the fix actually holds"
+    em_clause = "A fast response only matters if the fix actually holds"
     p2_b = (
         f", which is why every technician is trained to diagnose the real "
         f"problem before starting work, not just treat the symptom that got the "
@@ -274,7 +283,10 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"than expected, you hear about it before the work continues, never "
         f"after. The warranty on labor and materials is explained up front, in "
         f"writing, so there is nothing to dispute later, and it applies "
-        f"whether the fix was simple or took the whole crew a full day."
+        f"whether the fix was simple or took the whole crew a full day. Old "
+        f"parts and materials are hauled away when the job is done, not left "
+        f"for the customer to deal with, and the work area is left as clean as "
+        f"it was found."
     )
     about_a = (
         f"{business_name} has worked in {areas} long enough that a lot of the "
@@ -290,7 +302,9 @@ def _home_services_1(business_name, human, loc, areas, svc_phrase, creds):
         f"what was done and what is covered, and the office keeps that record "
         f"on file for next time. Scheduling a call is quick, and you will know "
         f"the price and the coverage before anyone starts work, not after the "
-        f"invoice arrives."
+        f"invoice arrives. Repeat visits to the same address are common here, "
+        f"and the crew keeps notes on what was done last time, so a follow-up "
+        f"job never starts from a blank slate."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -312,7 +326,9 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"New clients receive the same attention as long-standing ones, with "
         f"time set aside for a real consultation before anything is filed. "
         f"Documents and deadlines are tracked closely, so nothing slips through "
-        f"the cracks between meetings. "
+        f"the cracks between meetings. The firm returns calls the same day "
+        f"whenever possible, and a client should never have to guess who to "
+        f"call for an update. "
         f'You can also read more <a href="about.html">about {business_name} and how matters are handled</a> '
         f"before you reach out."
     )
@@ -321,7 +337,7 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"facts and a candid assessment of the realistic outcomes, not a sales "
         f"pitch about guaranteed results no one can actually promise. "
     )
-    em_clause = "an honest assessment early is worth more than false confidence later"
+    em_clause = "An honest assessment early is worth more than false confidence later"
     p2_b = (
         f", because clients who understand the real risks make better decisions "
         f"about how to proceed. The firm serves {areas} and returns calls "
@@ -332,7 +348,9 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"applies to routine matters and complex ones alike: fees are agreed to "
         f"in writing before work begins, and nothing is billed that was not "
         f"discussed first. Filings and deadlines are handled proactively, not "
-        f"at the last possible moment."
+        f"at the last possible moment. If a matter turns out to be more "
+        f"involved than the initial estimate suggested, that gets flagged "
+        f"before more work is done, not buried in the next invoice."
     )
     about_a = (
         f"{business_name} has represented clients across {areas} for years, "
@@ -349,7 +367,10 @@ def _legal_finance_0(business_name, human, loc, areas, svc_phrase, creds):
         f"documented so nothing has to be re-explained at the next meeting. "
         f"Scheduling a consultation is straightforward, and you will know the "
         f"realistic path forward and the cost before you commit to anything, "
-        f"with no pressure to decide on the spot."
+        f"with no pressure to decide on the spot. Questions between meetings "
+        f"are welcomed rather than saved up for the next billed hour, since a "
+        f"client who understands what is happening makes better decisions "
+        f"along the way."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -360,7 +381,9 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f" serving clients across {areas}. Practice areas include "
         f"{svc_phrase}, and every engagement follows the same process: a real "
         f"review of the situation, a written explanation of the options, and "
-        f"an agreed fee structure before any work begins. "
+        f"an agreed fee structure before any work begins. Clients get a real "
+        f"person on the phone when they call, not an automated queue that "
+        f"never reaches anyone. "
     )
     if creds:
         p1_rest += f"{business_name} is {creds}, and that experience is applied to your specific situation, not a generic template. "
@@ -369,6 +392,8 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"wonder, and calls are returned within a reasonable window, not weeks "
         f"later. New clients receive the same responsiveness as clients who "
         f"have worked with the firm for years, from the very first call. "
+        f"Every document the firm sends is written in plain language first, "
+        f"with the legal terminology explained rather than left to guess at. "
         f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
         f"before scheduling a consultation."
     )
@@ -378,7 +403,7 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"should never be surprised by a bill for work they did not know was "
         f"happening. "
     )
-    em_clause = "clients who understand the plan and the cost make better decisions than clients who are just told to trust the process"
+    em_clause = "Clients who understand the plan and the cost make better decisions than clients who are just told to trust the process"
     p2_b = (
         f", which is why every matter starts with both laid out in writing. "
         f"The firm serves {areas} and structures communication so clients "
@@ -387,7 +412,8 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"being done, why it is being done, and what it costs, explained before "
         f"it happens rather than justified after the invoice arrives. Any "
         f"change in strategy is discussed with the client first, not decided "
-        f"unilaterally."
+        f"unilaterally, and the reasoning behind that change is always laid "
+        f"out plainly rather than assumed to be self-explanatory."
     )
     about_a = (
         f"{business_name} has worked with clients throughout {areas} long "
@@ -403,7 +429,11 @@ def _legal_finance_1(business_name, human, loc, areas, svc_phrase, creds):
         f"documented so there is a clear record of what was discussed and "
         f"agreed. Scheduling an initial consultation is simple, and you will "
         f"leave it understanding your real options, not just a sales pitch, "
-        f"and with a straight answer about what happens next."
+        f"and with a straight answer about what happens next. Every question "
+        f"gets a real answer during that first conversation, not a promise to "
+        f"follow up once someone has had a chance to look into it. Billing "
+        f"statements are itemized in plain language too, so a client can "
+        f"actually see what each charge covers."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -417,6 +447,8 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"Clients choose {business_name} because the same stylist sees you "
         f"appointment after appointment, product recommendations are honest "
         f"rather than upsold, and pricing is clear before anything begins. "
+        f"Rebooking your next visit before you leave is offered, never "
+        f"required. "
     )
     if creds:
         p1_rest += f"The team is {creds}, trained on current techniques rather than whatever was standard years ago. "
@@ -424,7 +456,8 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"New clients get the same unhurried consultation as regulars, with "
         f"time to talk through what you actually want before any work starts, "
         f"including a real conversation about what your hair or skin can "
-        f"actually support. "
+        f"actually support. Tools and stations are sanitized between every "
+        f"single client, not just at the start of the day. "
         f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
         f"before you book."
     )
@@ -433,7 +466,7 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"conversation about what you want, not an assumption based on what is "
         f"trending, so the result actually matches what you asked for. "
     )
-    em_clause = "a service that starts with real listening is the difference between a client who comes back and one who does not"
+    em_clause = "A service that starts with real listening is the difference between a client who comes back and one who does not"
     p2_b = (
         f", and that consultation is treated as part of the service, not a "
         f"formality before the real work begins. The studio serves {areas} and "
@@ -445,7 +478,8 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"correction alike: technique is explained, products are chosen for "
         f"your actual hair or skin, and nothing is added to the service without "
         f"asking first. Aftercare guidance is part of the appointment too, so "
-        f"the result actually holds up once you get home."
+        f"the result actually holds up once you get home, not just when you "
+        f"walk out the door."
     )
     about_a = (
         f"{business_name} has built a client base across {areas} largely "
@@ -462,7 +496,7 @@ def _beauty_salon_0(business_name, human, loc, areas, svc_phrase, creds):
         f"file so your preferences carry over from visit to visit. Booking is "
         f"simple, and you will always know the service, the price, and roughly "
         f"how long it will take before you sit down, with no guessing once you "
-        f"arrive."
+        f"arrive, and no pressure to add a service you did not come in for."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -482,7 +516,9 @@ def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
         f"consultation before any service begins, the same as returning "
         f"clients, so nothing is guessed at once you are in the chair. The "
         f"space itself is kept quiet and unhurried on purpose, not just "
-        f"decorated to look that way in photos. "
+        f"decorated to look that way in photos. Playlists and lighting are "
+        f"kept low-key rather than loud, on purpose, so the appointment "
+        f"actually feels like a break. "
         f'You can also read more <a href="about.html">about {business_name} and the experience</a> '
         f"before you book."
     )
@@ -491,7 +527,7 @@ def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
         f"part of the service, not just the technical result — how relaxed you "
         f"feel matters as much as how it looks when you leave. "
     )
-    em_clause = "a great result delivered in a rushed, stressful appointment is not actually a great experience"
+    em_clause = "A great result delivered in a rushed, stressful appointment is not actually a great experience"
     p2_b = (
         f", which is why appointments are never double-booked and stylists are "
         f"never working two clients at once. The studio serves {areas} and "
@@ -522,7 +558,9 @@ def _beauty_salon_1(business_name, human, loc, areas, svc_phrase, creds):
         f"noted so you do not have to re-explain them at every visit. Booking "
         f"is simple, and you will know the service and the price before you "
         f"arrive, with real time built into the appointment itself and no "
-        f"pressure to add anything once you are already in the chair."
+        f"pressure to add anything once you are already in the chair. Gift "
+        f"cards and rebooking are handled at the front desk in a couple of "
+        f"minutes, not treated as an inconvenience on your way out."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -545,7 +583,9 @@ def _food_restaurant_0(business_name, human, loc, areas, svc_phrase, creds):
         f"gathering, the staff will help you find something that actually works "
         f"for the occasion, not just point you at whatever is easiest to fire. "
         f"Portions and pricing are consistent from visit to visit, not "
-        f"adjusted quietly depending on how busy the kitchen is. "
+        f"adjusted quietly depending on how busy the kitchen is. Takeout "
+        f"orders are packed to actually survive the drive home, not thrown "
+        f"together at the last second. "
         f'You can also read more <a href="about.html">about {business_name} and our kitchen</a> '
         f"before you visit."
     )
@@ -554,7 +594,7 @@ def _food_restaurant_0(business_name, human, loc, areas, svc_phrase, creds):
         f"same day, not a freezer pulled from on a slow night, because the "
         f"difference is obvious the moment it hits the table. "
     )
-    em_clause = "consistency is what actually keeps people coming back, not one great meal followed by three forgettable ones"
+    em_clause = "Consistency is what actually keeps people coming back, not one great meal followed by three forgettable ones"
     p2_b = (
         f", so the kitchen treats every plate with the same standard whether "
         f"it is a Tuesday lunch or a Saturday rush. The restaurant serves "
@@ -604,6 +644,8 @@ def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
         f"accepted, and walk-ins are handled with the same welcome, even on a "
         f"busy night. The dining room is arranged so conversation is actually "
         f"possible, not competing with music turned up to fill a loud space. "
+        f"Special occasions are noted ahead of time whenever a guest mentions "
+        f"one, so the evening actually feels marked rather than routine. "
         f'You can also read more <a href="about.html">about {business_name} and the space</a> '
         f"before you book a table."
     )
@@ -613,7 +655,7 @@ def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
         f"stressful room is a different experience than the same dish enjoyed "
         f"slowly. "
     )
-    em_clause = "the room and the pace of service matter as much as the food itself"
+    em_clause = "The room and the pace of service matter as much as the food itself"
     p2_b = (
         f", which is why tables are not turned over faster than the meal "
         f"naturally moves. The restaurant serves {areas} and keeps the dining "
@@ -624,7 +666,9 @@ def _food_restaurant_1(business_name, human, loc, areas, svc_phrase, creds):
         f"know rather than guessing. Pacing between courses is handled "
         f"deliberately, not left to whoever happens to be free in the kitchen, "
         f"and a table is never rushed toward the check before anyone at it is "
-        f"actually ready."
+        f"actually ready. Wine and pairing suggestions are offered without "
+        f"being pushed, and a straightforward answer is always available for "
+        f"anyone who would rather just order and skip the conversation."
     )
     about_a = (
         f"{business_name} has become a regular stop for guests across "
@@ -676,7 +720,7 @@ def _general_0(business_name, human, loc, areas, svc_phrase, creds):
         f"the situation and a clear explanation of the options, not a "
         f"one-size-fits-all answer applied to everyone who calls. "
     )
-    em_clause = "understanding the actual situation before recommending anything is what everything else depends on"
+    em_clause = "Understanding the actual situation before recommending anything is what everything else depends on"
     p2_b = (
         f", because the right answer for one client is rarely the right answer "
         f"for the next, even when the requests sound similar on the surface. "
@@ -703,7 +747,9 @@ def _general_0(business_name, human, loc, areas, svc_phrase, creds):
         f"and every request is documented so nothing has to be re-explained "
         f"next time you reach out. Getting in touch is simple, and you will "
         f"know what to expect, what it will cost, and roughly how long it will "
-        f"take before you commit to anything."
+        f"take before you commit to anything. Follow-up questions after the "
+        f"work is done are answered the same way the first ones were, not "
+        f"treated as an afterthought once the invoice is paid."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -737,7 +783,7 @@ def _general_1(business_name, human, loc, areas, svc_phrase, creds):
         f"by cost, timeline, or scope partway through, and none of that should "
         f"have to be pried out of anyone. "
     )
-    em_clause = "clients who understand the plan make better decisions than clients who are just asked to trust the process"
+    em_clause = "Clients who understand the plan make better decisions than clients who are just asked to trust the process"
     p2_b = (
         f", which is why expectations are set in writing before work begins, "
         f"not summarized verbally and forgotten. {business_name} serves "
@@ -760,13 +806,276 @@ def _general_1(business_name, human, loc, areas, svc_phrase, creds):
     )
     about_em = "responsiveness and the follow-through are what clients bring up first when they refer someone else"
     about_b = (
-        f" matter more than any single project. Every client gets direct "
+        f", more than any single project. Every client gets direct "
         f"communication with the people actually doing the work, not a "
         f"go-between, and requests are documented so there is a clear record "
         f"of what was agreed at every stage. Getting started is simple, and "
         f"you will understand the real plan, the timeline, and the cost before "
         f"you commit to anything — no vague estimate that turns into a "
-        f"different number once the work is already underway."
+        f"different number once the work is already underway, and no surprise "
+        f"add-ons once the work is finished."
+    )
+    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+
+
+def _real_estate_0(business_name, human, loc, areas, svc_phrase, creds):
+    open_clause = f"{business_name} is a {human} in {loc}"
+    p1_rest = (
+        f" serving buyers and sellers throughout {areas}. The agency provides "
+        f"{svc_phrase}, and every relationship starts with a direct, honest "
+        f"read on the market: what a property is actually worth, what it will "
+        f"realistically take to sell or buy it, and what the timeline looks "
+        f"like before anything is signed. Clients choose {business_name} "
+        f"because they work directly with the agent handling their "
+        f"transaction, not a rotating cast of assistants, and expectations are "
+        f"set clearly from the first conversation. "
+    )
+    if creds:
+        p1_rest += f"The agency is {creds}, and licensing details are something clients are welcome to ask about directly. "
+    p1_rest += (
+        f"New clients get the same attention as long-standing ones, with real "
+        f"time set aside to walk through the process before anything is "
+        f"listed or offered on. Paperwork and deadlines are tracked closely, "
+        f"so nothing slips between showings, inspections, and closing. Every "
+        f"disclosure and contingency is explained in plain language before a "
+        f"client signs anything, not summarized in a rush at the closing "
+        f"table. "
+        f'You can also read more <a href="about.html">about {business_name} and how transactions are handled</a> '
+        f"before you reach out."
+    )
+    p2_a = (
+        f"Every listing at {business_name} starts with a real, current read "
+        f"on comparable sales in the area, not a number pulled out of thin "
+        f"air to win the listing. "
+    )
+    em_clause = "Pricing a property honestly from day one is what actually gets it sold, not a high number that just sits on the market"
+    p2_b = (
+        f", because an overpriced listing sits, buyers watch it go stale, and "
+        f"the eventual sale price ends up lower than an honest one would have "
+        f"been from the start. The agency serves {areas} and stays responsive "
+        f"through every stage of a transaction, so clients are not left "
+        f"wondering what happens next. For clients who have felt ignored "
+        f"elsewhere, {business_name} explains each step before it happens and "
+        f"answers questions directly rather than deferring them to voicemail. "
+        f"The same standard applies to a straightforward sale and a "
+        f"complicated one alike: offers and counteroffers are explained "
+        f"clearly, financing contingencies are tracked closely, and nothing "
+        f"moves forward without the client actually understanding it first. "
+        f"Inspection findings and repair requests are handled proactively, "
+        f"not left until the closing table."
+    )
+    about_a = (
+        f"{business_name} has represented buyers and sellers across {areas} "
+        f"for years, and many clients come back for their next move or refer "
+        f"family members directly. That kind of trust is not built on a yard "
+        f"sign — it comes from clients actually understanding where their "
+        f"transaction stands at every step, not just being told to wait for "
+        f"good news. If you are comparing agents in {loc}, the "
+    )
+    about_em = "combination of direct access to the agent handling your transaction and a straight read on pricing is what clients mention most"
+    about_b = (
+        f", not just a firm's name recognition. Every client gets a real "
+        f"conversation about strategy, not a rushed pitch, and every "
+        f"transaction is documented so nothing has to be re-explained at the "
+        f"next step. Reaching out is simple, and you will know the realistic "
+        f"timeline and the real numbers before you commit to anything, with "
+        f"no pressure to sign on the spot. Questions after an offer is "
+        f"accepted get the same attention as questions before it, all the "
+        f"way through to closing day."
+    )
+    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+
+
+def _real_estate_1(business_name, human, loc, areas, svc_phrase, creds):
+    open_clause = f"{business_name} is a {human} in {loc}"
+    p1_rest = (
+        f" helping buyers and sellers move through {areas}. Services include "
+        f"{svc_phrase}, and every client gets a straight answer about timing "
+        f"and price, not the number that sounds best in a first meeting. "
+        f"Weekend and evening showings are available, not limited to a "
+        f"nine-to-five window that rarely fits a buyer's actual schedule. "
+    )
+    if creds:
+        p1_rest += f"{business_name} is {creds}, and that experience is applied to your specific property and situation, not a generic script. "
+    p1_rest += (
+        f"Clients are kept informed at every stage of a transaction rather "
+        f"than left checking a portal for updates, and calls are returned the "
+        f"same day, not days later. New clients get the same responsiveness "
+        f"as clients who have bought or sold with {business_name} before. "
+        f"Showings are scheduled around a client's actual availability, not "
+        f"whatever slot happens to be easiest to fill. "
+        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f"before scheduling a showing."
+    )
+    p2_a = (
+        f"{business_name} treats a clear, current market read as part of "
+        f"good representation, not a separate conversation to have after a "
+        f"client has already fallen in love with a number. "
+    )
+    em_clause = "A price built on real comparables, not wishful thinking, is what actually protects a client's timeline and their money"
+    p2_b = (
+        f", which is why every listing starts with both laid out honestly, "
+        f"in writing. The agency serves {areas} and structures communication "
+        f"so clients always know the current status of their transaction "
+        f"without having to chase an answer. Complex transactions — "
+        f"financing contingencies, inspection negotiations, tight closing "
+        f"timelines — get the same transparency as simple ones: what is "
+        f"happening, why it matters, and what it means for the client, "
+        f"explained before it happens rather than after an offer falls "
+        f"through. Any change in strategy is discussed with the client "
+        f"first, never decided unilaterally on their behalf. Comparable "
+        f"listings are shared as they come up, not just at the start of a "
+        f"search, so a client's sense of the market stays current all the "
+        f"way through closing."
+    )
+    about_a = (
+        f"{business_name} has worked with buyers and sellers throughout "
+        f"{areas} long enough to have seen most situations a transaction can "
+        f"throw at a client, which means less time explaining the basics and "
+        f"more time on what is actually specific to your property, from the "
+        f"very first walkthrough. For anyone comparing representation in "
+        f"{loc}, the "
+    )
+    about_em = "responsiveness and the honesty about real market numbers are what clients bring up first when they refer someone else"
+    about_b = (
+        f", more than any single closing. Every client gets direct access to "
+        f"the agent actually handling their transaction, and every "
+        f"conversation is documented so there is a clear record of what was "
+        f"discussed and agreed. Scheduling a first conversation is simple, "
+        f"and you will leave it understanding your real options and the real "
+        f"numbers, not just a pitch, with a straight answer about what "
+        f"happens next. Questions that come up between showings get a real "
+        f"answer the same day, not a promise to circle back once things slow "
+        f"down."
+    )
+    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+
+
+def _nail_spa_0(business_name, human, loc, areas, svc_phrase, creds):
+    open_clause = f"{business_name} is a {human} in {loc}"
+    p1_rest = (
+        f" welcoming clients from {areas}. The studio offers {svc_phrase}, "
+        f"and every appointment starts with a real conversation about what "
+        f"you actually want, not a rushed guess. Clients choose "
+        f"{business_name} because the same technician sees you appointment "
+        f"after appointment, product recommendations are honest rather than "
+        f"upsold, and pricing is clear before anything begins. Walk-ins are "
+        f"accommodated when the schedule allows, but a booked appointment "
+        f"always gets priority. "
+    )
+    if creds:
+        p1_rest += f"The team is {creds}, trained on current techniques and sanitation standards rather than whatever was standard years ago. "
+    p1_rest += (
+        f"New clients get the same unhurried consultation as regulars, with "
+        f"time to talk through what you want and what your skin or nails can "
+        f"actually support before any service starts. Instruments are single "
+        f"use or fully sterilized between clients, and that standard is "
+        f"visible, not just claimed. "
+        f'You can also read more <a href="about.html">about {business_name} and our approach</a> '
+        f"before you book."
+    )
+    p2_a = (
+        f"Every appointment at {business_name} starts with a real "
+        f"conversation about what you want, not an assumption based on what "
+        f"is trending, so the result actually matches what you asked for. "
+    )
+    em_clause = "Real hygiene standards and a technician who actually listens are what turn a one-time visit into a regular appointment"
+    p2_b = (
+        f", and that consultation is treated as part of the service, not a "
+        f"formality before the real work begins. The studio serves {areas} "
+        f"and books realistic appointment lengths, so no one is rushed "
+        f"through a service that deserves more time. Tools and stations are "
+        f"sanitized between every single client, not just at the start of "
+        f"the day, and that standard is not something you have to ask about "
+        f"— it is simply how the studio runs. For clients who have felt "
+        f"rushed elsewhere, {business_name} explains the options and the "
+        f"trade-offs honestly, including when a simpler service is the "
+        f"better call for the occasion. Aftercare guidance is part of the "
+        f"appointment too, so the result actually holds up once you get "
+        f"home, not just when you leave the chair."
+    )
+    about_a = (
+        f"{business_name} has built a client base across {areas} largely "
+        f"through referrals, which only happens when people are genuinely "
+        f"happy with the result, not just polite about it. That kind of "
+        f"trust takes time to earn, and it shows in how many appointments "
+        f"are booked weeks in advance by the same regulars. If you are "
+        f"comparing studios in {loc}, the "
+    )
+    about_em = "consistency of seeing the same technician and a genuinely clean, unhurried space every time is what clients mention most"
+    about_b = (
+        f", more than any single service on a menu. New clients get the "
+        f"same attention as long-standing regulars, and technician notes are "
+        f"kept on file so your preferences carry over from visit to visit. "
+        f"Booking is simple, and you will always know the service, the "
+        f"price, and roughly how long it will take before you sit down, with "
+        f"no guessing once you arrive, and no pressure to add anything you "
+        f"did not come in for."
+    )
+    return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
+
+
+def _nail_spa_1(business_name, human, loc, areas, svc_phrase, creds):
+    open_clause = f"{business_name} is a {human} in {loc}"
+    p1_rest = (
+        f" serving {areas}. Services include {svc_phrase}, in a space built "
+        f"for the appointment to actually feel relaxing, not rushed between "
+        f"back-to-back bookings. "
+    )
+    if creds:
+        p1_rest += f"The team is {creds}, and product lines are chosen for quality and safety, not just what is cheapest to stock. "
+    p1_rest += (
+        f"Appointments are booked with real time built in, so a service "
+        f"never has to be cut short to stay on schedule. New clients get a "
+        f"full consultation before any service begins, the same as returning "
+        f"clients, so nothing is guessed at once you are seated. The space "
+        f"itself is kept quiet, clean, and unhurried on purpose, not just "
+        f"decorated to look that way in photos. Sanitation between clients "
+        f"is visible and consistent, not something you have to take on "
+        f"faith. "
+        f'You can also read more <a href="about.html">about {business_name} and the experience</a> '
+        f"before you book."
+    )
+    p2_a = (
+        f"{business_name} treats the actual experience of an appointment as "
+        f"part of the service, not just the technical result — how relaxed "
+        f"and cared for you feel matters as much as how it looks when you "
+        f"leave. "
+    )
+    em_clause = "A great result delivered in a rushed, uncomfortable appointment is not actually a great experience"
+    p2_b = (
+        f", which is why appointments are never double-booked and "
+        f"technicians are never working two clients at once. The studio "
+        f"serves {areas} and keeps the space genuinely comfortable, not just "
+        f"photogenic. Product and technique recommendations are based on "
+        f"what your skin or nails actually need, not what is being pushed "
+        f"that month, and you will never be talked into a service you did "
+        f"not ask about. Every technician is given real time between "
+        f"appointments, so the next client never feels like an interruption "
+        f"to the last one, and no one is watching the clock while you are "
+        f"still in the chair. If a service is going to run long because of "
+        f"something the technician notices once they actually get started, "
+        f"you are told before it happens, not left wondering why the "
+        f"appointment is taking longer than expected."
+    )
+    about_a = (
+        f"{business_name} has served clients across {areas} long enough "
+        f"that many appointments now come from referrals rather than "
+        f"searches, which is the real measure of whether an experience holds "
+        f"up beyond the first visit and a nice photo. Word of mouth is the "
+        f"only advertising that actually matters in this business, and it "
+        f"only happens when the appointment itself was worth talking about. "
+        f"If you are comparing options in {loc}, the "
+    )
+    about_em = "combination of unrushed appointments and real hygiene standards you can actually see is what keeps clients coming back"
+    about_b = (
+        f", more than any single treatment. New clients are given the same "
+        f"time and attention as long-standing regulars, and preferences are "
+        f"noted so you do not have to re-explain them at every visit. "
+        f"Booking is simple, and you will know the service and the price "
+        f"before you arrive, with real time built into the appointment "
+        f"itself and no pressure to add anything once you are already "
+        f"seated."
     )
     return open_clause, p1_rest, p2_a, em_clause, p2_b, about_a, about_em, about_b
 
@@ -778,12 +1087,48 @@ _FAMILIES = {
     "beauty_salon": [_beauty_salon_0, _beauty_salon_1],
     "food_restaurant": [_food_restaurant_0, _food_restaurant_1],
     "general": [_general_0, _general_1],
+    "real_estate": [_real_estate_0, _real_estate_1],
+    "nail_spa": [_nail_spa_0, _nail_spa_1],
 }
 
 
-def prose_for(subtype, seed, business_name, human, loc, areas, svc_phrase, creds):
+def _prose_family_for(subtype):
+    """Refines the shared industry_family_for() classifier specifically for
+    prose selection.
+
+    2026-08-21, Opus review: industry_family_for() is deliberately coarse --
+    correct for palette/template choice, since color and layout don't make
+    factual claims -- but prose asserts specific professional facts ("the
+    attorney handling your case", "what your hair or skin can actually
+    support") that are false when a coarse family lumps together professions
+    that don't share those facts. A "Real Estate" business landing in the
+    legal_finance family's prose literally told clients they get "direct
+    access to the attorney handling your case" -- a false professional
+    claim, not a tone miss. "Nail Salon"/"Med Spa" landing in beauty_salon's
+    hair-specific prose said "what your hair or skin can actually support"
+    and offered "a quick trim and a full color correction" -- neither
+    subtype gets a haircut.
+
+    Deliberately does NOT touch palettes.industry_family_for() itself --
+    that classifier is correct as-is for palette/template selection, and is
+    also the single shared source of truth template_for()/palette_for()
+    both call; splitting it here would risk exactly the "two independently-
+    maintained classifiers can drift" defect class already fixed once this
+    session. This is an additive refinement layered on top, used only by
+    prose selection.
+    """
     from .site_design import palettes
-    family_key = palettes.industry_family_for(subtype)
+    s = (subtype or "").lower()
+    coarse = palettes.industry_family_for(subtype)
+    if coarse == palettes.INDUSTRY_FAMILY_LEGAL_FINANCE and "estate" in s and "law" not in s and "attorney" not in s:
+        return "real_estate"
+    if coarse == palettes.INDUSTRY_FAMILY_BEAUTY_SALON and ("nail" in s or "spa" in s):
+        return "nail_spa"
+    return coarse
+
+
+def prose_for(subtype, seed, business_name, human, loc, areas, svc_phrase, creds):
+    family_key = _prose_family_for(subtype)
     variants = _FAMILIES.get(family_key, _FAMILIES["general"])
     variant_fn = variants[_variant_index(seed, len(variants))]
     return variant_fn(business_name, human, loc, areas, svc_phrase, creds)
