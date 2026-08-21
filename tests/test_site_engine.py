@@ -1386,6 +1386,105 @@ def test_safety_net_does_not_regress_real_pascalcase_schema_types():
         assert got == want, f"{key!r} -> {got!r}, expected {want!r}"
 
 
+# --- §6 sub-slice 2 (practice-area pages): service-page closer prose -------
+
+def test_service_page_closer_is_industry_specific_not_universal_boilerplate():
+    # 2026-08-21: _build_service_page used to render the exact same
+    # "Every job begins with a written estimate and a plain-language
+    # explanation..." sentence on every service page for every business,
+    # regardless of industry -- the identical defect Slice 1 fixed for
+    # the homepage, just never propagated to interior pages.
+    #
+    # 2026-08-21, Opus 5 review: the original version of this test only
+    # checked for ONE of 2 possible variants' vocabulary -- adding a 3rd
+    # variant per family (fixing the pigeonhole-collision finding below)
+    # meant the fixture could land on a variant that shares no keyword
+    # with the original assertion, making the test flaky-by-construction.
+    # Checks against every variant's own distinguishing phrase for the
+    # family instead of just one.
+    dentist_dir = _gen(_dentist())
+    attorney = BusinessFacts(
+        business_name="Marsh & Colby Law", subtype="Attorney",
+        street="900 Main St", locality="Denver", region="CO",
+        postal_code="80202", telephone="+1-303-555-0177",
+        domain="marshcolbylaw.example",
+        services=[Service(name="Family Law", description="Divorce, custody, and support matters.")],
+        rating=Rating(value=4.9, count=64), last_updated="2026-07-01")
+    attorney_dir = _gen(attorney)
+
+    dentist_page = open(os.path.join(dentist_dir, "service-preventive-cleanings.html"), encoding="utf-8").read()
+    attorney_page = open(os.path.join(attorney_dir, "service-family-law.html"), encoding="utf-8").read()
+
+    old_boilerplate = "Every job begins with a written estimate and a plain-language explanation"
+    assert old_boilerplate not in dentist_page, "dental service page still carries the old universal auto-shop sentence"
+    assert old_boilerplate not in attorney_page, "legal service page still carries the old universal auto-shop sentence"
+
+    # Real, industry-appropriate language, not each other's -- one marker
+    # phrase per variant (all 3), so the test doesn't depend on which
+    # variant the fixture's seed happens to select.
+    dental_markers = ("clinical evaluation", "any treatment begins", "genuinely yours to make")
+    legal_markers = ("actually at stake", "guaranteed results", "paperwork is filed")
+    assert any(m in dentist_page for m in dental_markers), f"no dental-family closer marker found in {dentist_page!r}"
+    assert any(m in attorney_page for m in legal_markers), f"no legal-family closer marker found in {attorney_page!r}"
+    assert not any(m in attorney_page for m in dental_markers)
+    assert not any(m in dentist_page for m in legal_markers)
+
+
+def test_service_closer_varies_across_different_services_same_business():
+    # A business with several services must not repeat the exact same
+    # closer sentence verbatim on every one of its service pages -- proves
+    # the dedicated seed domain (_service_prose_seed) actually produces
+    # variety per service, not one fixed answer regardless of slug.
+    #
+    # 2026-08-21, Opus 5 review: the original normalization
+    # (closer.split(",")[0].split(".")[0]) assumed the interpolated
+    # service name always sits after the first comma/period -- false for
+    # the home_services family's own variant 0 ("Every job involving
+    # {service_lower} starts..."), where it comes first. That let 20
+    # distinct service names "prove" variety even if every one selected
+    # the SAME variant, since the split never actually removed the varying
+    # part. Normalizes by replacing the exact known interpolated
+    # substrings instead of guessing where they sit in the sentence.
+    business_name = "Test Plumbing"
+    seen = set()
+    for i in range(20):
+        service_name = f"Repair Type {i}"
+        closer = site_prose.service_closer_for(
+            "Plumber", seed=12345, slug=f"service-{i}",
+            business_name=business_name, service_name=service_name)
+        normalized = closer.replace(business_name, "{BIZ}").replace(service_name.lower(), "{SVC}")
+        seen.add(normalized)
+    assert len(seen) >= 2, f"only one closer template ever appears across 20 different service names: {seen}"
+
+
+def test_service_closer_escapes_html_in_business_and_service_names():
+    # 2026-08-21, Opus 5 review: the original version checked exactly one
+    # service page, but the fixture's seed happened to select a closer
+    # variant that never embeds business_name at all (home_services
+    # variant 0) -- the test could pass even with escaping completely
+    # broken, since it was only ever re-checking the pre-existing
+    # footer/NAP escaping, not the closer's own. Home services now has 3
+    # variants; not all embed business_name. Enough services here that at
+    # least one is virtually certain to land on a variant that does
+    # (P(all 6 miss) = (1/3)^6 =~ 0.0014), so the assertion is actually
+    # exercised.
+    facts = BusinessFacts(
+        business_name="A & B <Plumbing>", subtype="Plumber",
+        street="1 Main St", locality="Boise", region="ID",
+        postal_code="83702", telephone="+1-208-555-0100",
+        domain="abplumbing.example",
+        services=[Service(name=f"Leak <Repair> {i}", description="Fixes leaks.") for i in range(6)])
+    d = _gen(facts)
+    service_files = [f for f in os.listdir(d) if f.startswith("service-") and f.endswith(".html")]
+    assert service_files, "no service pages were generated"
+    pages = [open(os.path.join(d, f), encoding="utf-8").read() for f in service_files]
+    for page in pages:
+        assert "<Plumbing>" not in page and "A & B <" not in page
+        assert "<Repair>" not in page
+    assert any("&amp;" in page for page in pages), \
+        "no service page's closer ever embedded and escaped the raw business name -- test doesn't exercise the vulnerable path"
+
+
 def _base_url_for(facts) -> str:
     return f"https://{facts.domain}"
 

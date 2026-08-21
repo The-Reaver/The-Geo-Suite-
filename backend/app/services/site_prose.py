@@ -1294,3 +1294,226 @@ def prose_for(subtype, seed, business_name, human, loc, areas, svc_phrase, creds
     variants = _FAMILIES.get(family_key, _FAMILIES["general"])
     variant_fn = variants[_variant_index(seed, len(variants))]
     return variant_fn(business_name, human, loc, areas, svc_phrase, creds)
+
+
+# =============================================================================
+# Per-service closer sentences (§6 sub-slice 2, practice-area pages)
+# =============================================================================
+# 2026-08-21: _build_service_page (site_engine.py) rendered the exact same
+# hardcoded "written estimate... plain-language explanation" auto-shop
+# sentence on every service page for every business, regardless of
+# industry -- the identical defect this module's own header already
+# documents fixing once for the homepage (_index_main via prose_for()
+# above), just never propagated to interior pages. A dental practice's
+# "Teeth Whitening" page and a law firm's "Family Law" page read with the
+# literal same contractor-flavored closing sentence. Closed the same way:
+# one real, industry-appropriate closer per family, via the same shared
+# _prose_family_for()/industry_family_for() classifier chain homepage
+# prose already uses, so a business's homepage voice and its service-page
+# voice agree.
+#
+# Deliberately its own seed domain (_service_prose_seed, "service-prose:")
+# rather than reusing the homepage's own prose_seed directly -- reusing it
+# would select the exact same variant for every service page on a given
+# business (services 2-5 would repeat service 1's closer verbatim except
+# for the service name), reproducing a smaller version of the same
+# "every page reads identically" complaint one level down. Mirrors the
+# seed-decorrelation fix already applied twice this session (template<->
+# palette, typography<->palette): a new SHA-256 domain, not a re-division
+# of an existing seed.
+
+
+def _service_prose_seed(seed: int, slug: str) -> int:
+    return int(hashlib.sha256(f"service-prose:{seed}:{slug}".encode()).hexdigest()[:16], 16)
+
+
+# 2026-08-21, Opus 5 review of §6 sub-slice 2: two real problems in the
+# original 16 closers (8 families x 2 variants), both fixed below.
+#
+# 1. Grammar bug: several closers used service_lower as the subject of a
+# verb requiring number agreement ("what {service_lower} actually
+# involves") or as a bare attributive noun before another noun ("Every
+# {service_lower} appointment begins..."). Reproduced directly against
+# this file's own real fixture services: "Every preventive cleanings
+# appointment begins..." and "...explains what dental implants actually
+# involves..." (subject "implants" is plural, verb "involves" is
+# singular -- a genuine agreement error, not a style nitpick). Every
+# closer below is rewritten to avoid service_lower ever sitting in a
+# position that requires number agreement or unnatural attributive use
+# ("visit for X", "matter involving X", "what to expect from X") --
+# correct regardless of whether the business supplies a singular or
+# plural service name, since real service names are free text and both
+# forms are common ("Leak detection" vs. "Dental implants").
+#
+# 2. Pigeonhole collision: with only 2 variants per family, any business
+# with >=3 services is GUARANTEED at least one repeated closer (25.3% of
+# 3-service businesses got all three identical, reproduced directly on
+# this file's own _dentist() fixture: "Dental implants" and "Emergency
+# care" landed on the same closer). A 3rd variant per family doesn't
+# eliminate collisions but meaningfully reduces them (all-3-same drops to
+# 1/9), and is real, distinct, authored content -- not a duplicate of an
+# existing variant reworded.
+def _closer_dental_medical_0(business_name, service_lower):
+    return (f"Every visit for {service_lower} begins with a real clinical "
+            f"evaluation, so you understand the recommended care and the "
+            f"cost before treatment starts.")
+
+
+def _closer_dental_medical_1(business_name, service_lower):
+    return (f"{business_name} explains what to expect from {service_lower} "
+            f"in plain language before any treatment begins, so nothing "
+            f"about the visit is a surprise.")
+
+
+def _closer_dental_medical_2(business_name, service_lower):
+    return (f"{business_name} walks through the real options for "
+            f"{service_lower} before anything is scheduled, so the "
+            f"decision is genuinely yours to make.")
+
+
+def _closer_home_services_0(business_name, service_lower):
+    return (f"Every job involving {service_lower} starts with a written "
+            f"estimate and a plain-language explanation, so you know the "
+            f"scope and the price before work starts.")
+
+
+def _closer_home_services_1(business_name, service_lower):
+    return (f"{business_name} sends the same technician for {service_lower} "
+            f"from the first call through completion, and nothing is added "
+            f"to the bill without discussing it with you first.")
+
+
+def _closer_home_services_2(business_name, service_lower):
+    return (f"{business_name} explains exactly what {service_lower} will "
+            f"involve before scheduling it, so there is no guessing about "
+            f"what happens once the truck arrives.")
+
+
+def _closer_legal_finance_0(business_name, service_lower):
+    return (f"Every matter involving {service_lower} begins with a direct "
+            f"conversation about what is actually at stake and what it "
+            f"will realistically cost, before any work is billed.")
+
+
+def _closer_legal_finance_1(business_name, service_lower):
+    return (f"{business_name} gives clients a candid read on {service_lower} "
+            f"from the first conversation, not a sales pitch about "
+            f"guaranteed results no one can actually promise.")
+
+
+def _closer_legal_finance_2(business_name, service_lower):
+    return (f"{business_name} lays out the real timeline and likely costs "
+            f"for {service_lower} before any paperwork is filed.")
+
+
+def _closer_beauty_salon_0(business_name, service_lower):
+    return (f"Every appointment for {service_lower} starts with a real "
+            f"consultation about what your hair or skin can actually "
+            f"support, not a rushed guess.")
+
+
+def _closer_beauty_salon_1(business_name, service_lower):
+    return (f"{business_name} gives honest recommendations for "
+            f"{service_lower}, not an upsell, and pricing is clear before "
+            f"anything begins.")
+
+
+def _closer_beauty_salon_2(business_name, service_lower):
+    return (f"{business_name} takes the time to talk through "
+            f"{service_lower} before starting, so you know what the "
+            f"result will actually look like.")
+
+
+def _closer_food_restaurant_0(business_name, service_lower):
+    return (f"{business_name} handles {service_lower} the same way it "
+            f"handles every order: made fresh, with real ingredients, not "
+            f"whatever is cheapest to source that week.")
+
+
+def _closer_food_restaurant_1(business_name, service_lower):
+    return (f"Ask about {service_lower} directly and {business_name} will "
+            f"walk you through what is actually involved, including "
+            f"accommodating real dietary needs.")
+
+
+def _closer_food_restaurant_2(business_name, service_lower):
+    return (f"{business_name} is upfront about what goes into "
+            f"{service_lower}, down to the ingredients, if you ever want "
+            f"to ask.")
+
+
+def _closer_general_0(business_name, service_lower):
+    return (f"Every engagement involving {service_lower} starts with a "
+            f"clear conversation about what is being recommended, why it "
+            f"matters, and what it will cost before anything begins.")
+
+
+def _closer_general_1(business_name, service_lower):
+    return (f"{business_name} keeps the same team on {service_lower} from "
+            f"the first conversation through completion, rather than "
+            f"handing it off partway through.")
+
+
+def _closer_general_2(business_name, service_lower):
+    return (f"{business_name} explains the real scope of {service_lower} "
+            f"before agreeing to anything, so there are no surprises "
+            f"partway through.")
+
+
+def _closer_real_estate_0(business_name, service_lower):
+    return (f"Every conversation about {service_lower} starts with an "
+            f"honest read on the market and a realistic timeline, before "
+            f"anything is signed.")
+
+
+def _closer_real_estate_1(business_name, service_lower):
+    return (f"{business_name} has clients work directly with the agent "
+            f"handling {service_lower}, not a rotating cast of assistants.")
+
+
+def _closer_real_estate_2(business_name, service_lower):
+    return (f"{business_name} walks clients through exactly what to expect "
+            f"from {service_lower} before any offer or listing agreement "
+            f"is signed.")
+
+
+def _closer_nail_spa_0(business_name, service_lower):
+    return (f"Every appointment for {service_lower} starts with a real "
+            f"conversation about what you actually want, not a rushed "
+            f"guess.")
+
+
+def _closer_nail_spa_1(business_name, service_lower):
+    return (f"{business_name} uses the same sanitation standards for "
+            f"{service_lower} on every visit, and a booked appointment "
+            f"always gets priority.")
+
+
+def _closer_nail_spa_2(business_name, service_lower):
+    return (f"{business_name} talks through {service_lower} before "
+            f"starting, so the result matches what you actually asked "
+            f"for.")
+
+
+_SERVICE_CLOSERS = {
+    "dental_medical": [_closer_dental_medical_0, _closer_dental_medical_1, _closer_dental_medical_2],
+    "home_services": [_closer_home_services_0, _closer_home_services_1, _closer_home_services_2],
+    "legal_finance": [_closer_legal_finance_0, _closer_legal_finance_1, _closer_legal_finance_2],
+    "beauty_salon": [_closer_beauty_salon_0, _closer_beauty_salon_1, _closer_beauty_salon_2],
+    "food_restaurant": [_closer_food_restaurant_0, _closer_food_restaurant_1, _closer_food_restaurant_2],
+    "general": [_closer_general_0, _closer_general_1, _closer_general_2],
+    "real_estate": [_closer_real_estate_0, _closer_real_estate_1, _closer_real_estate_2],
+    "nail_spa": [_closer_nail_spa_0, _closer_nail_spa_1, _closer_nail_spa_2],
+}
+
+
+def service_closer_for(subtype: str, seed: int, slug: str, business_name: str, service_name: str) -> str:
+    """Industry-appropriate closing sentence for one service/practice-area
+    page. Reuses _prose_family_for() so a business's homepage voice and its
+    service pages agree; uses its own seed domain (_service_prose_seed) so
+    a business with several services doesn't repeat the exact same closer
+    verbatim across every one of its service pages."""
+    family_key = _prose_family_for(subtype)
+    variants = _SERVICE_CLOSERS.get(family_key, _SERVICE_CLOSERS["general"])
+    variant_fn = variants[_service_prose_seed(seed, slug) % len(variants)]
+    return variant_fn(business_name, service_name.lower())

@@ -764,13 +764,26 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
     title = f"{s.name} in {f.locality} — {f.business_name}"
     desc = f"{s.name} from {f.business_name}, a {_human(f.subtype)} in {_loc(f)}."
     head = _head(f, base, canonical, title, desc, f"service-{slug}.md")
-    
+
+    # 2026-08-21, §6 sub-slice 2 (practice-area pages): this used to be a
+    # single hardcoded closing sentence ("Every job begins with a written
+    # estimate and a plain-language explanation...") applied verbatim to
+    # every service page for every business -- the identical defect Slice
+    # 1 fixed for the homepage, just never propagated to interior pages. A
+    # dental practice's "Teeth Whitening" page and a law firm's "Family
+    # Law" page read with the literal same contractor-flavored sentence.
+    # See site_prose.py's own header comment above service_closer_for()
+    # for the full reasoning, including why it uses its own seed domain
+    # rather than reusing the homepage's prose_seed directly.
+    from . import site_prose
+    from .site_design import engine as design_engine
+    prose_seed = design_engine.compute_seed(f)
+    closer = site_prose.service_closer_for(f.subtype, prose_seed, slug, f.business_name, str(s.name))
+
     content = (f"      <h1>{_esc(s.name)} in {_esc(f.locality)}</h1>\n"
         f"      <p>{_esc(f.business_name)} provides {_esc(str(s.name).lower())} for "
         f"clients across {_esc(_oxford(list(f.service_areas or [])) or f.locality)}. "
-        f"{_esc(s.description)} Every job begins with a written estimate and a "
-        f"plain-language explanation, so you know the scope and the price before "
-        f"work starts.</p>\n"
+        f"{_esc(s.description)} {_esc(closer)}</p>\n"
         f"      <p>Return to the <a href=\"index.html\">home page</a> "
         f"or read <a href=\"about.html\">about our team</a>.</p>")
         
@@ -782,8 +795,7 @@ def _build_service_page(f: _F, base: str, s: Any) -> str:
         "content": content,
         "cookie": '<div id="cookie-consent" role="region" aria-label="Cookie consent">\n    <button type="button">Accept</button>\n    <button type="button">Decline</button>\n  </div>'
     }
-    
-    from .site_design import engine as design_engine
+
     theme = design_engine.select_theme(f)
     return theme.template.render_service(f, base, theme, blocks)
 
