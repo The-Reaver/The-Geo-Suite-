@@ -1,0 +1,40 @@
+# "Keep up with the Joneses" mini-slice 0, added 2026-08-22: watches the
+# 4 real CFR parts backend/app/services/compliance/regulatory_citations.py
+# already cites for real amendment-date changes, via eCFR's free, keyless
+# Versioner API.
+#
+# Why this runs in GitHub Actions and not from a Claude Code session:
+# same reason as security-scan.yml -- ecfr.gov is blocked by that
+# sandbox's egress proxy (confirmed directly via curl and WebFetch, both
+# EGRESS_BLOCKED). A GitHub Actions runner has normal outbound network
+# access, so this is the only place this repo can actually reach eCFR at
+# scheduled intervals.
+#
+# Read-only, visibility-only, same as security-scan.yml's own rationale:
+# never fails the job on a real detected change or fetch error
+# (continue-on-error: true) -- a human reviews the step summary and, if a
+# real change is confirmed, commits the new date into
+# backend/app/data/regulatory/cfr_watch_baseline.json themselves. This
+# job never writes that file.
+name: CFR watch (eCFR amendment tracking)
+
+on:
+  schedule:
+    # Weekly, not daily -- eCFR amendment dates don't change at CVE
+    # frequency, and there's no cost benefit to checking more often.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  cfr-watch:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run CFR watcher
+        run: python backend/scripts/cfr_watch.py
