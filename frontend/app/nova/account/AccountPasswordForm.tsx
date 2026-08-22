@@ -23,17 +23,21 @@
  *
  * Email change (Slice 2) is deliberately NOT in this file -- it's a real
  * double opt-in flow needing an operator-side redirect-URL allow-list
- * addition first, sequenced as its own slice.
+ * addition first, sequenced as its own slice (AccountEmailForm.tsx).
+ *
+ * 2026-08-22: the session-checking state machine (checking/unconfigured/
+ * signed-out/signed-in) that used to live in this component moved to
+ * AccountGate.tsx once Slice 2a added a second form needing the same
+ * real signed-in email -- this component now assumes it's only ever
+ * rendered once a real session is already confirmed.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getSupabaseBrowserClient } from "../lib/supabaseBrowser";
 
 const MIN_PASSWORD_LENGTH = 8;
 
-type SessionState = "checking" | "signed-in" | "signed-out" | "unconfigured";
-
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   width: "100%",
   fontSize: 14,
   padding: "10px 14px",
@@ -45,8 +49,6 @@ const inputStyle: React.CSSProperties = {
 };
 
 export function AccountPasswordForm() {
-  const [sessionState, setSessionState] = useState<SessionState>("checking");
-  const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -54,31 +56,6 @@ export function AccountPasswordForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-
-  useEffect(() => {
-    // 2026-08-22: getSupabaseBrowserClient() throws SYNCHRONOUSLY when
-    // Supabase isn't configured (missing env vars) -- calling it directly
-    // inside a .then() chain meant that throw happened before the promise
-    // chain even existed, crashing the component instead of degrading
-    // honestly, same class of case NovaShell's own auth effect already
-    // guards against. Caught live via a real browser render before this
-    // shipped, not assumed safe from the diff alone.
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      setSessionState("unconfigured");
-      return;
-    }
-    getSupabaseBrowserClient()
-      .auth.getSession()
-      .then(({ data }) => {
-        if (data.session?.user?.email) {
-          setEmail(data.session.user.email);
-          setSessionState("signed-in");
-        } else {
-          setSessionState("signed-out");
-        }
-      })
-      .catch(() => setSessionState("signed-out"));
-  }, []);
 
   function validate(): boolean {
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -114,45 +91,11 @@ export function AccountPasswordForm() {
     setDone(true);
   }
 
-  if (sessionState === "checking") {
-    return <p style={{ color: "var(--nv-text3)", fontSize: 13 }}>Checking your session…</p>;
-  }
-
-  if (sessionState === "unconfigured") {
-    return (
-      <p style={{ color: "var(--nv-text3)", fontSize: 13 }}>
-        The live account system isn&rsquo;t configured in this environment.
-      </p>
-    );
-  }
-
-  if (sessionState === "signed-out") {
-    return (
-      <div
-        style={{
-          padding: 20,
-          borderRadius: 10,
-          background: "var(--nv-surface)",
-          border: "1px solid var(--nv-line)",
-          color: "var(--nv-text2)",
-          fontSize: 14,
-        }}
-      >
-        You need to sign in to change your password.{" "}
-        <a href="/login?next=/nova/account" style={{ color: "var(--nv-accent)" }}>
-          Sign in
-        </a>
-      </div>
-    );
-  }
-
   return (
     <div>
-      {email ? (
-        <p style={{ color: "var(--nv-text3)", fontSize: 13, marginBottom: 20 }}>
-          Signed in as <strong style={{ color: "var(--nv-text2)" }}>{email}</strong>
-        </p>
-      ) : null}
+      <h2 style={{ fontFamily: "var(--nv-serif)", fontSize: 20, color: "var(--nv-text)", margin: "0 0 16px" }}>
+        Change password
+      </h2>
 
       <form onSubmit={handleSubmit} noValidate style={{ display: "grid", gap: 16, maxWidth: 360 }}>
         {formError ? (

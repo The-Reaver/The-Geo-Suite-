@@ -1,18 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AccountPasswordForm } from "./AccountPasswordForm";
+import { AccountGate } from "./AccountGate";
 
-// Account settings, Slice 1 (2026-08-22): a real place to change your own
-// password from inside Nova. Before this, the sidebar's user block
+// Account settings (2026-08-22): a real place to manage your own account
+// from inside Nova. Before Slice 1, the sidebar's user block
 // (NovaShell.tsx's nv-user) had nowhere to send a click -- the only
 // existing password flow was forgot-password, for someone already locked
-// out, not a signed-in user proactively changing it. Email change is a
-// separate, later slice (Slice 2) -- it needs an operator-side redirect-
-// URL allow-list addition first, same requirement /forgot-password already
-// needed (see README.md's Supabase Auth setup section).
+// out, not a signed-in user proactively changing it.
+//
+// Slice 1: change password. Slice 2a: START a change-email request
+// (AccountEmailForm.tsx) -- both real prerequisites confirmed done by the
+// operator first: "Secure email change" is on for this project, and
+// /nova/account is on Supabase's redirect-URL allow-list. Slice 2b
+// (handling the confirmation-link landing UX) is deliberately its own
+// later slice -- see AccountEmailForm.tsx's own header for why.
 export const metadata: Metadata = {
   title: "Account — GEO Suite",
-  description: "Change your GEO Suite account password.",
+  description: "Manage your GEO Suite account.",
 };
 
 export default function AccountPage() {
@@ -28,9 +32,9 @@ export default function AccountPage() {
           Account
         </h1>
         <p style={{ color: "var(--nv-text2)", fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
-          Change your password below.
+          Manage your GEO Suite account.
         </p>
-        <AccountPasswordForm />
+        <AccountGate />
       </main>
     </div>
   );
