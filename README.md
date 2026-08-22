@@ -115,8 +115,11 @@ ratify/reject lives only in the running backend process's memory.
 
 ## Auth roles
 
-Three roles existed before 2026-08-22: `owner`/`admin` (full access) and
-`sales_agent` (the sales-floor routes). Compliance ratification added a
+Three roles existed before 2026-08-22: `admin` (full access, `require_admin`
+-- the only gate `owner` alone does not clear, e.g. `POST`/`GET /clients`),
+`owner` (broad access via `require_owner`/`require_sales_agent`/etc., but
+not `require_admin`'s own routes), and `sales_agent` (the sales-floor
+routes). Compliance ratification added a
 fourth, `lawyer` (`core/permissions.py::require_lawyer`) — a real,
 separate person reviews and ratifies/rejects compliance notes, not the
 operator acting through their own owner login (2026-08-22 operator

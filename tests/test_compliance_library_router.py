@@ -145,7 +145,17 @@ def test_sales_agent_alone_cannot_ratify():
 
 
 def test_lawyer_can_ratify_a_real_note_and_reviewed_by_comes_from_the_token():
-    app.dependency_overrides[require_lawyer] = _fake_lawyer
+    # 2026-08-22, Opus 5 review of 902c4e1, finding F3: the first version
+    # of this test (and test_owner_can_also_ratify below) overrode
+    # require_lawyer directly -- the identical mistake
+    # test_sales_agent_alone_cannot_ratify was rewritten to avoid.
+    # Mutation-proven: with that version, changing require_lawyer's role
+    # list to ["laywer", ...] (a typo of the one role this slice exists to
+    # add) still passed 11/11, because "lawyer" was never actually
+    # exercised through the real dependency. Overriding verify_token
+    # instead forces the real require_lawyer body -- role list, typos and
+    # all -- to run for every case below.
+    app.dependency_overrides[verify_token] = _fake_lawyer
     try:
         # An attacker-controlled reviewed_by in the body must be ignored --
         # RatificationRequest has no such field, so Pydantic drops it
@@ -167,17 +177,62 @@ def test_lawyer_can_ratify_a_real_note_and_reviewed_by_comes_from_the_token():
 def test_owner_can_also_ratify():
     # require_lawyer widens the gate, it doesn't narrow owner's existing
     # full access -- same precedent as require_sales_agent's own owner/admin
-    # carve-out.
+    # carve-out. Overrides verify_token, not require_lawyer -- see the
+    # comment on the lawyer test above for why that distinction is real.
     def _fake_owner():
         return {"sub": "33333333-3333-3333-3333-333333333333", "app_metadata": {"role": "owner"}}
 
-    app.dependency_overrides[require_lawyer] = _fake_owner
+    app.dependency_overrides[verify_token] = _fake_owner
     try:
         resp = client.post(f"/compliance/library/notes/{_NOTE_C}/reject", json={"reason": "Not applicable."})
     finally:
         app.dependency_overrides.clear()
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "rejected"
+
+
+def test_admin_can_also_ratify():
+    def _fake_admin():
+        return {"sub": "44444444-4444-4444-4444-444444444444", "app_metadata": {"role": "admin"}}
+
+    app.dependency_overrides[verify_token] = _fake_admin
+    try:
+        resp = client.post("/compliance/library/notes/bf744b65ee5d49a5b0dda52d7f7237c7/ratify", json={})
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "ratified"
+
+
+def test_missing_sub_claim_is_rejected():
+    # 2026-08-22, Opus 5 review finding F5: _reviewer_id()'s guard against
+    # a sub-less token was real but untested -- mutation-proven that
+    # replacing its `if not reviewer` check with `if False` still passed
+    # 11/11. A token with no sub would otherwise reach
+    # note_status_to_row() and 500 instead of 401.
+    def _fake_no_sub():
+        return {"app_metadata": {"role": "lawyer"}}
+
+    app.dependency_overrides[verify_token] = _fake_no_sub
+    try:
+        resp = client.post(f"/compliance/library/notes/{_NOTE_A}/ratify", json={})
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 401
+
+
+def test_ratify_with_no_body_uses_the_default_empty_reason():
+    # 2026-08-22, Opus 5 review finding F7: RatificationRequest's own
+    # default of "" for `reason` is meaningless if FastAPI still requires
+    # a body to be sent at all -- a bare "ratify, no comment" click must
+    # work with an empty POST body, not just an explicit `{}`.
+    app.dependency_overrides[verify_token] = _fake_lawyer
+    try:
+        resp = client.post("/compliance/library/notes/eca3321283a74bc1b1a33e70df7c7922/ratify")
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["reason"] is None or resp.json()["reason"] == ""
 
 
 def test_unknown_note_id_is_rejected():
@@ -224,7 +279,9 @@ if __name__ == "__main__":
               test_library_carries_real_vendored_note_counts,
               test_ratify_requires_auth, test_sales_agent_alone_cannot_ratify,
               test_lawyer_can_ratify_a_real_note_and_reviewed_by_comes_from_the_token,
-              test_owner_can_also_ratify, test_unknown_note_id_is_rejected,
+              test_owner_can_also_ratify, test_admin_can_also_ratify,
+              test_missing_sub_claim_is_rejected, test_ratify_with_no_body_uses_the_default_empty_reason,
+              test_unknown_note_id_is_rejected,
               test_reason_length_is_bounded, test_library_reflects_a_real_ratification]
     passed = 0
     for t in tests:

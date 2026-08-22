@@ -19,6 +19,7 @@ reviews these, not the operator acting through their own owner login).
 from __future__ import annotations
 
 import json
+import logging
 import os
 from functools import lru_cache
 
@@ -130,23 +131,52 @@ _DETECTION_STATUS: dict[str, dict] = {
     },
 }
 
-_ATOMIC_NOTES_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__), "..", "..", "..",
-        "knowledge_core", "feeds", "regulatory", "raw_law", "atomic_notes.json",
-    )
+# 2026-08-22, Opus 5 review of 902c4e1, finding F1 (critical): this used
+# to resolve three directories up from this file to the repo-root
+# knowledge_core/ folder -- correct for a local checkout, but wrong for
+# the actual deployed backend. Railway's backend service builds from
+# rootDirectory=/backend (railway.json's dockerfilePath is relative to
+# that), and backend/Dockerfile's `COPY . .` only copies what's inside
+# backend/ into the image -- knowledge_core/ lives at the repo root and
+# was never in the container at all. Verified directly: in prod this made
+# _load_atomic_notes() permanently cache the empty-corpus fallback below,
+# silently zeroing every note count on GET /compliance/library since it
+# shipped 2026-08-20, and turning every ratify/reject 404 the moment
+# mini-slice 2 added them -- an error message that actively lied, since
+# the note IS real, only the corpus lookup was broken.
+#
+# Real fix: the corpus now lives INSIDE the backend package
+# (app/data/regulatory/atomic_notes.json, a vendored copy -- see
+# tests/test_compliance_notes_migration.py's drift guard, which fails
+# loudly if this copy and the root knowledge_core/ one ever diverge), so
+# it's genuinely part of what backend/Dockerfile ships regardless of
+# repo layout. The root-level copy stays in place too -- MANIFEST.md's
+# own provenance notes reference it living in that folder, and it's the
+# one a local/full-checkout session actually edits when the corpus is
+# regenerated.
+_ATOMIC_NOTES_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "data", "regulatory", "atomic_notes.json",
 )
+
+_logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
 def _load_atomic_notes() -> dict:
     """Loaded once per process -- static vendored data, not a live query.
-    Missing file (e.g. a checkout that predates the 2026-08-20 vendoring)
-    degrades to zero notes everywhere rather than a 500."""
+    A missing file degrades to zero notes everywhere rather than a 500
+    (same fallback shape as before), but now logs loudly first -- a
+    silent empty-corpus degradation is exactly the failure mode that let
+    F1 above go undetected in production for two days."""
     try:
         with open(_ATOMIC_NOTES_PATH, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
+        _logger.warning(
+            "compliance atomic_notes.json not found at %s -- every note "
+            "count/lookup will read as zero/unknown until this is fixed",
+            os.path.abspath(_ATOMIC_NOTES_PATH),
+        )
         return {"notes_by_file": {}, "orphaned_notes": [], "total_notes": 0, "matched_notes": 0}
 
 
@@ -177,23 +207,25 @@ def _reviewer_id(payload: dict) -> str:
 
 
 @router.post("/library/notes/{note_id}/ratify")
-async def ratify_note(note_id: str, body: RatificationRequest, payload: dict = Depends(require_lawyer)):
-    if note_id not in _real_note_ids():
+def ratify_note(note_id: str, body: RatificationRequest = RatificationRequest(), payload: dict = Depends(require_lawyer)):
+    nid = note_id.strip()
+    if nid not in _real_note_ids():
         raise HTTPException(status_code=404, detail="Unknown compliance note")
     repo = get_compliance_notes_repo()
-    return repo.set_status(note_id, status="ratified", reviewed_by=_reviewer_id(payload), reason=body.reason)
+    return repo.set_status(nid, status="ratified", reviewed_by=_reviewer_id(payload), reason=body.reason)
 
 
 @router.post("/library/notes/{note_id}/reject")
-async def reject_note(note_id: str, body: RatificationRequest, payload: dict = Depends(require_lawyer)):
-    if note_id not in _real_note_ids():
+def reject_note(note_id: str, body: RatificationRequest = RatificationRequest(), payload: dict = Depends(require_lawyer)):
+    nid = note_id.strip()
+    if nid not in _real_note_ids():
         raise HTTPException(status_code=404, detail="Unknown compliance note")
     repo = get_compliance_notes_repo()
-    return repo.set_status(note_id, status="rejected", reviewed_by=_reviewer_id(payload), reason=body.reason)
+    return repo.set_status(nid, status="rejected", reviewed_by=_reviewer_id(payload), reason=body.reason)
 
 
 @router.get("/library")
-async def compliance_library(payload: dict = Depends(require_sales_agent)):
+def compliance_library(payload: dict = Depends(require_sales_agent)):
     """Every raw_law/ source, grouped by domain, with its real citation
     metadata and real draft note count/sample. Every entry carries the same
     honest caveat every source file itself carries: not yet lawyer-reviewed

@@ -123,13 +123,27 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
 
 def require_admin(payload: dict = Depends(verify_token)) -> dict:
     # Assuming role is encoded in the JWT app_metadata or user_metadata
-    role = payload.get("app_metadata", {}).get("role")
+    # 2026-08-22, Opus 5 review of 902c4e1, finding F4: payload.get(...,
+    # {}) only supplies the {} default when the key is ABSENT -- an
+    # explicit JSON `app_metadata: null` (a malformed but real possibility
+    # for any token this app didn't itself mint) makes .get("role") on
+    # None raise AttributeError, an unhandled 500 instead of the correct
+    # 403. `or {}` closes that for every value that's falsy (None, {},
+    # missing), not just the missing case.
+    role = (payload.get("app_metadata") or {}).get("role")
     if role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return payload
 
 def require_owner(payload: dict = Depends(verify_token)) -> dict:
-    role = payload.get("app_metadata", {}).get("role")
+    # 2026-08-22, Opus 5 review of 902c4e1, finding F4: payload.get(...,
+    # {}) only supplies the {} default when the key is ABSENT -- an
+    # explicit JSON `app_metadata: null` (a malformed but real possibility
+    # for any token this app didn't itself mint) makes .get("role") on
+    # None raise AttributeError, an unhandled 500 instead of the correct
+    # 403. `or {}` closes that for every value that's falsy (None, {},
+    # missing), not just the missing case.
+    role = (payload.get("app_metadata") or {}).get("role")
     if role not in ["owner", "admin"]:
         raise HTTPException(status_code=403, detail="Owner access required")
     return payload
@@ -150,7 +164,14 @@ def require_sales_agent(payload: dict = Depends(verify_token)) -> dict:
     dashboard/Auth admin API, which this codebase cannot and should not do
     on its own (creating or modifying a real user account is the operator's
     action, not code's)."""
-    role = payload.get("app_metadata", {}).get("role")
+    # 2026-08-22, Opus 5 review of 902c4e1, finding F4: payload.get(...,
+    # {}) only supplies the {} default when the key is ABSENT -- an
+    # explicit JSON `app_metadata: null` (a malformed but real possibility
+    # for any token this app didn't itself mint) makes .get("role") on
+    # None raise AttributeError, an unhandled 500 instead of the correct
+    # 403. `or {}` closes that for every value that's falsy (None, {},
+    # missing), not just the missing case.
+    role = (payload.get("app_metadata") or {}).get("role")
     if role not in ["sales_agent", "owner", "admin"]:
         raise HTTPException(status_code=403, detail="Sales agent access required")
     return payload
@@ -168,7 +189,14 @@ def require_lawyer(payload: dict = Depends(verify_token)) -> dict:
     Auth admin API, which this codebase cannot and should not do on its
     own, same as require_sales_agent's own docstring already states for
     that role."""
-    role = payload.get("app_metadata", {}).get("role")
+    # 2026-08-22, Opus 5 review of 902c4e1, finding F4: payload.get(...,
+    # {}) only supplies the {} default when the key is ABSENT -- an
+    # explicit JSON `app_metadata: null` (a malformed but real possibility
+    # for any token this app didn't itself mint) makes .get("role") on
+    # None raise AttributeError, an unhandled 500 instead of the correct
+    # 403. `or {}` closes that for every value that's falsy (None, {},
+    # missing), not just the missing case.
+    role = (payload.get("app_metadata") or {}).get("role")
     if role not in ["lawyer", "owner", "admin"]:
         raise HTTPException(status_code=403, detail="Lawyer access required")
     return payload

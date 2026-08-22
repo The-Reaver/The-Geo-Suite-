@@ -94,6 +94,37 @@ def test_all_vendored_notes_start_as_draft():
     )
 
 
+def test_backend_vendored_notes_copy_matches_the_root_copy():
+    # 2026-08-22, Opus 5 review of 902c4e1, finding F1: the backend's own
+    # runtime read path (routers/compliance.py) can't reach
+    # knowledge_core/ at all in the real deployed container -- Railway's
+    # backend service builds from rootDirectory=/backend, and
+    # backend/Dockerfile's `COPY . .` only copies what's inside backend/,
+    # so the repo-root atomic_notes.json was never in the image. Fixed by
+    # vendoring a copy inside the backend package
+    # (backend/app/data/regulatory/atomic_notes.json), which is now the
+    # one the running app actually reads. This guard is the other half of
+    # that fix: the two copies must stay byte-identical, or the app and
+    # the repo-root documentation (MANIFEST.md, this test file's own
+    # test_all_vendored_notes_start_as_draft above) would silently
+    # disagree about what the real corpus contains.
+    root_path = os.path.join(
+        PROJ, "knowledge_core", "feeds", "regulatory", "raw_law", "atomic_notes.json",
+    )
+    backend_path = os.path.join(
+        PROJ, "backend", "app", "data", "regulatory", "atomic_notes.json",
+    )
+    with open(root_path, encoding="utf-8") as f:
+        root_content = f.read()
+    with open(backend_path, encoding="utf-8") as f:
+        backend_content = f.read()
+    assert root_content == backend_content, (
+        "backend/app/data/regulatory/atomic_notes.json has drifted from the "
+        "root knowledge_core/ copy -- re-copy the root file over the "
+        "backend one (the root copy is the one a full checkout regenerates)"
+    )
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -1,0 +1,685 @@
+{
+  "_provenance": "Vendored 2026-08-20 from the original Knowledge Core ingestion run (knowledge_core/scripts/ingest_raw_law.py, 2026-08-15/16, per this folder's own MANIFEST.md) against the raw_law/ files below. That ingestion wrote to a Postgres kc_notes table in a Supabase project belonging to the pre-split monorepo's own deployment -- a different project than this repo's own lhzxmvjwqllmnqecfxpm. This repo has no live connection to that project (its SUPABASE_DB_URL wasn't recoverable from any committed file, Railway dashboard access was blocked by the account's free-tier project limit, and the operator does not have a working DSN for it) -- the operator instead ran the export themselves and pasted the raw INSERT statement directly. Parsed into this file rather than replayed against a live database, since this repo's Supabase project has no kc_notes table and building one is a separate architecture decision, not part of this vendoring. All 91 source records carry status='draft' -- none have been lawyer-ratified. 3 of the 91 (see orphaned_notes below) cite a source URL with no corresponding file in this repo's own raw_law/ -- a real, honest gap, not silently dropped.",
+  "total_notes": 91,
+  "matched_notes": 88,
+  "orphaned_count": 3,
+  "notes_by_file": {
+    "19-ftc-comment-copyright-office-ai.md": [
+      {
+        "id": "1c1c70554f20409e9862949567b7f8fe",
+        "body": "Notably, there is no AI exemption from the laws on the books. Accordingly, the FTC will vigorously use the full range of its authorities to protect Americans from deceptive and unfair conduct and maintain open, fair, and competitive markets.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/p241200_ftc_comment_to_copyright_office.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:16.714420+00:00"
+      },
+      {
+        "id": "f70d4c5105b54f4bb40675f4d36f8085",
+        "body": "the FTC alleged that Amazon and Ring used highly private data—voice recordings collected by Amazon's Alexa voice assistant and videos collected by Ring's internet-connected home security cameras—to train their algorithms while violating customers' privacy.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/p241200_ftc_comment_to_copyright_office.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:17.566897+00:00"
+      },
+      {
+        "id": "66aac55b1a824071badba685cd647656",
+        "body": "the FTC secured a temporary restraining order against a business-opportunity seller that claimed to use AI to make clients profitable and successful.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/p241200_ftc_comment_to_copyright_office.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:18.440539+00:00"
+      },
+      {
+        "id": "920da5848d1342cca3c420763adf6801",
+        "body": "the FTC charged WealthPress with using deceptive claims to sell consumers investment-advising services—often claiming that the services' recommendations were based on an algorithm created by a purported expert.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/p241200_ftc_comment_to_copyright_office.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:19.323711+00:00"
+      },
+      {
+        "id": "00e1c04f0ae6475aba6e7843f3a4376c",
+        "body": "conduct that may violate the copyright laws...may also constitute an unfair method of competition or an unfair or deceptive practice, especially when the copyright violation deceives consumers, exploits a creator's reputation or diminishes the value of her existing or future works.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/p241200_ftc_comment_to_copyright_office.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:20.178488+00:00"
+      }
+    ],
+    "15-ca-civil-code-1798-ccpa-cpra.md": [
+      {
+        "id": "bf744b65ee5d49a5b0dda52d7f7237c7",
+        "body": "A business that controls the collection of a consumer's personal information shall, at or before the point of collection, inform consumers...",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.100",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:07.473981+00:00"
+      },
+      {
+        "id": "eca3321283a74bc1b1a33e70df7c7922",
+        "body": "The categories of personal information to be collected and the purposes for which the categories of personal information are collected or used...",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.100",
+        "status": "draft",
+        "created_at": "2026-08-16T02:10:49.452095+00:00"
+      },
+      {
+        "id": "031b91383a7c41babc3264d296470443",
+        "body": "the categories of sensitive personal information to be collected and the purposes for which the categories of sensitive personal information are collected or used...",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.100",
+        "status": "draft",
+        "created_at": "2026-08-16T02:10:50.328740+00:00"
+      },
+      {
+        "id": "45bb19fcca4f47718571b04630c28116",
+        "body": "The length of time the business intends to retain each category of personal information...",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.100",
+        "status": "draft",
+        "created_at": "2026-08-16T02:10:51.200189+00:00"
+      },
+      {
+        "id": "e58ea32f8b22473eae84ae43d1d188fe",
+        "body": "sold or disclosed by the business only for limited and specified purposes.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.100",
+        "status": "draft",
+        "created_at": "2026-08-16T02:10:52.060056+00:00"
+      },
+      {
+        "id": "2f8a2cdcc9324120bd3ec970dec1fdd8",
+        "body": "implement reasonable security procedures and practices appropriate to the nature of the personal information...",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.100",
+        "status": "draft",
+        "created_at": "2026-08-16T02:10:52.908052+00:00"
+      }
+    ],
+    "04-fda-hbot-consumer-update.md": [
+      {
+        "id": "3d6312376ceb4cdbaf48213724535ff1",
+        "body": "The FDA has cleared hyperbaric oxygen therapy for treatment in these disorders: - air and gas bubbles in blood vessels - anemia (severe anemia when blood transfusions cannot be used) - burns (severe and large burns treated at a specialized burn center) - carbon monoxide poisoning - crush injury - decompression sickness (diving risk) - gas gangrene - hearing loss (complete hearing loss that occurs suddenly and without any known cause) - infection of the skin and bone (severe) - radiation injury - skin graft flap at risk of tissue death - vision loss (when sudden and painless in one eye due to blockage of blood flow) - wounds (non-healing, diabetic foot ulcers)",
+        "source": "https://www.fda.gov/medical-devices/letters-health-care-providers/follow-instructions-safe-use-hyperbaric-oxygen-therapy-devices-letter-health-care-providers",
+        "status": "draft",
+        "created_at": "2026-08-15T23:27:13.528920+00:00"
+      },
+      {
+        "id": "7b23cdfdac8943a2bb9a5f7438e11d52",
+        "body": "The FDA is aware there are some hyperbaric oxygen treatment centers promoting hyperbaric oxygen chambers for uses that have not been cleared or approved by the FDA, such as treatment of cancer, Lyme disease, autism, or Alzheimer's disease.",
+        "source": "https://www.fda.gov/medical-devices/letters-health-care-providers/follow-instructions-safe-use-hyperbaric-oxygen-therapy-devices-letter-health-care-providers",
+        "status": "draft",
+        "created_at": "2026-08-15T23:27:14.418350+00:00"
+      },
+      {
+        "id": "f1c2fa4e79ba4f8c8503f2a3e1463b56",
+        "body": "If your health care provider recommends HBOT, the FDA advises you get the treatment at a hospital or facility that has been inspected and is accredited by the Undersea and Hyperbaric Medical Society.",
+        "source": "https://www.fda.gov/medical-devices/letters-health-care-providers/follow-instructions-safe-use-hyperbaric-oxygen-therapy-devices-letter-health-care-providers",
+        "status": "draft",
+        "created_at": "2026-08-15T23:27:15.267779+00:00"
+      },
+      {
+        "id": "038617ecad73423fa998c3761765dc41",
+        "body": "HBO2 treatment \"is being studied for other conditions, including COVID-19, but has not cleared or authorized the use of any hyperbaric device to treat COVID-19 or any conditions beyond those listed above.\"",
+        "source": "https://www.fda.gov/medical-devices/letters-health-care-providers/follow-instructions-safe-use-hyperbaric-oxygen-therapy-devices-letter-health-care-providers",
+        "status": "draft",
+        "created_at": "2026-08-15T23:27:16.146181+00:00"
+      },
+      {
+        "id": "3e311d273c28466b9ea75fc336c4fdf4",
+        "body": "The FDA is aware of reports of serious injuries and deaths with use of HBOT devices and is providing recommendations for health care providers and facilities to help reduce potential risks.",
+        "source": "https://www.fda.gov/medical-devices/letters-health-care-providers/follow-instructions-safe-use-hyperbaric-oxygen-therapy-devices-letter-health-care-providers",
+        "status": "draft",
+        "created_at": "2026-08-15T23:27:17.000219+00:00"
+      }
+    ],
+    "02-ftc-health-products-compliance-guidance.md": [
+      {
+        "id": "c94260b9c36243f9b18ba9522c8c6222",
+        "body": "Tests, analyses, research, or studies that (1) have been conducted and evaluated in an objective manner by experts in the relevant disease, condition, or function to which the representation relates; and (2) are generally accepted in the profession to yield accurate and reliable results.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:29.439672+00:00"
+      },
+      {
+        "id": "9bd26bf68ff746e784bf38a94c1c9750",
+        "body": "...sufficient in quality and quantity based on standards generally accepted in the relevant scientific fields, when considered in light of the entire body of relevant and reliable scientific evidence, to substantiate that the representation is true.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:30.305577+00:00"
+      },
+      {
+        "id": "ef9bdcee29484ef2a9d158bda2e71d2e",
+        "body": "1. Advertising must be truthful and not misleading; and 2. Before disseminating an ad, advertisers must have adequate substantiation for all objective product claims conveyed, expressly or by implication, to consumers acting reasonably.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:08.624345+00:00"
+      },
+      {
+        "id": "4c722c7d18d347a8b0bb4238aca547f1",
+        "body": "A deceptive ad is one that contains a material misrepresentation or omission that is likely to mislead consumers acting reasonably under the circumstances.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:09.498667+00:00"
+      },
+      {
+        "id": "039eef0031d64e4ca107316edc21d0e2",
+        "body": "'Competent and reliable scientific evidence' means tests, analyses, research, or studies that (1) have been conducted and evaluated in an objective manner by experts in the relevant disease, condition, or function to which the representation relates; and (2) are generally accepted in the profession to yield accurate and reliable results.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:10.361558+00:00"
+      },
+      {
+        "id": "2570c29e45404a85a919affadcc700e4",
+        "body": "the research must be 'sufficient in quality and quantity based on standards generally accepted in the relevant scientific fields, when considered in light of the entire body of relevant and reliable scientific evidence, to substantiate that the representation is true.'",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:11.236328+00:00"
+      },
+      {
+        "id": "ea4e60fbf90b481583f9caf9d7a20a71",
+        "body": "As a general matter, substantiation of health-related benefits will need to be in the form of randomized, controlled human clinical testing to meet the competent and reliable scientific standard.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:12.189473+00:00"
+      },
+      {
+        "id": "aafb298308604bf6a89338ebd05f65dc",
+        "body": "Anecdotal evidence about the individual experiences of consumers, including surveys of consumer experiences, are never sufficient to substantiate claims about the effects of a health product... a healthcare practitioner's observation about the effect of a health product on patients is anecdotal and doesn't provide evidence of a causal relationship.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:13.057963+00:00"
+      },
+      {
+        "id": "1987f4c79bff48088afbf6c6f7cca6f6",
+        "body": "Animal and in vitro studies may provide useful supporting or background information, but, without confirmation by human RCTs, they aren't sufficient to substantiate health-related claims.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:13.976637+00:00"
+      },
+      {
+        "id": "7727358475b34b0ca1952733fc33d7e5",
+        "body": "advertisers shouldn't rely on public health recommendations, such as advisories from a medical organization, as substantiation.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:14.845243+00:00"
+      },
+      {
+        "id": "e44e4b3fb1ae44958660b93fa0a434db",
+        "body": "The FDA has primary responsibility for claims that appear in labeling, including the package, product inserts, and other promotional materials available at point of sale. The FTC has primary responsibility for claims in all forms of advertising.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:15.703636+00:00"
+      },
+      {
+        "id": "933d511549b34ce095d0c50ca3f005f3",
+        "body": "Marketers should be aware that the FDA/FTC Liaison Agreement doesn't limit the FTC's jurisdiction or prohibit the agency from taking action against deceptive labeling claims or obtaining orders that address all forms of marketing, including claims that appear in labeling.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:16.571813+00:00"
+      },
+      {
+        "id": "b7447262260e4f99ad8a74c15d366ffd",
+        "body": "Marketers should be aware that the DSHEA disclaimer or similar statements won't cure an otherwise deceptive ad, particularly where the deception concerns claims about the health-related benefits of a product.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:17.443101+00:00"
+      },
+      {
+        "id": "515fed3de1944e8abf7396b932cab85b",
+        "body": "marketers shouldn't make claims about traditional use for the treatment or cure of serious medical conditions, even if the claim is carefully qualified to disclose the absence of scientific support... traditional use claims about the treatment or cure of serious diseases, even if qualified, could put consumers at substantial risk of injury by encouraging self-treatment without medical supervision or by causing a consumer to forgo a scientifically established treatment.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:18.297260+00:00"
+      },
+      {
+        "id": "9aa49801817e471eba92c5262899840d",
+        "body": "It's not enough that a testimonial represents the honest opinion or experience of an endorser. Under FTC law, advertisers also must have appropriate scientific evidence to back up the underlying implied claim that the product is effective and will work for buyers as it did for the endorser.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:19.179340+00:00"
+      },
+      {
+        "id": "3172c5c83e244ee8b7d4c511b6b35006",
+        "body": "Testimonials that report results more dramatic than users can generally expect are likely to be deceptive. Moreover, attempts to disclaim dramatic results with statements like 'Results not typical' don't cure the deception.",
+        "source": "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+        "status": "draft",
+        "created_at": "2026-08-15T23:29:20.041829+00:00"
+      }
+    ],
+    "13-ca-bpc-17200-unfair-competition.md": [
+      {
+        "id": "071f634cffa84d2dbd5ec3f511696d7e",
+        "body": "unfair competition shall mean and include any unlawful, unfair or fraudulent business act or practice and unfair, deceptive, untrue or misleading advertising",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17200",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:02.195051+00:00"
+      },
+      {
+        "id": "9d4d8cf24ebe4cab85ee37e196227b06",
+        "body": "any act prohibited by Chapter 1 (commencing with Section 17500) of Part 3 of Division 7 of the Business and Professions Code.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17200",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:03.085519+00:00"
+      }
+    ],
+    "17-ftc-v-workado-complaint.md": [
+      {
+        "id": "5843d77055494e67a62874faffdc63fa",
+        "body": "Respondent advertises, offers for sale, and sells products and services to consumers for creating marketing content, including the 'AI Content Detector'... The AI Content Detector uses artificial intelligence ('AI') technology to determine whether written content, including marketing content, is AI-generated.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:04.485066+00:00"
+      },
+      {
+        "id": "31186756a0744b31915420726ca89962",
+        "body": "Respondent claims that its AI Content Detector will predict with 98.3% accuracy whether text was generated using AI technology such as ChatGPT, GPT4, Claude, Bard, or another generative AI technology.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:05.356885+00:00"
+      },
+      {
+        "id": "b42f6e596c5647919b08b78010ad0a31",
+        "body": "the AI model Respondent uses for its AI Content Detector was trained on abstracts of scholarly articles. Respondent did not create, train, or fine tune the AI model used in its AI Content Detector, nor has it tested whether the AI Content Detector would achieve the same accuracy rate for marketing and other plain language text that Respondent's users typically submit.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:06.220676+00:00"
+      },
+      {
+        "id": "7f32c5e6ad0c47129e2f0e48aa4ae73e",
+        "body": "those test results show that when evaluating a mix of human-created and AI-generated content, the AI model correctly distinguished AI content from human content at a substantially lower rate than 98.3%.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:07.088142+00:00"
+      },
+      {
+        "id": "0eab56f35feb44458c0dd49107850443",
+        "body": "the developers' best result for the AI Model's accuracy when evaluating a mix of human-created and AI-generated non-academic content was 74.5%. The developers' testing data also showed that the AI Model struggled to identify AI-generated content as AI-generated when evaluating non-academic content, correctly detecting AI-generated text merely 53.2% of the time.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:07.983868+00:00"
+      },
+      {
+        "id": "b96d8d7ef5fd464a851b01a51e9bb79e",
+        "body": "even if a user relied on the AI Content Detector only to evaluate whether their AI-generated marketing content and copywriting would be detected as AI-generated, the AI Content Detector would do barely better than a coin toss.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:08.883763+00:00"
+      },
+      {
+        "id": "2ded0ef2000c48728f267e0df06af145",
+        "body": "The acts and practices of Respondent as alleged in this complaint constitute unfair or deceptive acts or practices, in or affecting commerce in violation of Section 5(a) of the Federal Trade Commission Act.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:09.742845+00:00"
+      },
+      {
+        "id": "e83dca0392ff4377a3e560c12559ef2c",
+        "body": "Use our AI Detector (now with 98% accuracy) to see if your text is human or AI generated from ChatGPT, GPT 4, Claude, & Bard. Our AI checker is one of the most trusted and goes deeper than a generic AI content detector.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:10.599732+00:00"
+      },
+      {
+        "id": "e77377ed00f44950b4fa1f1574d68bc0",
+        "body": "\"Trained on blog posts, Wikipedia, essays, and more.\" (Contradicted by the complaint's own finding, paragraph 11: the model was trained only on academic-abstract text, not blog posts or Wikipedia.)",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-Complaint.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:11.453981+00:00"
+      }
+    ],
+    "03-16-cfr-255-endorsement-guides.md": [
+      {
+        "id": "7f470154476546f6baa4c144bfc561b0",
+        "body": "Any advertising, marketing, or promotional message for a product that consumers are likely to believe reflects the opinions, beliefs, findings, or experiences of a party other than the sponsoring advertiser.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:31.208059+00:00"
+      },
+      {
+        "id": "da3ea3c9215c4ff5ae33925a581c5df6",
+        "body": "Includes any product, service, brand, company, or industry.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:32.059597+00:00"
+      },
+      {
+        "id": "2016af74ce334a4392930915e856bc9f",
+        "body": "An individual, group, or institution possessing, as a result of experience, study, or training, knowledge of a particular subject, which knowledge is superior to what ordinary individuals generally acquire.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:33.023464+00:00"
+      },
+      {
+        "id": "35bdef9a4d1a4f3ea68716be24441b3b",
+        "body": "A disclosure is difficult to miss (i.e., easily noticeable) and easily understandable by ordinary consumers.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:33.889284+00:00"
+      },
+      {
+        "id": "2244d517a28f422e928c0574e3471d4e",
+        "body": "Endorsements must reflect the honest opinions, findings, beliefs, or experience of the endorser.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:34.763961+00:00"
+      },
+      {
+        "id": "25da66f7f05f4f5c8ecb7a6feb2b7a1f",
+        "body": "An endorser may be liable for statements made in the course of their endorsements, such as when an endorser makes a representation that the endorser knows or should know to be deceptive.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:35.776046+00:00"
+      },
+      {
+        "id": "166616e5d8b44f6d9392cb7d68d33b8b",
+        "body": "When the advertisement represents that the endorser uses the endorsed product, the endorser must have been a bona fide user of it at the time the endorsement was given.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:36.658256+00:00"
+      },
+      {
+        "id": "2dfc262e543244f2ba90f6f19b6f3d98",
+        "body": "Advertisers are subject to liability for misleading or unsubstantiated statements made through endorsements or for failing to disclose unexpected material connections.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:37.528508+00:00"
+      },
+      {
+        "id": "8f7901b9a3844d4689de0b875607b34d",
+        "body": "The use of an endorsement with the image or likeness of a person other than the actual endorser is deceptive if it misrepresents a material attribute of the endorser.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/255.0",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:38.404977+00:00"
+      }
+    ],
+    "07-ftc-health-breach-notification-rule-16-cfr-318.md": [
+      {
+        "id": "8c0727d22814471e8012368097be4760",
+        "body": "Notify each individual who is a citizen or resident of the United States whose unsecured PHR identifiable health information was acquired by an unauthorized person",
+        "source": "https://www.law.cornell.edu/cfr/text/16/318.3",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:50.688576+00:00"
+      },
+      {
+        "id": "5ac4a0107d524ecaa382257efb2b7ec0",
+        "body": "Notify the Federal Trade Commission",
+        "source": "https://www.law.cornell.edu/cfr/text/16/318.3",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:51.602551+00:00"
+      },
+      {
+        "id": "ad082cf0f3a5486c9748866ae47087e5",
+        "body": "\"Notify prominent media outlets serving a State or jurisdiction\" if 500+ residents' information was breached.",
+        "source": "https://www.law.cornell.edu/cfr/text/16/318.3",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:52.515197+00:00"
+      },
+      {
+        "id": "2e56c51f43de415a880e29379766aaba",
+        "body": "A breach of security shall be treated as discovered as of the first day on which such breach is known or reasonably should have been known to the vendor",
+        "source": "https://www.law.cornell.edu/cfr/text/16/318.3",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:53.405455+00:00"
+      }
+    ],
+    "01-ftc-act-section-5-15-usc-45.md": [
+      {
+        "id": "31f8792119de413b852baf9cf293817a",
+        "body": "Unfair methods of competition in or affecting commerce, and unfair or deceptive acts or practices in or affecting commerce, are hereby declared unlawful.",
+        "source": "https://www.law.cornell.edu/uscode/text/15/45",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:27.722852+00:00"
+      },
+      {
+        "id": "b86de8fabc4c4113bca051aad320eb8b",
+        "body": "The Commission is hereby empowered and directed to prevent persons, partnerships, or corporations, except banks, savings and loan institutions described in section 57a(f)(3) of this title, Federal credit unions described in section 57a(f)(4) of this title, common carriers subject to the Acts to regulate commerce, air carriers and foreign air carriers subject to part A of subtitle VII of title 49, and persons, partnerships, or corporations insofar as they are subject to the Packers and Stockyards Act, 1921, as amended, except as provided in section 406(b) of said Act, from using unfair methods of competition in or affecting commerce and unfair or deceptive acts or practices in or affecting commerce.",
+        "source": "https://www.law.cornell.edu/uscode/text/15/45",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:28.586877+00:00"
+      }
+    ],
+    "08-tcpa-47-usc-227.md": [
+      {
+        "id": "36b4e40d8d2c4d43a4fd3548fa7a27e6",
+        "body": "\"make any call (other than a call made for emergency purposes or made with the prior express consent of the called party) using any automatic telephone dialing system or an artificial or prerecorded voice\" to emergency lines, hospital rooms, or cellular/paging services where the recipient is charged, unless collecting a federal debt.",
+        "source": "https://www.law.cornell.edu/uscode/text/47/227",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:54.281493+00:00"
+      },
+      {
+        "id": "efe7acab282042349eb32e83d46d24cb",
+        "body": "\"initiate any telephone call to any residential telephone line using an artificial or prerecorded voice to deliver a message without the prior express consent of the called party,\" with exceptions for emergencies, federal debt collection, or Commission exemptions.",
+        "source": "https://www.law.cornell.edu/uscode/text/47/227",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:55.185012+00:00"
+      },
+      {
+        "id": "5eab26a12a6c4d04b8940644406dbabc",
+        "body": "use any automatic telephone dialing system in such a way that two or more telephone lines of a multi-line business are engaged simultaneously.",
+        "source": "https://www.law.cornell.edu/uscode/text/47/227",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:56.035032+00:00"
+      }
+    ],
+    "06-hipaa-privacy-rule-45-cfr-164.md": [
+      {
+        "id": "f2dd2029022844358d1ed5de303bc3a3",
+        "body": "A covered entity or business associate may not use or disclose protected health information, except as permitted or required by this subpart or by subpart C of part 160.",
+        "source": "https://www.law.cornell.edu/cfr/text/45/164.502",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:48.838927+00:00"
+      },
+      {
+        "id": "37ff5be9c0a04029b12fd4962df22cd4",
+        "body": "A covered entity or business associate must make reasonable efforts to limit protected health information to the minimum necessary to accomplish the intended purpose of the use, disclosure, or request.",
+        "source": "https://www.law.cornell.edu/cfr/text/45/164.502",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:49.700265+00:00"
+      }
+    ],
+    "14-ca-civil-code-56-cmia.md": [
+      {
+        "id": "ec3fdd6ea9a14bcb8918184523d088b9",
+        "body": "Except to the extent expressly authorized by a patient, enrollee, or subscriber... a provider of health care, health care service plan, contractor, or corporation and its subsidiaries and affiliates shall not intentionally share, sell, use for marketing, or otherwise use medical information for a purpose not necessary to provide health care services.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=56.10",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:03.946482+00:00"
+      },
+      {
+        "id": "b7e1725a86a44e9badbaef78e814618b",
+        "body": "\"A provider of health care, a health care service plan, or a contractor shall disclose medical information if the disclosure is compelled by\" court orders, administrative agencies, subpoenas, search warrants, or other legal mechanisms.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=56.10",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:04.843832+00:00"
+      },
+      {
+        "id": "3a01c77375b84ff28ce9a0fd085e6621",
+        "body": "Information may be shared \"to providers of health care, health care service plans, contractors, or other health care professionals or facilities for purposes of diagnosis or treatment.\"",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=56.10",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:05.723540+00:00"
+      },
+      {
+        "id": "9d2d4605749e4ffdb1d8068097edc29e",
+        "body": "\"A provider of health care, health care service plan, contractor, or corporation and its subsidiaries and affiliates shall not disclose medical information for immigration enforcement\" without patient authorization or legal compulsion.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=56.10",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:06.609488+00:00"
+      }
+    ],
+    "18-ftc-v-workado-decision-and-order.md": [
+      {
+        "id": "fbaad162885a49d798308b0621152cd2",
+        "body": "Respondent...must not make any representation expressly or by implication, about such product's effectiveness at detecting content generated or altered by artificial intelligence, unless the representation is non-misleading, including that, at the time such representation is first made, and each time such representation is made thereafter, they possess and rely upon competent and reliable evidence, which when appropriate based on the expertise of professionals in the relevant area must be competent and reliable scientific evidence, that is sufficient in quality, quantity, and timeliness based on standards generally accepted in the relevant fields when considered in light of the entire body of relevant and reliable evidence, to substantiate that the representation is true.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-DecisionandOrder.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:12.336818+00:00"
+      },
+      {
+        "id": "41075a4545cd464ca0ad918dbeeaf8af",
+        "body": "'Competent and reliable evidence' means tests, analyses, research, studies, or other evidence based on the expertise of professionals in the relevant area, that (1) have been conducted and evaluated in an objective manner by qualified persons and (2) are generally accepted in the profession to yield accurate and reliable results.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-DecisionandOrder.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:13.210048+00:00"
+      },
+      {
+        "id": "40e5c5d01ea2474992e4140779974bc9",
+        "body": "Respondent must secure and preserve \"all documents referring or relating to testing protocols,\" \"any data that was used for testing,\" documents on \"processing steps performed on the data used for testing,\" \"any steps taken to avoid overlap between the training datasets and testing datasets,\" and \"all documents referring or relating to any statistical analysis of any test data.\"",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-DecisionandOrder.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:14.089601+00:00"
+      },
+      {
+        "id": "491f8f942524480e87859a8b0afd672e",
+        "body": "We claimed that our AI Content Detector will predict with a 98% accuracy rate whether text was created by AI content generators like ChatGPT, GPT4, Claude, and Bard. The FTC says we didn't have proof to back up those claims. We've stopped making those claims. In the future, we won't make claims about the accuracy of our AI content detection tools unless we can prove them.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-DecisionandOrder.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:14.952359+00:00"
+      },
+      {
+        "id": "81aa9418129247ec9a913dbe52674142",
+        "body": "This Order will terminate 20 years from the date of its issuance.",
+        "source": "https://www.ftc.gov/system/files/ftc_gov/pdf/ContentatScaleAI-DecisionandOrder.pdf",
+        "status": "draft",
+        "created_at": "2026-08-15T23:30:15.816249+00:00"
+      }
+    ],
+    "05-21-cfr-801-device-labeling.md": [
+      {
+        "id": "89fcacf8f8bf4edcb1427fd2a9d288b0",
+        "body": "Adequate directions for use means directions under which the layman can use a device safely and for the purposes for which it is intended.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:41.932167+00:00"
+      },
+      {
+        "id": "5b5e2015650e4f85b6fe9f1b61ae2760",
+        "body": "Statements of all conditions, purposes, or uses for which such device is intended, including conditions, purposes, or uses for which it is prescribed, recommended, or suggested in its oral, written, printed, or graphic advertising...",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:42.797207+00:00"
+      },
+      {
+        "id": "fa7d3e05c3b3448d9d138af07594e836",
+        "body": "Quantity of dose, including usual quantities for each of the uses for which it is intended and usual quantities for persons of different ages and different physical conditions.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:43.654769+00:00"
+      },
+      {
+        "id": "e145364f41c0455d8c242cd267bf65db",
+        "body": "Frequency of administration or application.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:44.520190+00:00"
+      },
+      {
+        "id": "7a92d2642337489ab2012ceec11d43bc",
+        "body": "Duration of administration or application.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:45.391216+00:00"
+      },
+      {
+        "id": "4b5f3436f53a42f48af202ce0c0c80bb",
+        "body": "Time of administration or application, in relation to time of meals, time of onset of symptoms, or other time factors.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:46.250214+00:00"
+      },
+      {
+        "id": "b6e1b34c86f84c749ee3f91720939b06",
+        "body": "Route or method of administration or application.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:47.103665+00:00"
+      },
+      {
+        "id": "e31041599d5e46b9b36bab42ba039f87",
+        "body": "Preparation for use, i.e., adjustment of temperature, or other manipulation or process.",
+        "source": "https://www.law.cornell.edu/cfr/text/21/801.5",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:47.977555+00:00"
+      }
+    ],
+    "09-can-spam-act-15-usc-7704.md": [
+      {
+        "id": "bf9d967557f74a7b9be581df45e4dd9c",
+        "body": "It is unlawful for any person to initiate the transmission, to a protected computer, of a commercial electronic mail message, or a transactional or relationship message, that contains, or is accompanied by, header information that is materially false or materially misleading.",
+        "source": "https://www.law.cornell.edu/uscode/text/15/7704",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:56.908592+00:00"
+      },
+      {
+        "id": "99386d51dace48f7a5ed174cc818aa05",
+        "body": "It is unlawful for any person to initiate the transmission to a protected computer of a commercial electronic mail message if such person has actual knowledge...that a subject heading of the message would be likely to mislead a recipient.",
+        "source": "https://www.law.cornell.edu/uscode/text/15/7704",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:57.783755+00:00"
+      }
+    ],
+    "11-nist-ai-rmf.md": [
+      {
+        "id": "ac19a3b6a4df4cf5bfa90ee0704c5a41",
+        "body": "to better manage risks to individuals, organizations, and society associated with artificial intelligence (AI)",
+        "source": "https://www.nist.gov/itl/ai-risk-management-framework",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:58.645501+00:00"
+      },
+      {
+        "id": "a7fb3418b38a4de5b8af831318124598",
+        "body": "intended for voluntary use and to improve the ability to incorporate trustworthiness considerations into the design, development, use, and evaluation of AI products, services, and systems",
+        "source": "https://www.nist.gov/itl/ai-risk-management-framework",
+        "status": "draft",
+        "created_at": "2026-08-15T03:44:59.538351+00:00"
+      }
+    ],
+    "12-ca-bpc-17500-false-advertising.md": [
+      {
+        "id": "c0d2ebd5bba943849374051459412145",
+        "body": "It is unlawful for any person, firm, corporation or association, or any employee thereof with intent directly or indirectly to dispose of real or personal property or to perform services, professional or otherwise...to make or disseminate or cause to be made or disseminated before the public in this state...any statement...which is untrue or misleading, and which is known, or which by the exercise of reasonable care should be known, to be untrue or misleading.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17500",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:00.434116+00:00"
+      },
+      {
+        "id": "e08306947d454a17a1498be3b4db201d",
+        "body": "Any violation of the provisions of this section is a misdemeanor punishable by imprisonment in the county jail not exceeding six months, or by a fine not exceeding two thousand five hundred dollars ($2,500), or by both that imprisonment and fine.",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17500",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:01.303603+00:00"
+      }
+    ],
+    "16-ca-hbot-facility-and-unlicensed-practice.md": [
+      {
+        "id": "e2b626ebec994903af6f283774e7fca3",
+        "body": "any person who practices or attempts to practice, or who advertises or holds himself or herself out as practicing, any system or mode of treating the sick or afflicted in this state, or who diagnoses, treats, operates for, or prescribes for any ailment, blemish, deformity, disease, disfigurement, disorder, injury, or other physical or mental condition of any person, without having at the time of so doing a valid, unrevoked, or unsuspended certificate as provided in this chapter or without being authorized to perform the act pursuant to a certificate obtained in accordance with some other provision of law is guilty of a public offense",
+        "source": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=2052",
+        "status": "draft",
+        "created_at": "2026-08-15T03:45:11.893722+00:00"
+      }
+    ],
+    "20-ca-title22-oxygen-administration-and-nfpa99.md": [
+      {
+        "id": "f2b18dbb825b415cbabca735662cf599",
+        "body": "The licensee shall be permitted to accept or retain a resident who requires the use of oxygen administration, under the following circumstances, requiring either independent self-administration or supervision by an appropriately skilled professional, documented fire-safety signage reading No Smoking-Oxygen in Use, electrical safety checks, secured tanks, and documentation of care in the resident's file.",
+        "source": "https://www.law.cornell.edu/regulations/california/22-CCR-87897",
+        "status": "draft",
+        "created_at": "2026-08-16T02:10:54.066030+00:00"
+      }
+    ]
+  },
+  "orphaned_notes": [
+    {
+      "id": "836535c73ffd4ce3ac6bfa4bf62e9025",
+      "body": "HBOT has not been proven to be the kind of universal treatment it has been touted to be on some Internet sites, and the FDA is concerned that some claims made by treatment centers using HBOT may give consumers a wrong impression that could ultimately endanger their health.",
+      "source": "https://www.fda.gov/consumers/consumer-updates/hyperbaric-oxygen-therapy-get-facts",
+      "status": "draft",
+      "created_at": "2026-08-15T03:44:39.297544+00:00"
+    },
+    {
+      "id": "8ab586f18483459a83b170de1fb74d22",
+      "body": "If you're considering using HBOT, it's essential that you first discuss all possible options with your health care professional.",
+      "source": "https://www.fda.gov/consumers/consumer-updates/hyperbaric-oxygen-therapy-get-facts",
+      "status": "draft",
+      "created_at": "2026-08-15T03:44:41.063155+00:00"
+    },
+    {
+      "id": "cbecf716b5bc4bcb9c686bf5301abe98",
+      "body": "Patients receiving HBOT are at risk of suffering an injury that can be mild (such as sinus pain, ear pressure, painful joints) or serious (such as paralysis, air embolism)... since hyperbaric chambers are oxygen rich environments, there is also a risk of fire.",
+      "source": "https://www.fda.gov/consumers/consumer-updates/hyperbaric-oxygen-therapy-get-facts",
+      "status": "draft",
+      "created_at": "2026-08-15T03:44:40.188529+00:00"
+    }
+  ]
+}
