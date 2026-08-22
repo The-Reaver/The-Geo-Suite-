@@ -30,17 +30,26 @@ export function AccountGate() {
       setSessionState("unconfigured");
       return;
     }
-    getSupabaseBrowserClient()
-      .auth.getSession()
-      .then(({ data }) => {
-        if (data.session?.user?.email) {
-          setEmail(data.session.user.email);
-          setSessionState("signed-in");
-        } else {
-          setSessionState("signed-out");
-        }
-      })
-      .catch(() => setSessionState("signed-out"));
+    // 2026-08-22, Slice 2b step 2: replaced the one-shot getSession() check
+    // with a real onAuthStateChange subscription (same pattern already
+    // proven in NovaShell.tsx), specifically to catch a real correctness
+    // gap -- @supabase/ssr's browser client auto-detects and exchanges a
+    // PKCE `code` param from a clicked email-change confirmation link on
+    // its own (detectSessionInUrl defaults true in a real browser), but
+    // that exchange is itself async. A one-shot getSession() call on mount
+    // could race it and resolve before the exchange finishes, showing the
+    // OLD email with nothing left to catch the real update afterward. This
+    // subscription's USER_UPDATED event fires once the exchange genuinely
+    // completes, so the displayed email stays correct regardless of timing.
+    const { data: sub } = getSupabaseBrowserClient().auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.email) {
+        setEmail(session.user.email);
+        setSessionState("signed-in");
+      } else {
+        setSessionState("signed-out");
+      }
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   if (sessionState === "checking") {
