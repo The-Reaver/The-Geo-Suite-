@@ -127,11 +127,55 @@ P_SKY = Palette("Sky", "#F0F9FF", "#FFFFFF", "#0C2A3D", "#3B6478", "#DEF0FA",
 P_STONE = Palette("Stone", "#FAFAF9", "#FFFFFF", "#1C1917", "#57534E", "#E7E5E4",
                   "#78716C", "#57534E", "#F5F5F4", "#A8A29E", "#78716C", "#B45309")
 
+# 2026-08-22, Slice 4 (grow palettes/type pairings further, cheap
+# dimension first per operator direction -- new templates, the expensive
+# bespoke half, stay their own separate slice). One new option per each
+# of the 5 named families (4->5 each), 20->25 total. Every hue chosen to
+# clear the SAME distinctness bar `test_palette_family_members_are_
+# visually_distinct` already enforces (hue delta >=8deg OR sat delta
+# >=0.15 from every other member of its own family) -- verified
+# numerically against that exact formula before being locked in here,
+# not eyeballed, learning from Slice C.1's Terracotta-was-Orange's-own-
+# ramp defect. All three assert_wcag() checks (ink/bg>=4.5, white-on-
+# accent>=3.0, accent/bg>=3.0) verified the same way; weakest margin is
+# Champagne's white/accent at 4.10 (comfortably clear of the 3.0 floor,
+# not just barely passing -- Champagne's first draft measured 3.25,
+# tightened before committing rather than shipped at a bare pass).
+#
+# 2026-08-22, Opus 5 review: the first draft's accent_soft values were
+# mid-grey tints (HLS lightness ~0.76-0.88, most at low saturation),
+# breaking this registry's own established convention -- all 20
+# pre-existing palettes use a near-white pastel tint (lightness
+# ~0.89-0.94, saturation mostly 0.80-1.00). No live WCAG violation
+# resulted (every real accent_soft usage across all 9 templates pairs it
+# with --accent-dark or --ink, never --muted, and both pairings measured
+# safe even with the mid-grey values), but the values looked generated
+# by a different rule than the rest of the registry -- regenerated at
+# lightness 0.91/saturation 0.85 (matching the established pattern) and
+# re-verified: accent_dark/accent_soft and ink/accent_soft both stay
+# comfortably >=5.9 for all five (weakest is Champagne's accent_dark/
+# accent_soft at 5.92), not just barely passing.
+P_CYAN = Palette("Cyan", "#FAFCFD", "#FFFFFF", "#0E2025", "#4E6D74", "#DEEAED",
+                 "#0C7B97", "#06566B", "#D5F4FC", "#26B5D9", "#0C7B97", "#B45309")
+
+P_DENIM = Palette("Denim", "#FAFAFD", "#FFFFFF", "#0E1225", "#4E5474", "#DEE0ED",
+                  "#2E419E", "#1F2E7A", "#D5DBFC", "#6977BF", "#2E419E", "#B45309")
+
+P_PLUM = Palette("Plum", "#FCFAFD", "#FFFFFF", "#210E25", "#6E4E74", "#EBDEED",
+                 "#62206F", "#401249", "#F5D5FC", "#9546A4", "#62206F", "#B45309")
+
+P_CHAMPAGNE = Palette("Champagne", "#FDFCFA", "#FFFFFF", "#251F0E", "#746B4E", "#EDE9DE",
+                      "#977A20", "#715A14", "#FCF2D5", "#C4A74F", "#977A20", "#B45309")
+
+P_BASIL = Palette("Basil", "#FAFDFA", "#FFFFFF", "#0E2512", "#4E7454", "#DEEDE0",
+                  "#206F2D", "#12491C", "#D5FCDB", "#46A456", "#206F2D", "#B45309")
+
 
 PALETTES = [
     P_TEAL, P_BLUE, P_RED, P_STEEL, P_NAVY, P_ROSE, P_ORANGE, P_SLATE,
     P_MINT, P_INDIGO, P_AMBER, P_CHARCOAL, P_BURGUNDY, P_FOREST,
     P_LAVENDER, P_BLUSH, P_OLIVE, P_TERRACOTTA, P_SKY, P_STONE,
+    P_CYAN, P_DENIM, P_PLUM, P_CHAMPAGNE, P_BASIL,
 ]
 
 # 2026-08-21, Opus 5 review (round 3) of the industry-aware template
@@ -167,12 +211,34 @@ def industry_family_for(subtype: str) -> str:
         return INDUSTRY_FAMILY_FOOD_RESTAURANT
     return INDUSTRY_FAMILY_GENERAL
 
+# 2026-08-22, Slice 4: each named family grew from 4 to 5 real options,
+# appended (not inserted) so the family's own existing index order isn't
+# reshuffled. That does NOT mean existing businesses keep their existing
+# palette, though -- an earlier version of this comment claimed it did,
+# which an Opus 5 review disproved by direct measurement: palette_for()
+# is `family[seed % len(family)]`, so growing the modulus 4->5 remaps
+# every seed >= 4 to a different index than before (only seed values 0-3
+# themselves are unaffected -- real seeds, derived from business name +
+# domain hashing, are essentially uniform, not small sequential
+# integers). Measured directly: only 20% of 10,000 sampled seeds keep
+# their pre-Slice-4 palette in the dental_medical family, and 10 of 12
+# businesses in this file's own test_variation_across_businesses fixture
+# get a different palette after this change (7 of those 10 land on one
+# of the OLD 4 options, not even the new one). This is the same
+# tradeoff every prior registry-growth slice in this codebase already
+# carried (C.1's 8->20 grow, and the industry-aware-selection slice
+# itself, both remapped existing seeds the same way) -- not a new
+# regression Slice 4 introduced, just one this comment previously
+# described inaccurately. Sites are regenerated from current facts on
+# each real run, not persisted as "this business = this palette," so
+# this churn has no live-data consequence; flagging honestly rather than
+# leaving the disproven claim in place.
 _PALETTE_FAMILIES = {
-    INDUSTRY_FAMILY_DENTAL_MEDICAL: [P_TEAL, P_BLUE, P_MINT, P_INDIGO],
-    INDUSTRY_FAMILY_HOME_SERVICES: [P_RED, P_STEEL, P_AMBER, P_CHARCOAL],
-    INDUSTRY_FAMILY_LEGAL_FINANCE: [P_NAVY, P_SLATE, P_BURGUNDY, P_FOREST],
-    INDUSTRY_FAMILY_BEAUTY_SALON: [P_ROSE, P_TEAL, P_LAVENDER, P_BLUSH],
-    INDUSTRY_FAMILY_FOOD_RESTAURANT: [P_ORANGE, P_RED, P_OLIVE, P_TERRACOTTA],
+    INDUSTRY_FAMILY_DENTAL_MEDICAL: [P_TEAL, P_BLUE, P_MINT, P_INDIGO, P_CYAN],
+    INDUSTRY_FAMILY_HOME_SERVICES: [P_RED, P_STEEL, P_AMBER, P_CHARCOAL, P_DENIM],
+    INDUSTRY_FAMILY_LEGAL_FINANCE: [P_NAVY, P_SLATE, P_BURGUNDY, P_FOREST, P_PLUM],
+    INDUSTRY_FAMILY_BEAUTY_SALON: [P_ROSE, P_TEAL, P_LAVENDER, P_BLUSH, P_CHAMPAGNE],
+    INDUSTRY_FAMILY_FOOD_RESTAURANT: [P_ORANGE, P_RED, P_OLIVE, P_TERRACOTTA, P_BASIL],
 }
 
 def palette_for(subtype: str, seed: int) -> Palette:

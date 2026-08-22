@@ -114,10 +114,53 @@ T_IBM_PLEX = TypePairing(
     css=CSS_IBM_PLEX
 )
 
+# 2026-08-22, Slice 4: grew from 8 to 11 pairings, cheap dimension first
+# per operator direction (new templates are the bespoke, expensive half,
+# their own separate slice). Each family/URL verified live against
+# Google Fonts' real CSS API before being added (curl, HTTP 200, real
+# @font-face output), same rigor as the original 8.
+
+CSS_LIBRE_BASKERVILLE_KARLA = (
+    "@import url('https://fonts.googleapis.com/css2"
+    "?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;600&display=swap');"
+)
+
+CSS_BITTER_MULISH = (
+    "@import url('https://fonts.googleapis.com/css2"
+    "?family=Bitter:wght@600;700&family=Mulish:wght@400;600&display=swap');"
+)
+
+CSS_CORMORANT_MONTSERRAT = (
+    "@import url('https://fonts.googleapis.com/css2"
+    "?family=Cormorant:wght@600;700&family=Montserrat:wght@400;600&display=swap');"
+)
+
+T_LIBRE_BASKERVILLE_KARLA = TypePairing(
+    "Libre Baskerville + Karla",
+    display_family="'Libre Baskerville', Georgia, serif",
+    body_family="'Karla', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    css=CSS_LIBRE_BASKERVILLE_KARLA
+)
+
+T_BITTER_MULISH = TypePairing(
+    "Bitter + Mulish",
+    display_family="'Bitter', Georgia, serif",
+    body_family="'Mulish', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    css=CSS_BITTER_MULISH
+)
+
+T_CORMORANT_MONTSERRAT = TypePairing(
+    "Cormorant + Montserrat",
+    display_family="'Cormorant', Georgia, serif",
+    body_family="'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    css=CSS_CORMORANT_MONTSERRAT
+)
+
 PAIRINGS = [
     T_INTER, T_FRAUNCES_INTER, T_SYSTEM,
     T_PLAYFAIR_SOURCE, T_SPACE_GROTESK_INTER, T_DM_SERIF_WORK,
     T_POPPINS_NUNITO, T_IBM_PLEX,
+    T_LIBRE_BASKERVILLE_KARLA, T_BITTER_MULISH, T_CORMORANT_MONTSERRAT,
 ]
 
 # 2026-08-21: this used to derive its index from `(seed // 7) % 8`,
@@ -140,9 +183,21 @@ PAIRINGS = [
 # prefix (not just str(seed), which _template_seed() already uses) so
 # this doesn't accidentally correlate with -- or literally duplicate --
 # template selection's own re-hash instead of palette's. Verified
-# directly: typography_seed(seed) % 8 vs. palette's seed % 4 measures
-# chi2=27.46/31 df; vs. engine.py's template_seed(seed) % 4 measures
-# chi2=29.24/31 df -- both genuinely uniform.
+# directly at the time: typography_seed(seed) % 8 vs. palette's seed % 4
+# measured chi2=27.46/31 df; vs. engine.py's template_seed(seed) % 4
+# measured chi2=29.24/31 df -- both genuinely uniform.
+#
+# 2026-08-22, Slice 4 grew PAIRINGS 8->11 and each palette family 4->5;
+# an Opus 5 review flagged these two figures as stale for the new sizes
+# (a prior review already caught this exact "verified number left
+# unupdated" class in this same repo). Re-measured against the current
+# library sizes, same methodology, 200k seeds: typography_seed(seed) %
+# 11 vs. palette's seed % 5 measures chi2=31.30/40 df; vs. engine.py's
+# template_seed(seed) % 4 (templates untouched by Slice 4, still 4 per
+# family) measures chi2=33.29/30 df -- both still genuinely uniform
+# (critical values ~55.8 and ~43.8 respectively at p=0.05), so the
+# re-hash property survives the resize; only the documented numbers had
+# gone stale, not the underlying guarantee.
 def _typography_seed(seed: int) -> int:
     return int(hashlib.sha256(f"typography:{seed}".encode()).hexdigest()[:16], 16)
 

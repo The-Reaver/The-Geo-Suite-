@@ -79,9 +79,15 @@ def test_palettes_wcag_contrast():
 # distinctness within each family, so a future weakening of
 # assert_wcag() or a near-duplicate palette can't slip through with only
 # assert_wcag() itself as the sole gate.
+#
+# 2026-08-22, Slice 4: grew 20->25 (one new option per named family,
+# cheap dimension grown first per operator direction -- new templates
+# stay their own separate, bespoke slice). Thresholds raised to the real
+# measured values (25 total, 5 per family within range(8), empirically
+# re-confirmed, not assumed) rather than left at the old floor.
 def test_palette_library_has_real_variety():
-    assert len(palettes.PALETTES) >= 20, \
-        f"expected >= 20 palettes, got {len(palettes.PALETTES)}"
+    assert len(palettes.PALETTES) >= 25, \
+        f"expected >= 25 palettes, got {len(palettes.PALETTES)}"
     names = [p.name for p in palettes.PALETTES]
     assert len(names) == len(set(names)), f"duplicate palette names: {names}"
     accents = [p.accent for p in palettes.PALETTES]
@@ -90,8 +96,8 @@ def test_palette_library_has_real_variety():
     representative_subtypes = ["Dentist", "Plumber", "Attorney", "Hair Salon", "Restaurant"]
     for subtype in representative_subtypes:
         seen = {palettes.palette_for(subtype, seed).name for seed in range(8)}
-        assert len(seen) >= 4, \
-            f"{subtype}'s industry family must resolve to >= 4 distinct palettes, got {seen}"
+        assert len(seen) >= 5, \
+            f"{subtype}'s industry family must resolve to >= 5 distinct palettes, got {seen}"
 
 
 def _luminance(hex_color):
@@ -340,13 +346,24 @@ def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
 # palettes must differ in hue by >= 8 degrees or in saturation by >= 0.15
 # -- the same "muted earthy tone vs. vivid saturated tone" distinction a
 # hex-only uniqueness check would miss.
+#
+# 2026-08-22, Opus 5 review of Slice 4: this dict was NOT updated when
+# Slice 4 added a 5th member to each family, leaving all 5 new palettes
+# (Cyan/Denim/Plum/Champagne/Basil) completely outside this guard --
+# despite a code comment elsewhere (palettes.py) claiming they'd been
+# "chosen to clear the SAME distinctness bar `test_palette_family_
+# members_are_visually_distinct` already enforces," which was false for
+# this exact reason. Mutation-proven real gap, not theoretical: swapping
+# Cyan's accent for Teal's own accent_dark (hue delta 0.7deg, sat delta
+# 0.009 -- a literal reconstruction of the historical Terracotta defect)
+# still passed the full suite before this fix. Now included.
 def test_palette_family_members_are_visually_distinct():
     families = {
-        "Dentist": ["Teal", "Blue", "Mint", "Indigo"],
-        "Plumber": ["Red", "Steel", "Amber", "Charcoal"],
-        "Attorney": ["Navy", "Slate", "Burgundy", "Forest"],
-        "Hair Salon": ["Rose", "Teal", "Lavender", "Blush"],
-        "Restaurant": ["Orange", "Red", "Olive", "Terracotta"],
+        "Dentist": ["Teal", "Blue", "Mint", "Indigo", "Cyan"],
+        "Plumber": ["Red", "Steel", "Amber", "Charcoal", "Denim"],
+        "Attorney": ["Navy", "Slate", "Burgundy", "Forest", "Plum"],
+        "Hair Salon": ["Rose", "Teal", "Lavender", "Blush", "Champagne"],
+        "Restaurant": ["Orange", "Red", "Olive", "Terracotta", "Basil"],
     }
     by_name = {p.name: p for p in palettes.PALETTES}
     for subtype, names in families.items():
@@ -363,13 +380,16 @@ def test_palette_family_members_are_visually_distinct():
                 )
 
 
+# 2026-08-22, Slice 4: grew 8->11 pairings. Thresholds raised to the
+# real measured values -- all 11 confirmed reachable within range(80)
+# before locking this in, not assumed from the old 8-pairing figure.
 def test_typography_library_has_real_variety():
-    assert len(typography.PAIRINGS) >= 8, \
-        f"expected >= 8 type pairings, got {len(typography.PAIRINGS)}"
+    assert len(typography.PAIRINGS) >= 11, \
+        f"expected >= 11 type pairings, got {len(typography.PAIRINGS)}"
     names = [t.name for t in typography.PAIRINGS]
     assert len(names) == len(set(names)), f"duplicate type pairing names: {names}"
     seen = {typography.typography_for(seed).name for seed in range(80)}
-    assert len(seen) >= 8, f"expected all 8 pairings to be reachable via typography_for(), got {seen}"
+    assert len(seen) >= 11, f"expected all 11 pairings to be reachable via typography_for(), got {seen}"
 
 
 def test_variation_across_businesses():
@@ -424,8 +444,20 @@ def test_variation_across_businesses():
     # `// 13` divisor -- the actual pair is now different) -- a detail
     # this comment shouldn't have to keep re-verifying on every future
     # change to how seeds map to indices.
+    # 2026-08-22, Slice 4: palettes_seen re-measured after growing each
+    # family to 5 members -- 11 of the (now 25) palettes actually land
+    # across this same fixed 12-business list. Locked in at >=9, not the
+    # full observed 11: an Opus 5 review flagged that >=11 against a
+    # hard ceiling of 12 businesses leaves zero slack (this list has
+    # exactly one known collision, Teal appearing twice) -- any future,
+    # unrelated seed-derivation tweak that creates one more collision
+    # would fail this test for no real reason, the same flakiness this
+    # test's own comment above already warns about. >=9 preserves real
+    # margin while still meaningfully raised from the pre-Slice-4 floor
+    # of >=4. templates_seen is untouched by this slice (templates
+    # aren't part of it) and holds at >=7.
     assert len(templates_seen) >= 7, f"Expected >= 7 templates, got {len(templates_seen)}: {templates_seen}"
-    assert len(palettes_seen) >= 4, f"Expected >= 4 palettes, got {len(palettes_seen)}: {palettes_seen}"
+    assert len(palettes_seen) >= 9, f"Expected >= 9 palettes, got {len(palettes_seen)}: {palettes_seen}"
 
 
 # 2026-08-20: has_photos is not a field on the real BusinessFacts schema and
@@ -609,27 +641,34 @@ def test_general_fallback_still_reaches_all_nine_templates():
 # kind of copy/paste mistake, not a contrived one) passed cleanly,
 # because the test's own "expected" value and the code under test read
 # from the identical mutated source.
+# 2026-08-22, Slice 4: each family's expected palette set grew by its
+# one new member (the templates side is untouched -- this slice didn't
+# add templates). Still hardcoded independently of engine.py's own
+# family dicts, per the round-3 review finding this guards against
+# (deriving "expected" from the live code under test makes the coherence
+# check tautological -- mutation-proven to pass even with a
+# swapped-family bug).
 def test_template_and_palette_family_selection_stay_coherent():
     expected = {
         "dental_medical": (
             {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern"},
-            {"Teal", "Blue", "Mint", "Indigo"},
+            {"Teal", "Blue", "Mint", "Indigo", "Cyan"},
         ),
         "home_services": (
             {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern"},
-            {"Red", "Steel", "Amber", "Charcoal"},
+            {"Red", "Steel", "Amber", "Charcoal", "Denim"},
         ),
         "legal_finance": (
             {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal"},
-            {"Navy", "Slate", "Burgundy", "Forest"},
+            {"Navy", "Slate", "Burgundy", "Forest", "Plum"},
         ),
         "beauty_salon": (
             {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal"},
-            {"Rose", "Teal", "Lavender", "Blush"},
+            {"Rose", "Teal", "Lavender", "Blush", "Champagne"},
         ),
         "food_restaurant": (
             {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern"},
-            {"Orange", "Red", "Olive", "Terracotta"},
+            {"Orange", "Red", "Olive", "Terracotta", "Basil"},
         ),
     }
     subtype_to_family = {
@@ -663,8 +702,13 @@ def test_template_and_palette_family_selection_stay_coherent():
 
     # "Moving Company" and "" match none of the 5 named families --
     # confirm both template and palette land in the general fallback
-    # (the full 9-template / 20-palette pool), also against a hardcoded
+    # (the full 9-template / 25-palette pool), also against a hardcoded
     # set, not TEMPLATES/PALETTES themselves.
+    #
+    # 2026-08-22, Slice 4: added the 5 new palette names (Cyan, Denim,
+    # Plum, Champagne, Basil) to this hardcoded set -- they're only
+    # reachable through their own named family OR this general fallback,
+    # same as every other palette added in Slice C.1.
     all_template_names = {
         "Editorial Minimal", "Split Modern", "Bold Cinematic", "Trust Panel",
         "Boutique Editorial", "Framed Gallery", "Directory Listing",
@@ -674,6 +718,7 @@ def test_template_and_palette_family_selection_stay_coherent():
         "Teal", "Blue", "Red", "Steel", "Navy", "Rose", "Orange", "Slate",
         "Mint", "Indigo", "Amber", "Charcoal", "Burgundy", "Forest",
         "Lavender", "Blush", "Olive", "Terracotta", "Sky", "Stone",
+        "Cyan", "Denim", "Plum", "Champagne", "Basil",
     }
     for subtype in ("Moving Company", ""):
         for i in range(30):
