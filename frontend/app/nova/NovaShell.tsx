@@ -960,13 +960,21 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
             <span className="nv-switch" />
           </button>
           {sessionUser ? (
-            <div className="nv-user">
+            // 2026-08-22, account settings Slice 1: this used to be a plain
+            // <div> with nowhere to click -- there was no in-app page to
+            // change a password at all. Now a real link to /nova/account.
+            <a
+              className="nv-user"
+              href="/nova/account"
+              title="Account settings"
+              style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}
+            >
               <div className="nv-avatar">{sessionUser.email.charAt(0).toUpperCase()}</div>
               <div>
                 <div className="nv-nm">{sessionUser.email}</div>
                 <div className="nv-rl">{sessionUser.role ?? "No role assigned"}</div>
               </div>
-            </div>
+            </a>
           ) : null}
           <div className="nv-online" role="status">
             <span className={`nv-online-dot${isOnline ? " on" : ""}`} />
