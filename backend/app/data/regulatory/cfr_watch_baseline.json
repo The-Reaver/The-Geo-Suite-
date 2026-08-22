@@ -1,12 +1,12 @@
 {
-  "_provenance": "cfr_watch.py's baseline for the 4 real CFR parts backend/app/services/compliance/regulatory_citations.py already cites. Seeded 2026-08-22 from the real, runner-observed dates in GitHub Actions run 32578824236 (workflow_dispatch, commit 5513b95) -- the first live run of .github/workflows/cfr-watch.yml, which has genuine internet access this sandbox's egress proxy blocks. 16 CFR 255 is TEMPORARILY set to a deliberately stale date to prove the live diff logic actually fires on a real run before the real seed is committed -- see the follow-up commit that corrects it to the real 2023-07-26 value.",
+  "_provenance": "cfr_watch.py's baseline for the 4 real CFR parts backend/app/services/compliance/regulatory_citations.py already cites. Seeded 2026-08-22 from the real, runner-observed dates in GitHub Actions run 32578824236 (workflow_dispatch, commit 5513b95) -- the first live run of .github/workflows/cfr-watch.yml, which has genuine internet access this sandbox's egress proxy blocks. The live diff logic was then proven to actually fire on a real run: run 32578975903 (commit 805f6bc) deliberately carried a stale date for 16 CFR 255 and correctly flagged it CHANGED (2020-01-01 -> 2023-07-26) while the other 3 correctly showed unchanged. This commit corrects 16 CFR 255 to its real observed date -- all 4 parts now carry genuine, runner-verified baseline dates.",
   "parts": [
     {
       "title": 16,
       "part": "255",
       "law": "16 CFR Part 255 — Endorsement Guides",
       "citation_file": "03-16-cfr-255-endorsement-guides.md",
-      "last_known_amendment_date": "2020-01-01"
+      "last_known_amendment_date": "2023-07-26"
     },
     {
       "title": 16,
