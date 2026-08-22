@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { discoverProspects, auditSite, saveLead, saveToPipeline, generateSitePreview, type DiscoverResult, type ProspectRow } from "./actions";
 import { syncForTheField, drainOutbox } from "./lib/fieldSync";
-import { getBrowserAccessToken, getBrowserSessionUser, signOutBrowser, type BrowserSessionUser } from "./lib/supabaseBrowser";
+import { getSupabaseBrowserClient, signOutBrowser, type BrowserSessionUser } from "./lib/supabaseBrowser";
 import { fetchPricingTiers, type PricingTier } from "./lib/pricing";
 import {
   putProspects, getAllCachedProspects, putSalesKit, type CachedProspect,
@@ -539,9 +539,22 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     }
   }, [sitePreviewUrl]);
 
-  // Real session check, once on mount. Never throws on a missing/unconfigured
-  // session -- getBrowserAccessToken() already returns null rather than
-  // rejecting, matching every other honest-failure path in this file.
+  // 2026-08-22: real session, subscribed instead of checked once on mount.
+  // The one-shot check this replaced had two real, connected gaps the
+  // operator found live in the same audit pass: (1) authStatus started
+  // "checking" and the full protected shell rendered underneath that state
+  // too (only "signed-out" short-circuited to the sign-in gate below) --
+  // a brief flash of shell UI before a genuinely signed-out visitor got
+  // redirected; (2) zero cross-tab awareness -- signing out in one tab
+  // (now a real action, since Sign Out didn't exist before this same
+  // session) left every other open tab still showing itself as signed in
+  // until its next full reload. supabase-js v2's onAuthStateChange fires
+  // an INITIAL_SESSION event immediately on subscribe (this repo pins
+  // ^2.45.4, confirmed in package.json), so one subscription now covers
+  // the first check AND every later change, including the cross-tab
+  // broadcast Supabase's own client already does via storage events --
+  // no separate cross-tab-specific code needed, this was always available,
+  // just never subscribed to.
   useEffect(() => {
     const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supaKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -549,15 +562,18 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
       setAuthStatus("unconfigured");
       return;
     }
-    getBrowserAccessToken()
-      .then((token) => {
-        setAuthStatus(token ? "signed-in" : "signed-out");
-        if (!token) return;
-        getBrowserSessionUser()
-          .then(setSessionUser)
-          .catch(() => setSessionUser(null));
-      })
-      .catch(() => setAuthStatus("signed-out"));
+    const supabase = getSupabaseBrowserClient();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user?.email) {
+        setAuthStatus("signed-out");
+        setSessionUser(null);
+        return;
+      }
+      setAuthStatus("signed-in");
+      const role = (session.user.app_metadata as Record<string, unknown> | undefined)?.role;
+      setSessionUser({ email: session.user.email, role: typeof role === "string" ? role : null });
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   async function handleSignOut() {
@@ -799,12 +815,27 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     });
   }
 
+  // 2026-08-22: "checking" used to fall through to the full protected shell
+  // below, same as "unconfigured" -- justified at the time as "checking is
+  // momentary," but the operator flagged it directly as a real gap: a
+  // signed-out visitor could see a brief flash of the real shell UI before
+  // the redirect below ever fired. "unconfigured" (no Supabase env vars at
+  // all -- local dev's honest sample-data fallback) still falls through on
+  // purpose; that's a distinct, legitimate case with no real auth check to
+  // wait on. Deliberately minimal, no spinner asset/animation -- this state
+  // is genuinely momentary (one onAuthStateChange round-trip), so a plain
+  // static placeholder matching the shell's own canvas color is enough to
+  // avoid a jarring blank-white flash without over-building for it.
+  if (authStatus === "checking") {
+    return <div className="nova-app" data-accent="blue" style={{ background: "var(--nv-bg)" }} />;
+  }
+
   // Real gate: an unauthenticated visitor (a bookmarked /nova link, most
   // realistically) sees a clear path to sign in instead of the full shell
-  // with dead-end "sign in again" errors on every action. "checking" and
-  // "unconfigured" both fall through to the normal shell below -- checking
-  // is momentary, and unconfigured means there's no real backend to sign
-  // into anyway (the existing sample-data demo fallback covers that case).
+  // with dead-end "sign in again" errors on every action. "unconfigured"
+  // (no Supabase env vars at all) falls through to the normal shell below --
+  // that means there's no real backend to sign into anyway (the existing
+  // sample-data demo fallback covers that case).
   if (authStatus === "signed-out") {
     return (
       <div className="nova-app" data-accent="blue">

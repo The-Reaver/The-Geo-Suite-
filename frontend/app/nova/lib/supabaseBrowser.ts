@@ -34,22 +34,14 @@ export async function getBrowserAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-export type BrowserSessionUser = { email: string; role: string | null };
-
-/** The real signed-in user's email + app_metadata.role, or null if not signed in.
- * 2026-08-22: NovaShell's sidebar used to show a hardcoded "Abad Morel / Operator ·
+/* 2026-08-22: NovaShell's sidebar used to show a hardcoded "Abad Morel / Operator ·
  * Sales" block regardless of who was actually signed in -- a real lawyer account
- * created this same session saw the operator's own name and role. This is the fix:
- * read the real session Supabase's own client already decoded, same pattern already
- * proven in nova/compliance/actions.ts's canReview check. */
-export async function getBrowserSessionUser(): Promise<BrowserSessionUser | null> {
-  const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.auth.getSession();
-  const user = data.session?.user;
-  if (!user?.email) return null;
-  const role = (user.app_metadata as Record<string, unknown> | undefined)?.role;
-  return { email: user.email, role: typeof role === "string" ? role : null };
-}
+ * created this same session saw the operator's own name and role. Real identity
+ * (email + app_metadata.role) now comes from NovaShell's own onAuthStateChange
+ * subscription directly (see NovaShell.tsx), which also closes a second gap --
+ * cross-tab session awareness -- for free, so there's no separate one-shot fetch
+ * helper here to keep in sync with that subscription. */
+export type BrowserSessionUser = { email: string; role: string | null };
 
 /** Ends the real Supabase session. A hard `window.location` redirect (not a client-side
  * route change) is deliberate: this clears every in-memory Nova state value (prospect
