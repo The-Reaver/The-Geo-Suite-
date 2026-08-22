@@ -44,7 +44,11 @@ CSS_BASE = """
   .frame{border:3px solid var(--ink);margin:0 24px 40px}
   @media(max-width:760px){.frame{margin:0 12px 32px}}
 
-  .hero{padding:64px 40px;text-align:center;border-bottom:3px solid var(--ink)}
+  /* 2026-08-21, Site Generator Slice 3: real, licensing-free hero
+     background (site_engine.py's _hero_bg_svg), composited at a single
+     group-level opacity (0.015-0.020) verified across all 20 real palettes
+     to keep var(--ink)/var(--muted) text clear of the 4.5:1 AA floor. */
+  .hero{padding:64px 40px;text-align:center;border-bottom:3px solid var(--ink);background-image:url('assets/hero-bg.svg');background-size:cover;background-position:center;background-repeat:no-repeat}
   .hero h1{font-size:clamp(30px,4.6vw,46px);font-family:var(--disp);max-width:20ch;margin:0 auto}
   .hero .lede{color:var(--muted);font-size:18px;max-width:52ch;margin:18px auto 0}
   @media(max-width:640px){.hero{padding:44px 22px}}

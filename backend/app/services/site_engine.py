@@ -17,6 +17,7 @@ fields. Category weights and crawler policy come from `core.rubric` and
 """
 from __future__ import annotations
 
+import hashlib
 import html as _html
 import re
 from pathlib import Path
@@ -171,7 +172,6 @@ def _facts_hash(f: _F) -> str:
     h = getattr(f, "facts_hash", None)
     if callable(h):
         return h()
-    import hashlib
     key = f"{f.business_name}|{f.subtype}|{f.street}|{f.telephone}"
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
@@ -1209,6 +1209,97 @@ def _logo_svg(business_name: str, palette: Any) -> str:
     )
 
 
+# 2026-08-21, Opus 5 review of the first version of this slice: that
+# version gave each circle its OWN opacity (0.04-0.07) and trusted that
+# "each shape is faint" meant "the pattern is faint" -- false. Circles
+# painted with per-shape alpha composite ADDITIVELY where they overlap
+# (standard source-over alpha blending: N same-colored layers at alpha a
+# each composite to 1-(1-a)^N, not a). Reproduced directly: a real
+# generated site (Dentist -> Timeline Flow + Mint) landed 3 same-color
+# circles stacked to an effective ~0.35 alpha over the hero, dragging
+# `.hero .lede` (var(--muted) on the composited background) to 4.458:1 --
+# below the real 4.5 AA floor palettes.assert_wcag() is supposed to
+# guarantee, and a pairing assert_wcag() never actually checks (it only
+# checks ink/bg, white/accent, accent/bg -- muted/bg was never covered).
+#
+# Fixed architecturally, not by shrinking the old per-shape range and
+# hoping: every circle is now fully opaque (no per-shape alpha to stack),
+# and the WHOLE pattern is wrapped in one SVG <g opacity="..."> instead.
+# Group opacity is a single post-composite fade applied once to the
+# group's already-fully-rendered output -- overlapping opaque shapes
+# inside the group simply paint over each other (like flat adjacent
+# tiles), so the maximum possible effective opacity anywhere in the
+# pattern is exactly the group's own opacity value, never higher,
+# regardless of circle count or overlap.
+#
+# 2026-08-21, Opus 5 review round 2: the first version of this fix picked
+# 0.05-0.08 by checking only var(--ink)/var(--muted) -- the two colors
+# involved in the real reported failure -- and reasoned that var(--gold)
+# (the star-rating color, real inside .hero on several wired templates)
+# was out of scope because it already fails plain bg with zero pattern
+# involved on several palettes (e.g. Rose at 2.9:1). That reasoning was
+# incomplete, not wrong: 13 of the 20 real palettes DO clear 4.5:1 on
+# gold/bg at baseline, and this pattern was regressing every one of them
+# below 4.5 at the original 0.05-0.08 range (e.g. Navy 4.800 -> 4.083 at
+# 0.08) -- a real, reachable regression on palettes that were genuinely
+# fine before this slice, not a pre-existing gap. Lowered to a range
+# verified empirically (all 20 palettes, both fills, ink/muted always,
+# gold wherever a palette's own baseline already clears 4.5:1) to
+# introduce zero such regressions: worst case at 0.020 is Indigo/gold at
+# 4.521:1, at 0.015 is Indigo/gold at 4.561:1 -- both still comfortably
+# ahead of every ink/muted pairing too (those stay >=5.4 even at the old,
+# higher range, so they were never the binding constraint). Palettes that
+# already failed gold/bg before this slice (Rose, Teal, etc.) are
+# unaffected either way -- not this slice's defect to fix, and this
+# opacity choice doesn't make them meaningfully worse than they already
+# were. See test_hero_bg_composited_contrast_clears_wcag_aa_on_every_real_palette
+# for the permanent, all-three-color guard.
+_HERO_BG_MIN_GROUP_OPACITY = 0.015
+_HERO_BG_MAX_GROUP_OPACITY = 0.020
+
+
+def _hero_bg_svg(seed: int, palette: Any) -> str:
+    """Site Generator Slice 3: a deterministic, abstract hero-background
+    pattern -- a licensing-free stand-in for real photography, not an
+    attempt to look like one. This repo has no photo-ingestion pipeline
+    (confirmed earlier this session) and the operator has not made a real
+    stock-photo licensing/sourcing decision; that's a real, separate cost
+    decision, not something this function invents around. In the
+    meantime, a geometric pattern in the site's own theme colors gives
+    real visual interest without pretending to be a photograph of the
+    business.
+
+    Deliberately its own seed domain (hashlib.sha256("hero-bg:...")),
+    same reasoning already applied twice this session for template/
+    palette/typography selection: reusing the top-level seed directly
+    would tie this pattern's layout to whichever palette/template that
+    seed happened to also select, when it should vary independently.
+
+    See the module-level comment above _HERO_BG_MIN/MAX_GROUP_OPACITY for
+    why this uses one group-level opacity rather than per-shape opacity.
+    aria-hidden, since it carries no information a screen reader needs."""
+    accent = palette.accent
+    accent_soft = palette.accent_soft
+    h = hashlib.sha256(f"hero-bg:{seed}".encode()).digest()
+    group_opacity = _HERO_BG_MIN_GROUP_OPACITY + (h[-1] / 255) * (
+        _HERO_BG_MAX_GROUP_OPACITY - _HERO_BG_MIN_GROUP_OPACITY)
+    circles = []
+    for i in range(6):
+        cx = 40 + (h[i * 4] / 255) * 720
+        cy = 40 + (h[i * 4 + 1] / 255) * 320
+        r = 60 + (h[i * 4 + 2] / 255) * 140
+        fill = accent if i % 2 == 0 else accent_soft
+        circles.append(f'  <circle cx="{cx:.0f}" cy="{cy:.0f}" r="{r:.0f}" fill="{_esc(fill)}"/>')
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" '
+        'preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">\n'
+        f'  <g opacity="{group_opacity:.3f}">\n'
+        + "\n".join(circles) + "\n"
+        '  </g>\n'
+        '</svg>\n'
+    )
+
+
 # =============================================================================
 # Public entry point
 # =============================================================================
@@ -1321,6 +1412,12 @@ def generate_site(facts: Any, out_dir: str | Path) -> Any:
     (out / "assets").mkdir(parents=True, exist_ok=True)
     (out / "assets" / "logo.svg").write_text(_logo_svg(f.business_name, theme.palette), encoding="utf-8")
     written.append("assets/logo.svg")
+    # Site Generator Slice 3: a real, licensing-free hero-background
+    # pattern in the site's own theme colors -- see _hero_bg_svg()'s own
+    # docstring for why this isn't (and isn't trying to be) a photograph.
+    (out / "assets" / "hero-bg.svg").write_text(
+        _hero_bg_svg(design_engine.compute_seed(f), theme.palette), encoding="utf-8")
+    written.append("assets/hero-bg.svg")
 
     # Machine files
     (out / "robots.txt").write_text(_build_robots(f, base), encoding="utf-8")

@@ -51,7 +51,11 @@ CSS_BASE = """
   .tl-call:hover{background:var(--accent-dark);color:#fff !important;text-decoration:none}
   @media(max-width:720px){nav.primary a:not(.tl-call){display:none}}
 
-  .hero{padding:64px 0 48px;text-align:center}
+  /* 2026-08-21, Site Generator Slice 3: real, licensing-free hero
+     background (site_engine.py's _hero_bg_svg), composited at a single
+     group-level opacity (0.015-0.020) verified across all 20 real palettes
+     to keep var(--ink)/var(--muted) text clear of the 4.5:1 AA floor. */
+  .hero{padding:64px 0 48px;text-align:center;background-image:url('assets/hero-bg.svg');background-size:cover;background-position:center;background-repeat:no-repeat}
   .hero h1{font-size:clamp(30px,4.8vw,48px);font-family:var(--disp);max-width:18ch;margin:0 auto}
   .hero .lede{color:var(--muted);font-size:19px;max-width:52ch;margin:16px auto 0}
 

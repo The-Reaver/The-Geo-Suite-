@@ -22,7 +22,18 @@ CSS_BASE = """
   header.nav nav{display:flex;gap:30px;align-items:center}
   header.nav nav a{color:var(--muted);font-size:15px;font-weight:500;}
 
-  .hero{position:relative;background:var(--dark);color:#fff;padding:150px 0 110px;text-align:center;}
+  /* 2026-08-21, Site Generator Slice 3: real, licensing-free hero
+     background pattern layered on top of the existing solid --dark fill
+     (site_engine.py's _hero_bg_svg) -- split from the old `background`
+     shorthand into background-color/background-image so both coexist.
+     Composited at a single group-level opacity (0.015-0.020, see
+     _hero_bg_svg's own docstring for why group opacity is what makes
+     this a real, verified guarantee rather than a per-shape one) --
+     Opus 5 review measured this template's real worst-case contrast with
+     the pattern applied at >=9.97:1 for the white h1 and >=7.87:1 for
+     .hero .rating, both comfortably clear of the white-on-dark floor this
+     template already relied on. */
+  .hero{position:relative;background-color:var(--dark);background-image:url('assets/hero-bg.svg');background-size:cover;background-position:center;background-repeat:no-repeat;color:#fff;padding:150px 0 110px;text-align:center;}
   .hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(44px,7vw,84px);letter-spacing:-.02em;line-height:1.02}
   .hero .rating{display:inline-flex;align-items:center;gap:9px;color:rgba(255,255,255,.82);font-size:15px;margin-top:28px}
   .hero .stars{color:var(--gold);letter-spacing:3px;font-size:18px}

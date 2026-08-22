@@ -57,6 +57,14 @@ CSS_BASE = """
   .layout{display:grid;grid-template-columns:1fr 320px;gap:52px;padding:56px 0}
   @media(max-width:900px){.layout{grid-template-columns:1fr}}
 
+  /* 2026-08-21, Site Generator Slice 3: real, licensing-free hero
+     background (site_engine.py's _hero_bg_svg), composited at a single
+     group-level opacity (0.015-0.020) verified across all 20 real palettes
+     to keep var(--ink)/var(--muted) text clear of the 4.5:1 AA floor.
+     No prior block-level hero rule existed in this template (only h1/
+     .lede descendant rules) -- this is a genuinely new rule, not an edit
+     to an existing one. */
+  .hero{background-image:url('assets/hero-bg.svg');background-size:cover;background-position:center;background-repeat:no-repeat}
   .hero h1{font-size:clamp(32px,4.6vw,46px);font-family:var(--disp);max-width:18ch}
   .hero .lede{color:var(--muted);font-size:19px;max-width:52ch;margin-top:16px}
 

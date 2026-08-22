@@ -25,7 +25,14 @@ CSS_BASE = """
   .cta{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff !important;padding:11px 20px;border-radius:12px;font-weight:600;font-size:15px;min-height:44px;box-shadow:var(--shadow-sm)}
   @media(max-width:820px){nav.primary a:not(.cta){display:none}}
 
-  .hero-in{position:relative;overflow:hidden;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:80px 0 70px}
+  /* 2026-08-21, Site Generator Slice 3: real, licensing-free hero
+     background (site_engine.py's _hero_bg_svg), composited at a single
+     group-level opacity (0.015-0.020) verified across all 20 real palettes
+     to keep var(--ink)/var(--muted) text clear of the 4.5:1 AA floor.
+     The .visual panel's own opaque
+     gradient sits on top of it in the right column, so this only shows
+     through behind the text column, not competing with .visual. */
+  .hero-in{position:relative;overflow:hidden;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:80px 0 70px;background-image:url('assets/hero-bg.svg');background-size:cover;background-position:center;background-repeat:no-repeat}
   h1{font-size:clamp(40px,5.6vw,62px);margin:24px 0 0;max-width:15ch;font-family:var(--disp);}
 
   .visual{position:relative;height:420px;border-radius:26px;background:var(--grad);box-shadow:var(--shadow-lg);overflow:hidden}

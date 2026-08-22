@@ -46,7 +46,15 @@ CSS_BASE = """
   .call-btn:hover{background:var(--accent-dark);color:#fff !important;text-decoration:none}
   @media(max-width:720px){nav.primary a:not(.call-btn){display:none}}
   
-  .hero{padding:76px 0 56px}
+  /* 2026-08-21, Site Generator Slice 3: a real, licensing-free hero
+     background pattern (site_engine.py's _hero_bg_svg) -- see its own
+     docstring for why this isn't (and isn't trying to be) a photograph.
+     Composited at a single group-level opacity (0.015-0.020), verified
+     across all 20 real palettes to keep var(--ink)/var(--muted) text
+     clear of the 4.5:1 AA floor -- see _hero_bg_svg's own docstring for
+     why group opacity (not per-shape opacity) is what makes that
+     guarantee real. */
+  .hero{padding:76px 0 56px;background-image:url('assets/hero-bg.svg');background-size:cover;background-position:center;background-repeat:no-repeat}
   .eyebrow{display:inline-block;background:var(--accent-soft);color:var(--accent-dark);font-size:13px;font-weight:600;letter-spacing:.02em;padding:6px 13px;border-radius:999px;margin-bottom:22px}
   .hero h1{font-size:clamp(34px,5vw,52px);max-width:16ch;font-family:var(--disp);}
   .hero p.lede{font-size:20px;color:var(--muted);max-width:52ch;margin:20px 0 0}

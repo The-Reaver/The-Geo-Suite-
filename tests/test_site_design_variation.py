@@ -1110,6 +1110,252 @@ def test_new_c3_templates_pass_the_real_audit_gate():
     _assert_templates_pass_real_audit_gate({"Framed Gallery": "Restaurant", "Directory Listing": "Plumber"})
 
 
+# 2026-08-21, Site Generator Slice 3: real, licensing-free hero-background
+# pattern wired into 7 of the 9 templates -- deliberately skipped for
+# Boutique Editorial (narrow single-column magazine layout, no full-bleed
+# hero box to put a background image behind) and Compact Utility (its own
+# documented design intent is zero accent-color background fill anywhere,
+# "safe by construction" -- a decorative pattern would contradict that).
+_HERO_BG_WIRED_TEMPLATES = {
+    "Editorial Minimal": "Dentist", "Split Modern": "Plumber", "Bold Cinematic": "Electrician",
+    "Trust Panel": "Attorney", "Framed Gallery": "Restaurant", "Directory Listing": "HVACBusiness",
+    "Timeline Flow": "Dentist",
+}
+_HERO_BG_SKIPPED_TEMPLATES = {"Boutique Editorial": "Hair Salon", "Compact Utility": "GeneralContractor"}
+
+
+def _find_facts_for_template(target, subtype):
+    for i in range(200):
+        f = _F(
+            business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype,
+            locality="Austin", region="TX", postal_code="78701", country="US",
+            telephone="555-0100", street="123 Main St",
+            services=[types.SimpleNamespace(name="Great service", description="We do it well.")],
+            service_areas=["Austin"], same_as=["https://g.page/example"],
+            hours=["Mon-Fri 8:00-17:00"], faqs=[], credentials=["Licensed"],
+            last_updated="2026-07-25", tagline="Quality service",
+            rating=types.SimpleNamespace(value=4.9, count=218),
+        )
+        if engine.select_theme(f).template.name == target:
+            return f
+    return None
+
+
+def _hero_selector_and_rule(css: str, template_name: str) -> tuple:
+    """Finds the real .hero/.hero-in RULE BLOCK a template's own CSS
+    declares -- not just whether some CSS text substring floats anywhere
+    in the stylesheet. Returns (selector, rule_body) or (None, None).
+
+    2026-08-21, Opus 5 review of the first version of this slice's tests:
+    mutation-proven broken. Renaming a template's real selector to
+    `.hero-DEADSELECTOR` (so the background rule matches nothing in the
+    actual rendered markup) still left the old test green, because it
+    only checked whether the marker STRING appeared anywhere in the
+    `<style>` block -- exactly the "CSS rule matches nothing real" defect
+    class this session has already found and fixed at least 4 times
+    elsewhere (footer/FAQ/lede/menu-price). This helper instead parses
+    real selector -> declaration-block pairs (same technique the
+    generalized WCAG scanner elsewhere in this file already uses for the
+    identical reason) so a test can assert the background rule lives
+    inside the selector that's actually used in the rendered HTML.
+
+    2026-08-21, Opus 5 review round 2: the first version of this helper
+    did its own regex directly against the raw CSS, comments included --
+    mutation-proven still broken. Deleting the real background rule but
+    leaving a comment that happens to quote the old rule text (a CSS
+    comment ships verbatim into the rendered <style> block, exactly the
+    same fact that caused the trust_panel.py collision this same slice
+    already found and fixed once) left the test green. Reuses the shared
+    _parse_css_rules() (comment-stripped) instead of re-deriving a second,
+    weaker parser -- the exact fix pattern this file already has on hand
+    for this defect class."""
+    selector = ".hero-in" if template_name == "Split Modern" else ".hero"
+    for raw_selector, body in _parse_css_rules(css):
+        if _selector_base(raw_selector) == selector and raw_selector.strip() == selector:
+            return selector, body
+    return None, None
+
+
+def test_hero_bg_asset_is_wired_into_the_7_templates_that_should_use_it():
+    marker = "background-image:url('assets/hero-bg.svg')"
+    for target, subtype in _HERO_BG_WIRED_TEMPLATES.items():
+        f = _find_facts_for_template(target, subtype)
+        assert f is not None, f"never found a seed landing on {target!r}"
+        with tempfile.TemporaryDirectory() as tmp:
+            generate_site(f, tmp)
+            assert os.path.exists(os.path.join(tmp, "assets", "hero-bg.svg")), \
+                f"{target}: hero-bg.svg asset was not written"
+            index = open(os.path.join(tmp, "index.html"), encoding="utf-8").read()
+            # The real selector must exist in this page's own CSS AND
+            # actually be present in the rendered body markup (proves the
+            # rule matches something real, not a dead/renamed selector).
+            selector, rule = _hero_selector_and_rule(index, target)
+            assert selector is not None, f"{target}: no real {selector!r} rule found in this page's own CSS at all"
+            assert marker in rule, f"{target}: {selector!r} rule exists but doesn't declare the hero-bg background"
+            body_class = selector.lstrip(".")
+            assert f'class="{body_class}"' in index or f'class="wrap {body_class}"' in index or f' {body_class}"' in index, \
+                f"{target}: {selector!r} is declared in CSS but that class never appears in the rendered body"
+
+
+def test_hero_bg_is_not_wired_into_the_2_templates_that_deliberately_skip_it():
+    marker = "background-image:url('assets/hero-bg.svg')"
+    for target, subtype in _HERO_BG_SKIPPED_TEMPLATES.items():
+        f = _find_facts_for_template(target, subtype)
+        assert f is not None, f"never found a seed landing on {target!r}"
+        with tempfile.TemporaryDirectory() as tmp:
+            generate_site(f, tmp)
+            index = open(os.path.join(tmp, "index.html"), encoding="utf-8").read()
+            assert marker not in index, \
+                f"{target}: this template deliberately doesn't use the hero background -- CSS marker should not appear"
+            # The asset is still written unconditionally for every site (a
+            # real, deterministic file, not a stub) even if this template's
+            # own CSS doesn't reference it.
+            assert os.path.exists(os.path.join(tmp, "assets", "hero-bg.svg"))
+
+
+def test_hero_bg_actually_differs_between_two_real_generated_businesses():
+    # 2026-08-21, Opus 5 review: mutation-proven the unit-level determinism
+    # test alone is not enough -- hardcoding compute_seed(f) to always
+    # return 0 (every real business gets byte-identical hero art) left the
+    # full 477-test suite green, because nothing exercised the real
+    # generate_site() -> compute_seed() -> _hero_bg_svg() path end to end.
+    # This is the same "anti-stub" guarantee already proven for logo.svg
+    # ("two different businesses get two different logos"), applied here.
+    dentist = _F(
+        business_name="Cedar Ridge Dental", domain="cedarridgedental.example", subtype="Dentist",
+        locality="Portland", region="OR", postal_code="97201", country="US",
+        telephone="555-0100", street="1200 Cedar Road",
+        services=[types.SimpleNamespace(name="Cleanings", description="Real cleanings.")],
+        service_areas=["Portland"], same_as=["https://g.page/example"],
+        hours=["Mon-Fri 8:00-17:00"], faqs=[], credentials=["ADA membership"],
+        last_updated="2026-07-25", tagline="Family dentistry",
+        rating=types.SimpleNamespace(value=4.9, count=218),
+    )
+    plumber = _F(
+        business_name="Saguaro Plumbing", domain="saguaroplumbing.example", subtype="Plumber",
+        locality="Tucson", region="AZ", postal_code="85701", country="US",
+        telephone="555-0199", street="55 Cactus Way",
+        services=[types.SimpleNamespace(name="Leak repair", description="Real leak repair.")],
+        service_areas=["Tucson"], same_as=["https://g.page/example2"],
+        hours=["Mon-Sat 7:00-19:00"], faqs=[], credentials=["Licensed"],
+        last_updated="2026-07-18", tagline="Trusted plumbing",
+        rating=types.SimpleNamespace(value=4.8, count=141),
+    )
+    with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
+        generate_site(dentist, d1)
+        generate_site(plumber, d2)
+        svg1 = open(os.path.join(d1, "assets", "hero-bg.svg"), encoding="utf-8").read()
+        svg2 = open(os.path.join(d2, "assets", "hero-bg.svg"), encoding="utf-8").read()
+        assert svg1 != svg2, "two different real businesses produced byte-identical hero backgrounds"
+        # 2026-08-21, self-caught while mutation-testing this very fix:
+        # pinning the seed passed into _hero_bg_svg to a constant (the
+        # exact mutation this test exists to catch) still left this
+        # assertion green, because theme.palette is computed by a
+        # SEPARATE call to compute_seed(f) inside select_theme() -- a
+        # dentist and a plumber land on different palette FAMILIES
+        # regardless of what seed _hero_bg_svg itself receives, so color
+        # alone made the two files differ even with the real bug present.
+        # Extracts the circle cx/cy/r values specifically (purely
+        # seed-derived layout, independent of which fill color the
+        # palette contributes) so this test can't be satisfied by color
+        # variation alone -- it has to prove the LAYOUT itself moved.
+        positions1 = re.findall(r'cx="(\d+)" cy="(\d+)" r="(\d+)"', svg1)
+        positions2 = re.findall(r'cx="(\d+)" cy="(\d+)" r="(\d+)"', svg2)
+        assert positions1 and positions2, "expected real circle positions in both generated patterns"
+        assert positions1 != positions2, \
+            "two different real businesses produced the same circle layout -- only color varied, seed is not reaching the layout"
+
+
+def test_hero_bg_svg_is_deterministic_and_varies_between_businesses():
+    from app.services.site_engine import _hero_bg_svg
+    p = palettes.PALETTES[0]
+    a = _hero_bg_svg(12345, p)
+    b = _hero_bg_svg(12345, p)
+    c = _hero_bg_svg(99999, p)
+    assert a == b, "same seed must produce the same pattern"
+    assert a != c, "different seeds must produce different patterns"
+    import xml.etree.ElementTree as ET
+    ET.fromstring(a)  # real, well-formed XML, not just a string that looks like SVG
+
+
+def test_hero_bg_uses_one_group_opacity_not_per_shape_opacity():
+    # 2026-08-21, Opus 5 review: per-shape opacity composites additively
+    # where circles overlap (1-(1-a)^N for N same-colored layers), so
+    # "each shape is faint" does NOT mean "the pattern is faint" -- a real
+    # generated site (Dentist -> Timeline Flow + Mint) hit an effective
+    # ~0.35 alpha from 3 overlapping circles and dropped .hero .lede
+    # (var(--muted) on the composited background) to 4.458:1, below the
+    # real AA floor. Fixed architecturally: every circle is fully opaque,
+    # and ONE <g opacity="..."> wraps the whole pattern -- group opacity is
+    # a single post-composite fade, so the maximum effective opacity
+    # anywhere in the pattern is exactly the group's own value, regardless
+    # of circle count or overlap. This test locks in the MECHANISM (no
+    # per-shape opacity survives), not just the value range -- a
+    # regression back to per-shape opacity would fail this even if it
+    # happened to pick "safe-looking" individual numbers.
+    from app.services.site_engine import _hero_bg_svg, _HERO_BG_MIN_GROUP_OPACITY, _HERO_BG_MAX_GROUP_OPACITY
+    for seed in range(30):
+        svg = _hero_bg_svg(seed, palettes.PALETTES[0])
+        assert "<circle" in svg, f"seed {seed}: expected real <circle> elements in the generated SVG"
+        # No circle element carries its own opacity attribute -- that's
+        # the actual mechanism fix, not just a value-range coincidence.
+        for circle_tag in re.findall(r"<circle[^/]*/>", svg):
+            assert "opacity=" not in circle_tag, f"seed {seed}: a <circle> still carries its own opacity: {circle_tag!r}"
+        group_opacities = [float(x) for x in re.findall(r'<g opacity="([\d.]+)"', svg)]
+        assert len(group_opacities) == 1, f"seed {seed}: expected exactly one group-level opacity, found {group_opacities}"
+        go = group_opacities[0]
+        assert _HERO_BG_MIN_GROUP_OPACITY <= go <= _HERO_BG_MAX_GROUP_OPACITY, \
+            f"seed {seed}: group opacity {go} outside the verified-safe range"
+
+
+def test_hero_bg_composited_contrast_clears_wcag_aa_on_every_real_palette():
+    # 2026-08-21: the real, load-bearing safety test. Computes the ACTUAL
+    # alpha-composited background color (bg mixed with accent/accent_soft
+    # at the group opacity) using the same source-over compositing math
+    # browsers use, then checks real contrast_ratio() (the same function
+    # palettes.assert_wcag() itself uses) for text colors that actually
+    # render inside a hero-bg-wired hero (var(--ink) for h1, var(--muted)
+    # for .lede/rating text, and var(--gold) for the star-rating glyphs)
+    # against that composited background, across all 20 real palettes, at
+    # BOTH ends of the real opacity range this generator can produce.
+    #
+    # 2026-08-21, Opus 5 review round 2: the first version of this test
+    # only checked ink/muted -- gold was reasoned out of scope because
+    # several palettes already fail gold/bg at baseline (zero pattern
+    # involved) and this test's job was never to fix a pre-existing gap.
+    # That reasoning stopped short: 13 of 20 palettes DO clear 4.5:1 on
+    # gold/bg at baseline, and the pattern was regressing every one of
+    # them below 4.5 (reachable in 32 real template/palette pairs).
+    # Checking gold ONLY where a palette's own baseline (zero pattern)
+    # already clears 4.5:1 is the right scope: it holds this slice to not
+    # making anything WORSE than it already was, without asserting a bar
+    # (gold/bg >= 4.5 universally) this codebase has never actually held
+    # and that isn't this slice's defect to fix.
+    from app.services.site_engine import _HERO_BG_MIN_GROUP_OPACITY, _HERO_BG_MAX_GROUP_OPACITY
+
+    def _mix(bg_hex, fg_hex, alpha):
+        bg = tuple(int(bg_hex.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+        fg = tuple(int(fg_hex.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+        out = tuple(round(bg[c] * (1 - alpha) + fg[c] * alpha) for c in range(3))
+        return "#%02X%02X%02X" % out
+
+    baseline_gold_pass = {p.name for p in palettes.PALETTES if palettes.contrast_ratio(p.gold, p.bg) >= 4.5}
+
+    failures = []
+    for p in palettes.PALETTES:
+        for opacity in (_HERO_BG_MIN_GROUP_OPACITY, _HERO_BG_MAX_GROUP_OPACITY):
+            for fill in (p.accent, p.accent_soft):
+                composited_bg = _mix(p.bg, fill, opacity)
+                checks = [(p.ink, "ink"), (p.muted, "muted")]
+                if p.name in baseline_gold_pass:
+                    checks.append((p.gold, "gold"))
+                for text_color, label in checks:
+                    cr = palettes.contrast_ratio(text_color, composited_bg)
+                    if cr < 4.5:
+                        failures.append(f"{p.name}/{label} on {fill} @ {opacity}: {cr:.3f}")
+    assert not failures, "real WCAG AA violations from the hero background pattern: " + "; ".join(failures)
+
+
 # 2026-08-21, Slice C.4: same guarantee for the third batch of new
 # templates.
 def test_new_c4_templates_pass_the_real_audit_gate():
