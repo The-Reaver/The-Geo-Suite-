@@ -323,6 +323,87 @@ export type SaveToPipelineResult = {
  * both are surfaced, not collapsed into a generic error, same honesty
  * pattern as auditSite/saveLead above.
  */
+export type GenerateSitePreviewResult = {
+  ok: boolean;
+  previewUrl: string | null;
+  reason: string;
+};
+
+/**
+ * Site Generator, Slice D: an in-app preview instead of a raw new-tab
+ * navigation. Mirrors the exact real-facts-vs-illustrative-fallback logic
+ * `app/nova/site-generator/route.ts` already implements (kept as-is for
+ * the still-useful "open in a new tab" fallback) -- but returns the real
+ * preview_url as JSON instead of issuing a redirect, so NovaShell can show
+ * a real pending state (matching auditSite/saveLead/saveToPipeline above)
+ * and render the result in an iframe without ever leaving Nova.
+ *
+ * `businessName` absent means no real audited prospect is in context (a
+ * bare click, or a Presenter Mode step) -- falls back to
+ * POST /sales/site-generator-example (the illustrative fixture), same
+ * honest degrade the route-based version already used.
+ */
+export async function generateSitePreview(params: {
+  businessName?: string;
+  domain?: string;
+  street?: string;
+  locality?: string;
+  region?: string;
+  postalCode?: string;
+  telephone?: string;
+  ratingValue?: number;
+  ratingCount?: number;
+}): Promise<GenerateSitePreviewResult> {
+  const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supaKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supaUrl || !supaKey) return { ok: false, previewUrl: null, reason: "supabase-not-configured" };
+
+  try {
+    const cookieStore = cookies();
+    const supabase = createServerClient(supaUrl, supaKey, {
+      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+    });
+    const { data: sessionData, error } = await supabase.auth.getSession();
+    if (error || !sessionData.session) return { ok: false, previewUrl: null, reason: "not-signed-in" };
+
+    const endpoint = params.businessName ? "/sales/preview" : "/sales/site-generator-example";
+    let body: Record<string, unknown> | undefined;
+    if (params.businessName) {
+      const facts: Record<string, unknown> = { business_name: params.businessName };
+      if (params.domain) facts.domain = params.domain;
+      if (params.street) facts.street = params.street;
+      if (params.locality) facts.locality = params.locality;
+      if (params.region) facts.region = params.region;
+      if (params.postalCode) facts.postal_code = params.postalCode;
+      if (params.telephone) facts.telephone = params.telephone;
+      if (params.ratingValue != null) {
+        facts.rating = { value: params.ratingValue, count: params.ratingCount ?? 0 };
+      }
+      body = facts;
+    }
+
+    const res = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      return { ok: false, previewUrl: null, reason: `backend-${res.status}${detail ? `: ${detail}` : ""}` };
+    }
+    const data = await res.json().catch(() => null);
+    if (!data?.preview_url) return { ok: false, previewUrl: null, reason: "no-preview-url" };
+    return { ok: true, previewUrl: data.preview_url, reason: "ok" };
+  } catch (err) {
+    return { ok: false, previewUrl: null, reason: isTimeoutError(err) ? "timeout" : "unreachable" };
+  }
+}
+
 export async function saveToPipeline(params: {
   siteId: string;
   businessName: string;

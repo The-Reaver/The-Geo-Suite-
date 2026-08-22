@@ -1200,3 +1200,34 @@ code {
 @media (max-width: 980px) {
   .nova-app { grid-template-columns: 1fr; } .nova-app aside { display: none; }
 }
+
+/* Site Generator, Slice D: in-app preview modal, replacing the raw-HTML
+   new-tab flow. Fixed overlay above the whole shell (z-index above every
+   other z-indexed element in this file, none of which exceed 50) -- a
+   click on the dimmed backdrop closes it, matching standard modal
+   convention; a click inside the panel itself is stopped from bubbling to
+   that same handler in NovaShell.tsx. */
+.nova-app .nv-preview-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(25, 27, 29, 0.62);
+  display: flex; align-items: center; justify-content: center; padding: 28px;
+}
+.nova-app .nv-preview-panel {
+  width: 100%; height: 100%; max-width: 1180px;
+  background: var(--nv-surface); border-radius: 10px; box-shadow: var(--nv-shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.nova-app .nv-preview-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--nv-line);
+  font-size: 12.5px; font-weight: 600; color: var(--nv-text2); flex: none;
+}
+.nova-app .nv-preview-actions { display: flex; align-items: center; gap: 16px; }
+.nova-app .nv-preview-actions a { color: var(--nv-accent); font-weight: 600; text-decoration: none; }
+.nova-app .nv-preview-actions a:hover { text-decoration: underline; }
+.nova-app .nv-preview-actions button {
+  background: none; border: none; cursor: pointer; font: inherit; font-weight: 600;
+  color: var(--nv-text2); padding: 2px 4px;
+}
+.nova-app .nv-preview-actions button:hover { color: var(--nv-text); }
+.nova-app .nv-preview-frame { flex: 1; width: 100%; border: none; background: #fff; }

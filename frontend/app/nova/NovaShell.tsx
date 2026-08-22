@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
-import { discoverProspects, auditSite, saveLead, saveToPipeline, type DiscoverResult, type ProspectRow } from "./actions";
+import { discoverProspects, auditSite, saveLead, saveToPipeline, generateSitePreview, type DiscoverResult, type ProspectRow } from "./actions";
 import { syncForTheField, drainOutbox } from "./lib/fieldSync";
 import { getBrowserAccessToken } from "./lib/supabaseBrowser";
 import { fetchPricingTiers, type PricingTier } from "./lib/pricing";
@@ -171,6 +171,13 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   const [pipelineResult, setPipelineResult] = useState<
     { ok: true; score: number | null } | { ok: false; score: number | null; reason: string; fixList?: string[] } | null
   >(null);
+  // Site Generator, Slice D: an in-app preview replacing the raw-HTML
+  // new-tab flow. generatingSite guards the nav item against a double
+  // click (mirrors savingLead/savingToPipeline above); sitePreviewUrl
+  // being non-null is what opens the modal -- there is no separate
+  // "showPreview" boolean to keep in sync with it.
+  const [generatingSite, setGeneratingSite] = useState(false);
+  const [sitePreviewUrl, setSitePreviewUrl] = useState<string | null>(null);
   // Presenter Mode state — see PRESENTER_SCRIPT above.
   const [presenting, setPresenting] = useState(false);
   const [presentIdx, setPresentIdx] = useState(0);
@@ -364,6 +371,44 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     });
   }
 
+  // Site Generator, Slice D: replaces the old raw-HTML new-tab navigation
+  // (a plain <a href> that used to encode this same logic into a query
+  // string for site-generator/route.ts) with an in-app call that opens
+  // the result in a modal, so a rep never leaves Nova mid-demo and gets a
+  // real pending state instead of a blank native spinner tab. hero.url
+  // gates which path runs, same as the old href logic always did: a real
+  // auditRow() result sends this prospect's own facts; the fixed opening
+  // state or a Presenter Mode step (hero.url unset) falls back to the
+  // illustrative fixture, unchanged behavior from before this slice.
+  function generateSitePreviewAction() {
+    if (generatingSite) return;
+    setGeneratingSite(true);
+    setActionError(null);
+    startTransition(async () => {
+      const result = await generateSitePreview(
+        hero.url
+          ? {
+              businessName: hero.name,
+              domain: hero.domain || hero.url.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+              street: hero.street,
+              locality: hero.locality,
+              region: hero.region,
+              postalCode: hero.postalCode,
+              telephone: hero.telephone,
+              ratingValue: hero.ratingValue,
+              ratingCount: hero.ratingCount,
+            }
+          : {}
+      );
+      setGeneratingSite(false);
+      if (result.ok && result.previewUrl) {
+        setSitePreviewUrl(result.previewUrl);
+      } else {
+        setActionError(AUDIT_REASONS[result.reason] ?? `Couldn't generate the site (${result.reason}). Try again.`);
+      }
+    });
+  }
+
   // Exit-to-safety: Amaya/Celestina (Brain Trust, 2026-08-09) both flagged
   // that nothing in the shell could reset a demo that had gone sideways —
   // a stuck audit, a bad search, a wrong hero row. This returns every piece
@@ -478,30 +523,6 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   const heroScore = Math.min(100, Math.max(0, hero.score));
   const gaugeOffset = GAUGE_C * (1 - heroScore / 100);
   const belowGate = hero.score < 93;
-
-  // 2026-08-20: Site Generator used to always open the illustrative fixture,
-  // even with a real, just-audited prospect on screen -- the demo's most
-  // visible "wait, that's not the business we just looked at" moment.
-  // hero.url only gets set by a real auditRow() call (or a loaded/cached
-  // real prospect), never by the fixed opening state or a Presenter Mode
-  // step, so gating on it here means those two stay on the guaranteed-good
-  // illustrative fallback exactly as before -- only a genuinely audited
-  // prospect gets its own real facts sent through.
-  const siteGeneratorHref = (() => {
-    if (!hero.url) return "/nova/site-generator";
-    const domain = hero.domain || hero.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    const params = new URLSearchParams();
-    params.set("businessName", hero.name);
-    if (domain) params.set("domain", domain);
-    if (hero.street) params.set("street", hero.street);
-    if (hero.locality) params.set("locality", hero.locality);
-    if (hero.region) params.set("region", hero.region);
-    if (hero.postalCode) params.set("postalCode", hero.postalCode);
-    if (hero.telephone) params.set("telephone", hero.telephone);
-    if (hero.ratingValue != null) params.set("ratingValue", String(hero.ratingValue));
-    if (hero.ratingCount != null) params.set("ratingCount", String(hero.ratingCount));
-    return `/nova/site-generator?${params.toString()}`;
-  })();
 
   // Restore Focus Mode so a demo opens where the operator left it.
   useEffect(() => {
@@ -757,14 +778,23 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
               summary about it.
               2026-08-20: was always calling the illustrative-example route
               regardless of what was on screen -- the demo's most visible
-              "that's not the business we just audited" moment. siteGeneratorHref
-              (above) now carries the real audited prospect's facts as query
-              params when one is selected; route.ts posts those to the real
-              /sales/preview endpoint instead, falling back to the
-              illustrative fixture only when no real prospect is in context. */}
-          <a className="nv-item" href={siteGeneratorHref} target="_blank" rel="noreferrer">
-            <Icon d="M9 12l2 2 4-4" extra="M12 3a9 9 0 100 18 9 9 0 000-18" />Site Generator <span className="nv-tag">Live</span>
-          </a>
+              "that's not the business we just audited" moment. Fixed by
+              carrying the real audited prospect's facts through when one is
+              selected, falling back to the illustrative fixture otherwise.
+              2026-08-22, Slice D: the raw-new-tab <a href> that used to do
+              this via query params + a redirect is gone -- see
+              generateSitePreviewAction() above, which now calls the backend
+              in-app and opens the result in the preview modal below. */}
+          <button
+            className="nv-item"
+            style={{ width: "100%", background: "none", border: "none", textAlign: "left", cursor: generatingSite ? "wait" : "pointer" }}
+            onClick={generateSitePreviewAction}
+            disabled={generatingSite}
+            type="button"
+          >
+            <Icon d="M9 12l2 2 4-4" extra="M12 3a9 9 0 100 18 9 9 0 000-18" />
+            {generatingSite ? "Generating…" : "Site Generator"} <span className="nv-tag">Live</span>
+          </button>
           <div className="nv-item soon" aria-disabled="true"><Icon d="M6 3h9l5 5v13H6z" extra="M9 13h7M9 17h7" />Reports <span className="nv-soon">Soon</span></div>
           <div className="nv-sec">Sales Floor</div>
           <div className="nv-item active"><Icon d="M18 18l-4-4" extra="M4 11a7 7 0 1014 0 7 7 0 00-14 0" />Prospecting <span className="nv-tag">Live</span></div>
@@ -1155,6 +1185,26 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
           </div>
         </div>
       </main>
+      {sitePreviewUrl ? (
+        <div
+          className="nv-preview-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Generated site preview"
+          onClick={() => setSitePreviewUrl(null)}
+        >
+          <div className="nv-preview-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="nv-preview-bar">
+              <span>Site Generator preview</span>
+              <div className="nv-preview-actions">
+                <a href={sitePreviewUrl} target="_blank" rel="noreferrer">Open in new tab ↗</a>
+                <button type="button" onClick={() => setSitePreviewUrl(null)}>Close ✕</button>
+              </div>
+            </div>
+            <iframe src={sitePreviewUrl} title="Generated site preview" className="nv-preview-frame" />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
