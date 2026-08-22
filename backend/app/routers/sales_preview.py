@@ -447,8 +447,9 @@ async def site_generator_example(
     `faqs`, so a rep with an already-audited prospect selected should call
     `/preview` with that prospect's real facts instead and get their actual
     generated site, not this fixture — the frontend picks between the two
-    (see frontend/app/nova/site-generator/route.ts). This route stays as the
-    guaranteed-good path for when no real prospect is in context yet."""
+    (see frontend/app/nova/actions.ts::generateSitePreview, 2026-08-22).
+    This route stays as the guaranteed-good path for when no real prospect
+    is in context yet."""
     from app.services.reporting.sales_kit import ILLUSTRATIVE_HBOT_EXAMPLE
     from app.services.site_engine import generate_site
 

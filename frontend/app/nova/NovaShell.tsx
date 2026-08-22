@@ -16,7 +16,7 @@
  * delete their [data-accent="..."] blocks in globals.css.
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { discoverProspects, auditSite, saveLead, saveToPipeline, generateSitePreview, type DiscoverResult, type ProspectRow } from "./actions";
 import { syncForTheField, drainOutbox } from "./lib/fieldSync";
 import { getBrowserAccessToken } from "./lib/supabaseBrowser";
@@ -178,6 +178,15 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   // "showPreview" boolean to keep in sync with it.
   const [generatingSite, setGeneratingSite] = useState(false);
   const [sitePreviewUrl, setSitePreviewUrl] = useState<string | null>(null);
+  // 2026-08-22, Opus 5 review finding 6: the shared actionError banner
+  // renders far from the sidebar, inside <main>'s own separately-scrolled
+  // column -- a rep could click Site Generator, wait, and see nothing at
+  // all if main happened to be scrolled away from that spot. This error
+  // renders directly under the button instead, same reasoning
+  // pipelineResult already gets its own inline spot near its button.
+  const [siteGenError, setSiteGenError] = useState<string | null>(null);
+  const sitePreviewPanelRef = useRef<HTMLDivElement | null>(null);
+  const siteGenButtonRef = useRef<HTMLButtonElement | null>(null);
   // Presenter Mode state — see PRESENTER_SCRIPT above.
   const [presenting, setPresenting] = useState(false);
   const [presentIdx, setPresentIdx] = useState(0);
@@ -371,6 +380,25 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     });
   }
 
+  // Site-generator-specific failure copy, separate from AUDIT_REASONS --
+  // 2026-08-22, Opus 5 review finding 5a: this action isn't an audit, and
+  // AUDIT_REASONS' strings ("...run a live audit", "...audit engine")
+  // actively mislabeled a site-generation failure. Keys that overlap with
+  // AUDIT_REASONS intentionally use different, action-accurate wording.
+  const SITE_GEN_REASONS: Record<string, string> = {
+    "not-signed-in": "Your session expired. Sign in again to run the Site Generator.",
+    "supabase-not-configured": "The Site Generator isn't configured in this environment.",
+    unreachable: "The Site Generator service is unreachable right now.",
+    offline: "You're offline. The Site Generator needs a connection to run.",
+    timeout: "Generating the site is taking too long — try again.",
+    "no-preview-url": "The generator ran but returned no preview link.",
+    "bad-preview-url": "The generator returned an invalid preview link.",
+    "bad-preview-origin": "The generator returned a preview link from an unexpected source.",
+  };
+  function siteGenMessage(reason: string): string {
+    return SITE_GEN_REASONS[reason] ?? `Couldn't generate the site (${reason}). Try again.`;
+  }
+
   // Site Generator, Slice D: replaces the old raw-HTML new-tab navigation
   // (a plain <a href> that used to encode this same logic into a query
   // string for site-generator/route.ts) with an in-app call that opens
@@ -380,31 +408,51 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   // auditRow() result sends this prospect's own facts; the fixed opening
   // state or a Presenter Mode step (hero.url unset) falls back to the
   // illustrative fixture, unchanged behavior from before this slice.
+  //
+  // 2026-08-22, Opus 5 review, findings 3+5: this is the one network
+  // action with no precondition at all (runSearch/auditRow refuse
+  // offline; saveLeadAsProspect/saveToPipelineAction both require real
+  // hero data first) -- so it's the one action a rep can fire with zero
+  // signal, and offline is exactly where a stuck "Generating..." button
+  // was reachable (generateSitePreview()'s own try/catch only guards its
+  // body; the call itself is a Next Server Action round-trip that can
+  // reject on a dropped connection or a mid-demo redeploy, and
+  // startTransition does not await/catch that rejection). Both closed:
+  // the isOnline guard below, and try/finally around the transition body.
   function generateSitePreviewAction() {
     if (generatingSite) return;
+    if (!isOnline) {
+      setSiteGenError(siteGenMessage("offline"));
+      return;
+    }
     setGeneratingSite(true);
-    setActionError(null);
+    setSiteGenError(null);
     startTransition(async () => {
-      const result = await generateSitePreview(
-        hero.url
-          ? {
-              businessName: hero.name,
-              domain: hero.domain || hero.url.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
-              street: hero.street,
-              locality: hero.locality,
-              region: hero.region,
-              postalCode: hero.postalCode,
-              telephone: hero.telephone,
-              ratingValue: hero.ratingValue,
-              ratingCount: hero.ratingCount,
-            }
-          : {}
-      );
-      setGeneratingSite(false);
-      if (result.ok && result.previewUrl) {
-        setSitePreviewUrl(result.previewUrl);
-      } else {
-        setActionError(AUDIT_REASONS[result.reason] ?? `Couldn't generate the site (${result.reason}). Try again.`);
+      try {
+        const result = await generateSitePreview(
+          hero.url
+            ? {
+                businessName: hero.name,
+                domain: hero.domain || hero.url.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+                street: hero.street,
+                locality: hero.locality,
+                region: hero.region,
+                postalCode: hero.postalCode,
+                telephone: hero.telephone,
+                ratingValue: hero.ratingValue,
+                ratingCount: hero.ratingCount,
+              }
+            : {}
+        );
+        if (result.ok && result.previewUrl) {
+          setSitePreviewUrl(result.previewUrl);
+        } else {
+          setSiteGenError(siteGenMessage(result.reason));
+        }
+      } catch {
+        setSiteGenError(siteGenMessage("unreachable"));
+      } finally {
+        setGeneratingSite(false);
       }
     });
   }
@@ -425,6 +473,14 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     setPresenting(false);
     setPresentIdx(0);
     setShowFix(false);
+    // 2026-08-22, Opus 5 review finding 4: exit-to-safety is supposed to
+    // recover a demo that's gone sideways, but couldn't clear a Site
+    // Generator preview left open or a permanently-stuck "Generating..."
+    // button (the offline race the isOnline guard above now prevents
+    // going forward, but this is the actual recovery path for it too).
+    setGeneratingSite(false);
+    setSitePreviewUrl(null);
+    setSiteGenError(null);
   }
 
   function applyPresenterStep(i: number) {
@@ -463,6 +519,20 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
     });
   }
 
+  // Site Generator preview modal, focus management — 2026-08-22, Opus 5
+  // review finding 7: originally moved neither focus into the dialog nor
+  // back on close, so a keyboard user tabbing after opening it landed
+  // back in the covered sidebar. Moves focus onto the dialog panel on
+  // open; restores it to the trigger button on close, matching standard
+  // dialog behavior.
+  useEffect(() => {
+    if (sitePreviewUrl) {
+      sitePreviewPanelRef.current?.focus();
+    } else {
+      siteGenButtonRef.current?.focus();
+    }
+  }, [sitePreviewUrl]);
+
   // Real session check, once on mount. Never throws on a missing/unconfigured
   // session -- getBrowserAccessToken() already returns null rather than
   // rejecting, matching every other honest-failure path in this file.
@@ -480,12 +550,18 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
 
   // Auto-advance timer — resets on every step change so a manual advance
   // (click/keypress, below) gets the doctor a full fresh interval too.
+  //
+  // 2026-08-22, Opus 5 review of the Site Generator preview modal: without
+  // this, the hero rewrote itself behind an open modal every
+  // PRESENTER_STEP_MS while a rep was looking at a generated site during a
+  // live presentation. Pausing while sitePreviewUrl is set, resuming a
+  // fresh interval once it closes.
   useEffect(() => {
-    if (!presenting) return;
+    if (!presenting || sitePreviewUrl) return;
     const t = setTimeout(advancePresenting, PRESENTER_STEP_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presenting, presentIdx]);
+  }, [presenting, presentIdx, sitePreviewUrl]);
 
   // Manual override — any click or keypress while presenting jumps forward
   // immediately, per the operator's 2026-08-16 ruling (auto-advance with a
@@ -786,6 +862,7 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
               generateSitePreviewAction() above, which now calls the backend
               in-app and opens the result in the preview modal below. */}
           <button
+            ref={siteGenButtonRef}
             className="nv-item"
             style={{ width: "100%", background: "none", border: "none", textAlign: "left", cursor: generatingSite ? "wait" : "pointer" }}
             onClick={generateSitePreviewAction}
@@ -795,6 +872,9 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
             <Icon d="M9 12l2 2 4-4" extra="M12 3a9 9 0 100 18 9 9 0 000-18" />
             {generatingSite ? "Generating…" : "Site Generator"} <span className="nv-tag">Live</span>
           </button>
+          {siteGenError ? (
+            <div className="nv-item-error" role="alert">{siteGenError}</div>
+          ) : null}
           <div className="nv-item soon" aria-disabled="true"><Icon d="M6 3h9l5 5v13H6z" extra="M9 13h7M9 17h7" />Reports <span className="nv-soon">Soon</span></div>
           <div className="nv-sec">Sales Floor</div>
           <div className="nv-item active"><Icon d="M18 18l-4-4" extra="M4 11a7 7 0 1014 0 7 7 0 00-14 0" />Prospecting <span className="nv-tag">Live</span></div>
@@ -1186,14 +1266,40 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
         </div>
       </main>
       {sitePreviewUrl ? (
+        // 2026-08-22, Opus 5 review, finding 7: three real bugs fixed here.
+        // (a) role/aria-modal/aria-label belong on the dialog box itself
+        // (.nv-preview-panel), not the backdrop -- moved down.
+        // (b) data-presenter-exit alone doesn't protect a keydown (Presenter
+        // Mode's own listener only special-cases MouseEvent targets, see
+        // its useEffect above), so Escape here calls stopPropagation()
+        // directly on top of carrying the attribute -- that's what actually
+        // stops it from also reaching Presenter Mode's window-level
+        // listener and advancing the script instead of just closing this.
+        // (c) same stopPropagation reasoning for a backdrop click while
+        // presenting, on top of the attribute.
         <div
           className="nv-preview-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Generated site preview"
-          onClick={() => setSitePreviewUrl(null)}
+          data-presenter-exit="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSitePreviewUrl(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              setSitePreviewUrl(null);
+            }
+          }}
         >
-          <div className="nv-preview-panel" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={sitePreviewPanelRef}
+            className="nv-preview-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Site Generator preview — ${hero.name}`}
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="nv-preview-bar">
               <span>Site Generator preview</span>
               <div className="nv-preview-actions">
@@ -1201,7 +1307,19 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
                 <button type="button" onClick={() => setSitePreviewUrl(null)}>Close ✕</button>
               </div>
             </div>
-            <iframe src={sitePreviewUrl} title="Generated site preview" className="nv-preview-frame" />
+            {/* 2026-08-22, Opus 5 review finding 2: the generator's only
+                <script> tag is a non-executable application/ld+json block
+                (site_engine.py), so the strictest useful sandbox costs
+                nothing functionally -- no allow-scripts, no
+                allow-same-origin, no allow-top-navigation. Real content is
+                external-directory-derived (business_name etc.), so this is
+                a genuine third-party-content frame, not a formality. */}
+            <iframe
+              src={sitePreviewUrl}
+              title="Generated site preview"
+              className="nv-preview-frame"
+              sandbox="allow-popups allow-popups-to-escape-sandbox"
+            />
           </div>
         </div>
       ) : null}

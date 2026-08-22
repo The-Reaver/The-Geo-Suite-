@@ -1023,6 +1023,12 @@ code {
 .nova-app .nv-item.source { border: 1px solid var(--nv-metal-dim); background: var(--nv-surface); color: var(--nv-text); box-shadow: var(--nv-shadow); }
 .nova-app .nv-item.source svg { stroke: var(--nv-metal); opacity: 1; }
 .nova-app .nv-item.source .nv-tag { color: var(--nv-metal); border-color: var(--nv-metal-dim); }
+/* Site Generator, Slice D: an inline sidebar error, sitting right under its
+   own trigger button rather than the shared far-away .nv-err banner (Opus
+   5 review finding 6 -- .nova-app main scrolls independently of aside, so
+   a click-and-wait here could otherwise resolve with no visible feedback
+   at all). Same warning-toned language as .nv-err, sized for the sidebar. */
+.nova-app .nv-item-error { padding: 6px 12px 10px; font-size: 11.5px; line-height: 1.4; color: var(--nv-warn); }
 
 .nova-app .nv-foot { padding: 12px 26px 4px; margin-top: 6px; border-top: 1px solid var(--nv-line); }
 .nova-app .nv-fx { display: flex; align-items: center; gap: 12px; padding: 12px 0; cursor: pointer; width: 100%;

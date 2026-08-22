@@ -323,87 +323,6 @@ export type SaveToPipelineResult = {
  * both are surfaced, not collapsed into a generic error, same honesty
  * pattern as auditSite/saveLead above.
  */
-export type GenerateSitePreviewResult = {
-  ok: boolean;
-  previewUrl: string | null;
-  reason: string;
-};
-
-/**
- * Site Generator, Slice D: an in-app preview instead of a raw new-tab
- * navigation. Mirrors the exact real-facts-vs-illustrative-fallback logic
- * `app/nova/site-generator/route.ts` already implements (kept as-is for
- * the still-useful "open in a new tab" fallback) -- but returns the real
- * preview_url as JSON instead of issuing a redirect, so NovaShell can show
- * a real pending state (matching auditSite/saveLead/saveToPipeline above)
- * and render the result in an iframe without ever leaving Nova.
- *
- * `businessName` absent means no real audited prospect is in context (a
- * bare click, or a Presenter Mode step) -- falls back to
- * POST /sales/site-generator-example (the illustrative fixture), same
- * honest degrade the route-based version already used.
- */
-export async function generateSitePreview(params: {
-  businessName?: string;
-  domain?: string;
-  street?: string;
-  locality?: string;
-  region?: string;
-  postalCode?: string;
-  telephone?: string;
-  ratingValue?: number;
-  ratingCount?: number;
-}): Promise<GenerateSitePreviewResult> {
-  const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supaKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supaUrl || !supaKey) return { ok: false, previewUrl: null, reason: "supabase-not-configured" };
-
-  try {
-    const cookieStore = cookies();
-    const supabase = createServerClient(supaUrl, supaKey, {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    });
-    const { data: sessionData, error } = await supabase.auth.getSession();
-    if (error || !sessionData.session) return { ok: false, previewUrl: null, reason: "not-signed-in" };
-
-    const endpoint = params.businessName ? "/sales/preview" : "/sales/site-generator-example";
-    let body: Record<string, unknown> | undefined;
-    if (params.businessName) {
-      const facts: Record<string, unknown> = { business_name: params.businessName };
-      if (params.domain) facts.domain = params.domain;
-      if (params.street) facts.street = params.street;
-      if (params.locality) facts.locality = params.locality;
-      if (params.region) facts.region = params.region;
-      if (params.postalCode) facts.postal_code = params.postalCode;
-      if (params.telephone) facts.telephone = params.telephone;
-      if (params.ratingValue != null) {
-        facts.rating = { value: params.ratingValue, count: params.ratingCount ?? 0 };
-      }
-      body = facts;
-    }
-
-    const res = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${sessionData.session.access_token}`,
-        ...(body ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      return { ok: false, previewUrl: null, reason: `backend-${res.status}${detail ? `: ${detail}` : ""}` };
-    }
-    const data = await res.json().catch(() => null);
-    if (!data?.preview_url) return { ok: false, previewUrl: null, reason: "no-preview-url" };
-    return { ok: true, previewUrl: data.preview_url, reason: "ok" };
-  } catch (err) {
-    return { ok: false, previewUrl: null, reason: isTimeoutError(err) ? "timeout" : "unreachable" };
-  }
-}
-
 export async function saveToPipeline(params: {
   siteId: string;
   businessName: string;
@@ -482,5 +401,120 @@ export async function saveToPipeline(params: {
       ok: false, score: null, passed: false,
       reason: isTimeoutError(err) ? "timeout" : "unreachable",
     };
+  }
+}
+
+export type GenerateSitePreviewResult = {
+  ok: boolean;
+  previewUrl: string | null;
+  reason: string;
+};
+
+// Extracts a short, safe message from a FastAPI error body -- these two
+// endpoints' own explicit raises use a plain string `detail`
+// (routers/sales_preview.py's issue_preview_delivery() failures), but a
+// pydantic validation failure (a malformed `rating.value`, say) produces
+// `detail` as an array of {msg, loc, type} objects instead. Never renders
+// the raw response body -- Opus 5 review, 2026-08-22, finding 5b: the
+// original version passed the entire res.text() straight into the UI, so
+// a real backend error blob (potentially containing other request/response
+// internals) could land on screen mid-demo.
+function extractErrorDetail(data: unknown, status: number): string {
+  const detail = (data as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail.slice(0, 200);
+  if (Array.isArray(detail) && detail.length && typeof detail[0]?.msg === "string") {
+    return detail[0].msg.slice(0, 200);
+  }
+  return `backend-${status}`;
+}
+
+/**
+ * Site Generator, Slice D: an in-app preview instead of a raw new-tab
+ * navigation. Mirrors the exact real-facts-vs-illustrative-fallback logic
+ * `app/nova/site-generator/route.ts` used to implement (that route is now
+ * unreferenced by the UI -- see its own header comment) -- returns the
+ * real preview_url as JSON instead of issuing a redirect, so NovaShell can
+ * show a real pending state (matching auditSite/saveLead/saveToPipeline
+ * above) and render the result in an iframe without ever leaving Nova.
+ *
+ * `businessName` absent means no real audited prospect is in context (a
+ * bare click, or a Presenter Mode step) -- falls back to
+ * POST /sales/site-generator-example (the illustrative fixture), same
+ * honest degrade the route-based version already used.
+ *
+ * The returned previewUrl is origin-pinned against API_BASE_URL before
+ * this function ever reports ok:true (Opus 5 review, 2026-08-22, finding
+ * 1): the old route-based flow was structurally safe from a hostile
+ * preview_url because Response.redirect() refuses non-http(s)/cross-scheme
+ * targets; returning the raw string as JSON and placing it straight into
+ * an <iframe src> loses that protection unless re-added here.
+ */
+export async function generateSitePreview(params: {
+  businessName?: string;
+  domain?: string;
+  street?: string;
+  locality?: string;
+  region?: string;
+  postalCode?: string;
+  telephone?: string;
+  ratingValue?: number;
+  ratingCount?: number;
+}): Promise<GenerateSitePreviewResult> {
+  const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supaKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supaUrl || !supaKey) return { ok: false, previewUrl: null, reason: "supabase-not-configured" };
+
+  try {
+    const cookieStore = cookies();
+    const supabase = createServerClient(supaUrl, supaKey, {
+      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+    });
+    const { data: sessionData, error } = await supabase.auth.getSession();
+    if (error || !sessionData.session) return { ok: false, previewUrl: null, reason: "not-signed-in" };
+
+    const endpoint = params.businessName ? "/sales/preview" : "/sales/site-generator-example";
+    let body: Record<string, unknown> | undefined;
+    if (params.businessName) {
+      const facts: Record<string, unknown> = { business_name: params.businessName };
+      if (params.domain) facts.domain = params.domain;
+      if (params.street) facts.street = params.street;
+      if (params.locality) facts.locality = params.locality;
+      if (params.region) facts.region = params.region;
+      if (params.postalCode) facts.postal_code = params.postalCode;
+      if (params.telephone) facts.telephone = params.telephone;
+      if (params.ratingValue != null) {
+        facts.rating = { value: params.ratingValue, count: params.ratingCount ?? 0 };
+      }
+      body = facts;
+    }
+
+    const res = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      cache: "no-store",
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      return { ok: false, previewUrl: null, reason: extractErrorDetail(data, res.status) };
+    }
+    if (!data?.preview_url) return { ok: false, previewUrl: null, reason: "no-preview-url" };
+
+    let previewUrl: URL;
+    try {
+      previewUrl = new URL(data.preview_url, API_BASE_URL);
+    } catch {
+      return { ok: false, previewUrl: null, reason: "bad-preview-url" };
+    }
+    if (previewUrl.origin !== new URL(API_BASE_URL).origin) {
+      return { ok: false, previewUrl: null, reason: "bad-preview-origin" };
+    }
+    return { ok: true, previewUrl: previewUrl.href, reason: "ok" };
+  } catch (err) {
+    return { ok: false, previewUrl: null, reason: isTimeoutError(err) ? "timeout" : "unreachable" };
   }
 }
