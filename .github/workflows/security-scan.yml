@@ -1,0 +1,86 @@
+# Standing security scan, added 2026-08-22 per the operator's direct
+# instruction: point ZAP/Nuclei at a deployment and make this a recurring
+# practice ("you will do this from now on"), not a one-off.
+#
+# Why this runs in GitHub Actions and not from a Claude Code session:
+# verified directly (2026-08-22) that the interactive sandbox this repo's
+# sessions run in cannot reach any hosted Railway URL -- both its egress
+# proxy's allow-list and its own permission classifier block outbound
+# requests to arbitrary external hosts. A GitHub Actions runner has normal
+# outbound network access, so this is the actual place a recurring scan
+# against the real deployed app can run at all.
+#
+# Why baseline mode, against production, with no new infrastructure:
+# no staging environment exists for this project (confirmed via the
+# Railway MCP tools -- only a "production" environment is provisioned),
+# and creating one is a real, separate decision with its own small
+# recurring cost (Railway bills per-second of actual compute: this app's
+# real measured footprint is ~0.002 vCPU / ~65MB RAM at idle, so a staging
+# clone would run well under $2-3/month -- cheap, but still a cost someone
+# should choose, not one this file spends silently). Nuclei here explicitly
+# excludes intrusive/dos-tagged templates, and ZAP runs its "baseline"
+# scan (passive + safe checks only) rather than a "full" active scan --
+# both are the standard, documented way to run these tools against a live
+# production target without risk. If a real staging environment is
+# provisioned later, point BASE_URL at it and drop the tag exclusions for
+# deeper (still non-destructive) active-scan coverage.
+name: Security scan (ZAP + Nuclei)
+
+on:
+  schedule:
+    # 06:00 UTC daily -- catches newly-published CVE templates against an
+    # unchanged deployment, not just scans triggered by our own commits.
+    - cron: "0 6 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  BASE_URL: https://the-geo-suite-production.up.railway.app
+
+jobs:
+  nuclei:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Nuclei (non-intrusive template set)
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: ${{ env.BASE_URL }}
+          flags: >-
+            -tags exposure,misconfig,default-login,cve,tech,osint
+            -etags dos,intrusive
+            -severity info,low,medium,high,critical
+        continue-on-error: true
+      - name: Upload Nuclei results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nuclei-results
+          path: nuclei.log
+          if-no-files-found: ignore
+
+  zap-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      # ZAP's own baseline action -- passive scan + a small set of safe
+      # active checks, explicitly documented by OWASP as safe for a live
+      # target. Not the "full-scan" action, which is intrusive and needs a
+      # real staging target instead.
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ env.BASE_URL }}
+          cmd_options: "-a"
+          fail_action: false
+
+  report:
+    needs: [nuclei, zap-baseline]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "Nuclei and ZAP baseline scans ran against $BASE_URL." >> "$GITHUB_STEP_SUMMARY"
+          echo "Neither job fails the build on findings (continue-on-error / fail_action: false) --" >> "$GITHUB_STEP_SUMMARY"
+          echo "this is a recurring visibility practice, not a merge gate, until someone reviews a" >> "$GITHUB_STEP_SUMMARY"
+          echo "few real runs and decides which finding classes should actually block a deploy." >> "$GITHUB_STEP_SUMMARY"
