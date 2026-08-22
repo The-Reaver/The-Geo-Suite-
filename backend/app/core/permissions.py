@@ -154,3 +154,21 @@ def require_sales_agent(payload: dict = Depends(verify_token)) -> dict:
     if role not in ["sales_agent", "owner", "admin"]:
         raise HTTPException(status_code=403, detail="Sales agent access required")
     return payload
+
+
+def require_lawyer(payload: dict = Depends(verify_token)) -> dict:
+    """Compliance ratification mini-slice 2 (2026-08-22 operator decision:
+    a real, separate lawyer reviews and ratifies/rejects compliance notes,
+    not the operator acting through their own owner login). Mirrors
+    require_sales_agent's exact shape and precedent above: owner/admin
+    keep full access (this only widens the gate, it narrows nothing an
+    owner could already do), and the other half of "land the lawyer
+    role" -- setting app_metadata.role = "lawyer" on a real Supabase user
+    for whoever the actual lawyer is -- happens in the Supabase dashboard/
+    Auth admin API, which this codebase cannot and should not do on its
+    own, same as require_sales_agent's own docstring already states for
+    that role."""
+    role = payload.get("app_metadata", {}).get("role")
+    if role not in ["lawyer", "owner", "admin"]:
+        raise HTTPException(status_code=403, detail="Lawyer access required")
+    return payload

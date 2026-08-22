@@ -10,10 +10,11 @@ atomic_notes.json (see that file and MANIFEST.md's 2026-08-20 section for
 where they came from and the one known gap: 3 of 91 notes cite a source URL
 with no matching file in this repo).
 
-Read/browse only. No lawyer-review workflow (promoting a note from draft to
-ratified) lives here -- that's the lawyer's own follow-on work per the
-operator's framing ("demo it and then own refining that area"), not
-something to build ahead of that session.
+2026-08-22, mini-slice 2: the read/browse surface above now sits alongside
+a real lawyer-review workflow -- POST .../notes/{id}/ratify and /reject,
+gated `require_lawyer` (a real, dedicated auth role added this same slice,
+per the operator's explicit 2026-08-22 decision: a real separate lawyer
+reviews these, not the operator acting through their own owner login).
 """
 from __future__ import annotations
 
@@ -21,12 +22,56 @@ import json
 import os
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
-from app.core.permissions import require_sales_agent
+from app.core.permissions import require_sales_agent, require_lawyer
 from app.services.compliance import regulatory_citations as rc
+from app.repositories.compliance_notes_repository import (
+    InMemoryComplianceNotesRepository,
+    SupabaseComplianceNotesRepository,
+)
 
 router = APIRouter(prefix="/compliance", tags=["compliance"])
+
+# Same module-level-singleton / env-var-gated pattern already proven in
+# sites.py's get_site_repos() -- an InMemory repo persists across requests
+# within one running process when Supabase isn't configured, so a test
+# run or a session with no live credentials never invents a live Supabase
+# round-trip just because GEO_USE_SUPABASE_COMPLIANCE_REPOS happens to be
+# unset in an environment that otherwise has Supabase configured.
+_COMPLIANCE_NOTES_REPO = InMemoryComplianceNotesRepository()
+
+
+def _use_supabase_compliance_repo() -> bool:
+    if os.environ.get("GEO_USE_SUPABASE_COMPLIANCE_REPOS", "").strip() != "1":
+        return False
+    try:
+        from app.core.supabase_client import get_supabase_admin
+
+        get_supabase_admin()
+        return True
+    except Exception:
+        return False
+
+
+def get_compliance_notes_repo():
+    if _use_supabase_compliance_repo():
+        return SupabaseComplianceNotesRepository()
+    return _COMPLIANCE_NOTES_REPO
+
+
+class RatificationRequest(BaseModel):
+    # Deliberately no `status`/`reviewed_by` field here -- status comes
+    # from which endpoint was called (ratify vs. reject), never from the
+    # request body, so a caller can't send an arbitrary status string; and
+    # reviewed_by comes from the verified JWT's sub claim (see the route
+    # bodies below), never from here, closing the exact caller-supplied-
+    # identity anti-pattern this codebase already ruled against once for
+    # sales_preview.py's agent_id and again for this same repository's
+    # own reviewed_by parameter.
+    reason: str = Field(default="", max_length=2000)
+
 
 _DOMAINS: list[tuple[str, list[dict]]] = [
     ("Medical marketing claims", rc._MARKETING_CITATIONS),
@@ -105,6 +150,48 @@ def _load_atomic_notes() -> dict:
         return {"notes_by_file": {}, "orphaned_notes": [], "total_notes": 0, "matched_notes": 0}
 
 
+def _real_note_ids() -> set[str]:
+    """Every note id the vendored corpus actually knows about (matched +
+    orphaned) -- the overlay's set_status() would happily accept a
+    made-up id (it doesn't validate against the corpus, by design, since
+    the repository layer has no reason to know about atomic_notes.json).
+    The route layer is the right place to reject a note_id nothing real
+    backs, before it ever reaches the repository."""
+    notes_data = _load_atomic_notes()
+    ids: set[str] = set()
+    for file_notes in notes_data.get("notes_by_file", {}).values():
+        ids.update(n["id"] for n in file_notes)
+    ids.update(n["id"] for n in notes_data.get("orphaned_notes", []))
+    return ids
+
+
+def _reviewer_id(payload: dict) -> str:
+    reviewer = str(payload.get("sub") or "").strip()
+    if not reviewer:
+        # Same shape as sales_preview.py's own agent_id extraction --
+        # verify_token already guarantees a valid, signature-checked
+        # token reached this point, so a missing sub claim here means a
+        # malformed/unusual token, not a normal caller error.
+        raise HTTPException(status_code=401, detail="Token missing a subject claim")
+    return reviewer
+
+
+@router.post("/library/notes/{note_id}/ratify")
+async def ratify_note(note_id: str, body: RatificationRequest, payload: dict = Depends(require_lawyer)):
+    if note_id not in _real_note_ids():
+        raise HTTPException(status_code=404, detail="Unknown compliance note")
+    repo = get_compliance_notes_repo()
+    return repo.set_status(note_id, status="ratified", reviewed_by=_reviewer_id(payload), reason=body.reason)
+
+
+@router.post("/library/notes/{note_id}/reject")
+async def reject_note(note_id: str, body: RatificationRequest, payload: dict = Depends(require_lawyer)):
+    if note_id not in _real_note_ids():
+        raise HTTPException(status_code=404, detail="Unknown compliance note")
+    repo = get_compliance_notes_repo()
+    return repo.set_status(note_id, status="rejected", reviewed_by=_reviewer_id(payload), reason=body.reason)
+
+
 @router.get("/library")
 async def compliance_library(payload: dict = Depends(require_sales_agent)):
     """Every raw_law/ source, grouped by domain, with its real citation
@@ -137,10 +224,14 @@ async def compliance_library(payload: dict = Depends(require_sales_agent)):
             "detection_status": _DETECTION_STATUS.get(label),
         })
 
+    ratified_count = sum(
+        1 for row in get_compliance_notes_repo().list_statuses() if row["status"] == "ratified"
+    )
+
     return {
         "domains": domains,
         "total_sources": total,
-        "lawyer_ratified_count": 0,
+        "lawyer_ratified_count": ratified_count,
         "total_draft_notes": notes_data.get("matched_notes", 0),
         "orphaned_notes_count": len(notes_data.get("orphaned_notes", [])),
     }

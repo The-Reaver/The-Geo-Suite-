@@ -106,6 +106,26 @@ sibling `GEO_USE_SUPABASE_CLIENT_STORE` flag in `client_store.py`: not in
 `.env.example` (that file only documents vars `config.py` itself reads),
 set directly as a Railway service variable instead.
 
+Same pattern again for compliance-note ratification: `GEO_USE_SUPABASE_COMPLIANCE_REPOS=1`
+(routers/compliance.py) switches `get_compliance_notes_repo()` from an
+in-memory singleton to the real `compliance_notes` table (`supabase/
+migrations/20260822120000_compliance_notes_table.sql`, applied live to
+project `lhzxmvjwqllmnqecfxpm` on 2026-08-22). Without it, every
+ratify/reject lives only in the running backend process's memory.
+
+## Auth roles
+
+Three roles existed before 2026-08-22: `owner`/`admin` (full access) and
+`sales_agent` (the sales-floor routes). Compliance ratification added a
+fourth, `lawyer` (`core/permissions.py::require_lawyer`) — a real,
+separate person reviews and ratifies/rejects compliance notes, not the
+operator acting through their own owner login (2026-08-22 operator
+decision). Same as `sales_agent`'s own precedent: this codebase can add
+the *code* half of a role (the permission check), but setting
+`app_metadata.role = "lawyer"` on a real Supabase user is an operator-only
+action in the Supabase dashboard/Auth admin API — not something to do
+from here.
+
 ## Auth: password reset
 
 `/forgot-password` calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: "<frontend-origin>/reset-password" })`;
