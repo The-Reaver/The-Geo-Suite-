@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AccountGate } from "./AccountGate";
+import { EmailChangeStatusBanner } from "./EmailChangeStatusBanner";
 
 // Account settings (2026-08-22): a real place to manage your own account
 // from inside Nova. Before Slice 1, the sidebar's user block
@@ -34,6 +35,7 @@ export default function AccountPage() {
         <p style={{ color: "var(--nv-text2)", fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
           Manage your GEO Suite account.
         </p>
+        <EmailChangeStatusBanner />
         <AccountGate />
       </main>
     </div>
