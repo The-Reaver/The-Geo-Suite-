@@ -19,6 +19,22 @@
  * Rendered ABOVE AccountGate, not instead of it -- the user's session is
  * completely unaffected by clicking only the first link, so there's no
  * reason to hide the rest of the page.
+ *
+ * 2026-08-22, Security-seat Brain Trust review of the /auth/confirm
+ * route, finding F4 (real, confirmed): this file used to call
+ * decodeURIComponent(message.replace(/+/g, " ")) on a value already
+ * fully decoded by searchParams.get() (URLSearchParams correctly
+ * implements application/x-www-form-urlencoded decoding, `+`-as-space
+ * included) -- decoding an already-decoded string a second time. Two
+ * real, live consequences: a stray literal `%` in the real message text
+ * (plausible, not contrived) throws a URIError inside render, crashing
+ * this entire page for anyone who follows the link; and it's also a
+ * working content-spoofing primitive today, independent of the crash --
+ * anyone can craft `/nova/account?message=<arbitrary text>` and have it
+ * render inside this trusted-looking status banner on the real app
+ * origin. React's default JSX text-child escaping already prevents this
+ * from being an XSS vector (confirmed by the same review), so the fix is
+ * just: stop decoding twice.
  */
 
 import { Suspense } from "react";
@@ -43,7 +59,7 @@ function Banner() {
         marginBottom: 28,
       }}
     >
-      {decodeURIComponent(message.replace(/\+/g, " "))}
+      {message}
     </div>
   );
 }
