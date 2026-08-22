@@ -101,6 +101,8 @@ export function AccountEmailForm({ currentEmail }: { currentEmail: string }) {
           <div role="status" style={{ fontSize: 13, color: "var(--nv-pos)" }}>
             Almost done — check both your current and new email inboxes. Each has a
             confirmation link, and both need to be clicked before the change takes effect.
+            {" "}Open both links on this same device and browser — confirming from a
+            different device can fail.
           </div>
         ) : null}
 

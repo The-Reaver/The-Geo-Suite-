@@ -32,10 +32,62 @@
  * and an unhandled-throw path. See inline comments at each fix for the
  * specific finding it closes.
  *
- * Deliberately NOT in this route: revoking other active sessions
- * (auth.signOut({ scope: 'others' })) -- a separate, later slice (Bug B
- * in the plan file), kept apart from this route's own job of getting the
- * NEW session correctly established here first.
+ * 2026-08-22, Bug B (the operator's own real security expectation, raised
+ * live while testing Bug A's fix): once the NEW session is confirmed
+ * established here (the exchange above), revoke every OTHER active
+ * session for this user via revokeOtherSessions() below (auth.signOut({
+ * scope: 'others' })), called AFTER destination/pendingCookies are
+ * already decided -- deliberately outside the exchange's own try/catch,
+ * so it can never be mistaken for being covered by that catch; it owns
+ * its own error handling entirely.
+ *
+ * Safety of this call verified directly against installed auth-js
+ * source (node_modules/@supabase/auth-js), not assumed from public docs,
+ * then adversarially re-verified by an independent Opus 5 review pass
+ * (2026-08-22) that traced the actual @supabase/ssr cookie-adapter code
+ * too, not just auth-js:
+ *   - With scope 'others', GoTrueClient._signOut() calls only the admin
+ *     revoke endpoint and explicitly skips removeCurrentSession() --
+ *     the branch that would fire a SIGNED_OUT event and touch cookies.
+ *   - Even the internal __loadSession() this still runs through can't
+ *     reach a cookie write here: @supabase/ssr's storage adapter serves
+ *     getItem from its own already-written in-memory cache (not a fresh
+ *     cookie read), so the just-exchanged session reads back as fresh
+ *     and never triggers a token-refresh write. True "under any sane
+ *     configuration" (rules out only a pathological JWT expiry under 90s
+ *     or major host/Supabase clock skew, both far outside anything this
+ *     deploy runs).
+ *   - Even if a write ever did fire, @supabase/ssr's setAll always
+ *     carries the FULL accumulated cookie state, never a delta -- so
+ *     pendingCookies (reassigned wholesale on every setAll call) is safe
+ *     by construction, not by coincidence.
+ *
+ * Two real, load-bearing limitations, kept honest rather than implied
+ * away by the code:
+ *   - GoTrue's own signOut(scope:'others') treats a 401/403/404 from the
+ *     revoke endpoint as a *successful* no-op (returns error: null) --
+ *     an auth-level rejection of the revoke is structurally invisible to
+ *     this route. Only network/5xx-class failures are ever observable
+ *     here, which is what revokeOtherSessions()'s own logging can catch.
+ *   - Revocation is not instantaneous for already-issued access tokens:
+ *     scope:'others' invalidates refresh tokens/sessions server-side, but
+ *     a stateless JWT another device is already holding keeps validating
+ *     locally (signature + exp) until it naturally expires (up to the
+ *     project's access-token lifetime, 1hr by default) -- only that
+ *     device's own next getUser()/refresh call actually fails.
+ *   - This route assumes it's only ever reached via an email-change
+ *     confirmation link. If it's ever reused as the redirect target for
+ *     a different Supabase flow (magic link, signup, OAuth), both the
+ *     hardcoded success copy AND this session-revoke would fire wrongly
+ *     -- don't repoint another flow's redirectTo/Site URL at this route
+ *     without revisiting this whole file first.
+ *   - The PKCE code-verifier's device-bound-cookie property is what
+ *     keeps a prefetched/leaked confirmation link (e.g. an email client's
+ *     link-scanner) from ever reaching this revoke at all -- the
+ *     exchange fails first with a verifier-missing error. That's a
+ *     structural property of PKCE, not something this file guarantees on
+ *     its own; noted here because it's load-bearing for this feature's
+ *     safety, not incidental.
  */
 
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
@@ -133,8 +185,10 @@ export async function GET(request: NextRequest) {
   });
 
   let destination: URL;
+  let exchangeSucceeded = false;
   try {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
+    exchangeSucceeded = !error;
     destination = error
       ? toAccount(origin, error.message)
       // Real, positive confirmation the change actually completed --
@@ -153,7 +207,54 @@ export async function GET(request: NextRequest) {
     destination = toAccount(origin, "Something went wrong confirming your email change. Try the link again, or request a new change.");
   }
 
+  if (exchangeSucceeded) {
+    await revokeOtherSessions(supabase);
+  }
+
   const response = NextResponse.redirect(destination);
   pendingCookies.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
   return response;
+}
+
+// Bug B fix -- see the file header comment for the full safety analysis
+// (why this can't disturb pendingCookies) and the two real, documented
+// limitations it can't see around. Deliberately its own function, called
+// after `destination` is already decided, so it can never be mistaken
+// for being covered by the exchange's own try/catch above.
+//
+// 2026-08-22, independent-Opus review finding #1 (REAL BUG, now fixed):
+// the first version of this fix only wrapped the call in try/catch and
+// discarded the resolved `{ error }` -- but GoTrue's signOut() catches
+// and RETURNS AuthError instances rather than throwing them, and that
+// includes AuthRetryableFetchError (Supabase down/network failure/5xx),
+// so the realistic failure modes were silently discarded with no log at
+// all, not even the console.error the old code implied would fire.
+//
+// 2026-08-22, independent-Opus review finding #7 (REAL BUG, now fixed):
+// the underlying GoTrue fetch call carries no timeout/AbortSignal, so an
+// unbounded await here could hold this route's redirect open for
+// minutes on a hung Supabase call, for a step this route itself treats
+// as non-fatal. Bounded with a 3s race; the underlying call is left to
+// resolve/reject on its own afterward (its result is discarded either
+// way, and the rejection path is pre-caught below so it can't become an
+// unhandled promise rejection in the server process).
+async function revokeOtherSessions(supabase: ReturnType<typeof createServerClient>): Promise<void> {
+  const revokeCall = supabase.auth
+    .signOut({ scope: "others" })
+    .catch((err: unknown) => ({ error: err instanceof Error ? err : new Error(String(err)) }));
+
+  const timedOut = new Promise<{ error: Error }>((resolve) => {
+    setTimeout(() => resolve({ error: new Error("revoke call did not resolve within 3s") }), 3000);
+  });
+
+  const { error } = await Promise.race([revokeCall, timedOut]);
+  if (error) {
+    // Review finding #2: GoTrue's own signOut(scope:'others') treats a
+    // 401/403/404 from the revoke endpoint as a *successful* no-op
+    // (returns error: null) -- an auth-level rejection is structurally
+    // invisible to this route. This log can only ever catch network/5xx/
+    // timeout-class failures, never confirm the revoke actually reached
+    // and was accepted by Supabase.
+    console.error("auth/confirm: revoke of other sessions did not complete cleanly:", error.message);
+  }
 }
