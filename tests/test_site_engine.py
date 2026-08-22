@@ -904,7 +904,7 @@ def test_h1_and_nav_never_render_business_name_unescaped_across_all_templates():
             assert "<img src=x onerror=" not in body, (
                 f"{subtype} on template {theme.template.name}: unescaped business_name in visible body"
             )
-    assert len(seen_templates) == 9, f"only exercised {len(seen_templates)}/9 templates: {seen_templates}"
+    assert len(seen_templates) == 11, f"only exercised {len(seen_templates)}/11 templates: {seen_templates}"
 
 
 # 17. A real, exploitable </script> breakout: a business_name containing a
@@ -1054,7 +1054,7 @@ def test_telephone_is_escaped_in_nav_call_link_across_all_templates():
             assert "<script>alert(document.domain)</script>" not in body, (
                 f"{subtype} on {theme.template.name}: telephone injection in nav"
             )
-    assert len(seen) == 9, f"only exercised {len(seen)}/9 templates: {seen}"
+    assert len(seen) == 11, f"only exercised {len(seen)}/11 templates: {seen}"
 
 
 def test_known_substring_collisions_route_to_the_correct_prose_family():

@@ -22,6 +22,7 @@ from app.services.site_design import engine, palettes, typography
 from app.services.site_design.templates import (
     editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial,
     framed_gallery, directory_listing, timeline_flow, compact_utility,
+    grid_modern, ledger,
 )
 from app.services.site_design.engine import Theme
 
@@ -311,10 +312,28 @@ def _resolve_size_weight(selector: str, decl: str, rules_by_selector: dict):
     return size, weight
 
 
+# 2026-08-22, Opus 5 review of the Slice 4 template batch: grid_modern
+# and ledger were left out of this scan's module list -- the same
+# omission the palette-side distinctness gate already had (and was
+# fixed for) one section earlier in this same file. Added here for
+# completeness, but NOTE: this scanner would NOT actually have caught
+# Grid Modern's real .band .sub bug (rgba(255,255,255,.85) on
+# background:var(--accent-dark) measured 4.148:1 on Orange, below the
+# 4.5:1 floor) even with the module included -- mutation-tested directly
+# (restored the buggy rgba value with grid_modern already in this list;
+# the test still passed). Two separate structural blind spots, both
+# pre-existing, not introduced by this slice: this scanner only matches
+# literal `color:#fff`, never `rgba(255,255,255,alpha)`; and it only
+# checks `background:var(--accent)`, never `var(--accent-dark)` (no
+# prior template put default-size text directly on an accent-dark fill
+# the way Grid Modern's .band does). Real regression coverage for the
+# actual fix lives in test_band_accent_dark_text_clears_wcag_on_every_
+# real_palette below, which computes real contrast against real palette
+# hex values rather than pattern-matching CSS text.
 def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
     modules = [editorial_minimal, split_modern, bold_cinematic, trust_panel,
                boutique_editorial, framed_gallery, directory_listing,
-               timeline_flow, compact_utility]
+               timeline_flow, compact_utility, grid_modern, ledger]
     for mod in modules:
         css = mod.CSS_BASE
         rules = _parse_css_rules(css)
@@ -337,6 +356,45 @@ def test_no_white_on_accent_text_below_the_wcag_large_text_threshold():
                 f"{mod.__name__} {selector!r}: white text on var(--accent) at "
                 f"{size}px/{weight} does not qualify as WCAG large text"
             )
+
+
+# 2026-08-22, Opus 5 review of the Slice 4 template batch: Grid Modern's
+# .band renders default-size (14px/400, not WCAG large text) text
+# directly on background:var(--accent-dark) -- a pattern the scanner
+# above cannot see at all (it only ever checks background:var(--accent)).
+# Computes REAL contrast against every one of the 25 real palette hex
+# values, rather than pattern-matching CSS text, so this can't be fooled
+# by a color value the scanner's own regex doesn't recognize (the exact
+# way the original rgba(255,255,255,.85) bug slipped past it). Both
+# .band h2 (already opaque #fff) and .band .sub (fixed from
+# rgba(255,255,255,.85) to opaque #fff in this same review pass) are
+# covered -- opaque white is required specifically because compositing
+# math otherwise changes the real contrast at 85% alpha.
+def test_band_accent_dark_text_clears_wcag_on_every_real_palette():
+    for p in palettes.PALETTES:
+        cr = _contrast("#FFFFFF", p.accent_dark)
+        assert cr >= 4.5, (
+            f"Grid Modern's .band renders white text on accent_dark for {p.name} "
+            f"(accent_dark={p.accent_dark}) at {cr:.2f}:1, below the 4.5:1 normal-text "
+            "floor its 14px/400 .sub text actually requires"
+        )
+    # The palette-math check above only proves opaque white WOULD be
+    # safe -- it says nothing about what grid_modern.py's actual CSS
+    # declares. bold_cinematic.py legitimately uses rgba(255,255,255,
+    # alpha) elsewhere in this codebase (against var(--dark), a FIXED
+    # constant, not a variable per-palette color like accent-dark, so
+    # it's provably safe on its own terms) -- a codebase-wide ban would
+    # be wrong. This checks grid_modern.py's own .band rule specifically
+    # stays opaque, so a future edit can't silently reintroduce the
+    # alpha regression this same review just fixed.
+    band_sub_rule = re.search(r"\.band \.sub\{([^}]*)\}", grid_modern.CSS_BASE)
+    assert band_sub_rule is not None, "grid_modern.py's .band .sub rule is missing entirely"
+    assert "rgba(255,255,255," not in band_sub_rule.group(1), (
+        ".band .sub must use opaque white (color:#fff), not a semi-transparent rgba(255,255,255,"
+        "alpha) value -- alpha compositing against the variable, per-palette accent-dark "
+        "background can drop below the 4.5:1 floor even where opaque white clears it "
+        "(measured: rgba(255,255,255,.85) on Orange's accent-dark was 4.148:1)"
+    )
 
 
 # 2026-08-21, Opus 5 review of Slice C.1: caught a real near-duplicate
@@ -542,6 +600,22 @@ def test_new_c4_templates_are_reachable_for_real_facts():
         assert found, f"{target} must be reachable for real facts (subtype={subtype!r})"
 
 
+# 2026-08-22, Slice 4 template batch: same guarantee for the fourth
+# batch of new templates. Ledger is Dental/Medical + Legal/Finance;
+# "Dentist" reaches it. Grid Modern is Home Services + Beauty/Salon +
+# Food/Restaurant; "Plumber" reaches it.
+def test_new_slice4_templates_are_reachable_for_real_facts():
+    for target, subtype in (("Ledger", "Dentist"), ("Grid Modern", "Plumber")):
+        found = False
+        for i in range(200):
+            f = _F(business_name=f"Business {i}", domain=f"biz{i}.example", subtype=subtype)
+            theme = engine.select_theme(f)
+            if theme.template.name == target:
+                found = True
+                break
+        assert found, f"{target} must be reachable for real facts (subtype={subtype!r})"
+
+
 # 2026-08-21, industry-aware template selection sub-slice: proves "vast
 # per industry" is real, not just "at least one template exists per
 # family" -- every one of the 5 named families' own 4 templates is
@@ -564,13 +638,21 @@ def test_new_c4_templates_are_reachable_for_real_facts():
 #    asserts every single selection is IN the family (fails fast on the
 #    first foreign template) and that all 4 real ones are eventually
 #    seen -- together this is real containment, not just presence.
+# 2026-08-22, Slice 4 template batch: each family's expected set grew by
+# its one new member (Ledger -> Dental/Legal, Grid Modern -> Home/Beauty/
+# Food), mirroring the same growth already applied to the palette
+# families' expected sets. Still hardcoded independently of engine.py's
+# own family dicts -- see the round-3 review note above this test's
+# sibling, test_template_and_palette_family_selection_stay_coherent, for
+# why deriving "expected" from the live code under test would be
+# tautological.
 def test_every_named_family_has_real_variety():
     families = {
-        "Dentist": {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern"},
-        "Plumber": {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern"},
-        "Attorney": {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal"},
-        "Hair Salon": {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal"},
-        "Restaurant": {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern"},
+        "Dentist": {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern", "Ledger"},
+        "Plumber": {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern", "Grid Modern"},
+        "Attorney": {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal", "Ledger"},
+        "Hair Salon": {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal", "Grid Modern"},
+        "Restaurant": {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern", "Grid Modern"},
     }
     for subtype, expected_names in families.items():
         seen_names = set()
@@ -584,7 +666,7 @@ def test_every_named_family_has_real_variety():
             )
             seen_names.add(theme.template.name)
         assert seen_names == expected_names, (
-            f"subtype={subtype!r}'s family must reach all 4 of its own templates, "
+            f"subtype={subtype!r}'s family must reach all 5 of its own templates, "
             f"only reached {seen_names} of {expected_names}"
         )
 
@@ -603,11 +685,14 @@ def test_every_named_family_has_real_variety():
 # shrinks) still passed 407/407, including this test, since both the
 # expected set and the observed set shrink together. Hardcoded
 # independently of engine.py so a real registry shrink is now caught.
-def test_general_fallback_still_reaches_all_nine_templates():
+# 2026-08-22, Slice 4 template batch: grew from 9 to 11 -- Grid Modern
+# and Ledger added to the hardcoded expected set (still independent of
+# engine.TEMPLATES itself, same anti-tautology reasoning as above).
+def test_general_fallback_still_reaches_all_eleven_templates():
     expected_names = {
         "Editorial Minimal", "Split Modern", "Bold Cinematic", "Trust Panel",
         "Boutique Editorial", "Framed Gallery", "Directory Listing",
-        "Timeline Flow", "Compact Utility",
+        "Timeline Flow", "Compact Utility", "Grid Modern", "Ledger",
     }
     seen_names = set()
     for i in range(400):
@@ -615,11 +700,11 @@ def test_general_fallback_still_reaches_all_nine_templates():
         theme = engine.select_theme(f)
         assert theme.template.name in expected_names, (
             f"general fallback selected {theme.template.name!r}, which isn't one of the "
-            f"9 registered templates -- {expected_names}"
+            f"11 registered templates -- {expected_names}"
         )
         seen_names.add(theme.template.name)
     assert seen_names == expected_names, (
-        f"general fallback must reach all 9 templates, only reached {seen_names}"
+        f"general fallback must reach all 11 templates, only reached {seen_names}"
     )
 
 
@@ -641,33 +726,33 @@ def test_general_fallback_still_reaches_all_nine_templates():
 # kind of copy/paste mistake, not a contrived one) passed cleanly,
 # because the test's own "expected" value and the code under test read
 # from the identical mutated source.
-# 2026-08-22, Slice 4: each family's expected palette set grew by its
-# one new member (the templates side is untouched -- this slice didn't
-# add templates). Still hardcoded independently of engine.py's own
-# family dicts, per the round-3 review finding this guards against
-# (deriving "expected" from the live code under test makes the coherence
-# check tautological -- mutation-proven to pass even with a
-# swapped-family bug).
+# 2026-08-22, Slice 4: each family's expected palette AND template set
+# grew by its one new member (palette growth: 2026-08-22 palettes.py
+# change; template growth: the Grid Modern/Ledger batch, same day).
+# Still hardcoded independently of engine.py's own family dicts, per the
+# round-3 review finding this guards against (deriving "expected" from
+# the live code under test makes the coherence check tautological --
+# mutation-proven to pass even with a swapped-family bug).
 def test_template_and_palette_family_selection_stay_coherent():
     expected = {
         "dental_medical": (
-            {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern"},
+            {"Trust Panel", "Timeline Flow", "Editorial Minimal", "Split Modern", "Ledger"},
             {"Teal", "Blue", "Mint", "Indigo", "Cyan"},
         ),
         "home_services": (
-            {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern"},
+            {"Directory Listing", "Compact Utility", "Bold Cinematic", "Split Modern", "Grid Modern"},
             {"Red", "Steel", "Amber", "Charcoal", "Denim"},
         ),
         "legal_finance": (
-            {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal"},
+            {"Trust Panel", "Timeline Flow", "Compact Utility", "Editorial Minimal", "Ledger"},
             {"Navy", "Slate", "Burgundy", "Forest", "Plum"},
         ),
         "beauty_salon": (
-            {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal"},
+            {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Editorial Minimal", "Grid Modern"},
             {"Rose", "Teal", "Lavender", "Blush", "Champagne"},
         ),
         "food_restaurant": (
-            {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern"},
+            {"Boutique Editorial", "Framed Gallery", "Bold Cinematic", "Split Modern", "Grid Modern"},
             {"Orange", "Red", "Olive", "Terracotta", "Basil"},
         ),
     }
@@ -712,7 +797,7 @@ def test_template_and_palette_family_selection_stay_coherent():
     all_template_names = {
         "Editorial Minimal", "Split Modern", "Bold Cinematic", "Trust Panel",
         "Boutique Editorial", "Framed Gallery", "Directory Listing",
-        "Timeline Flow", "Compact Utility",
+        "Timeline Flow", "Compact Utility", "Grid Modern", "Ledger",
     }
     all_palette_names = {
         "Teal", "Blue", "Red", "Steel", "Navy", "Rose", "Orange", "Slate",
@@ -783,6 +868,9 @@ _CSS_MARKER = {
     # 2026-08-21, Slice C.4: same again.
     "timeline_flow": "header.timeline-top",
     "compact_utility": "header.utility",
+    # 2026-08-22, Slice 4 template batch: same again.
+    "grid_modern": "header.grid-hdr",
+    "ledger": "header.ledger-hdr",
 }
 
 
@@ -1155,18 +1243,59 @@ def test_new_c3_templates_pass_the_real_audit_gate():
     _assert_templates_pass_real_audit_gate({"Framed Gallery": "Restaurant", "Directory Listing": "Plumber"})
 
 
+# 2026-08-22, Slice 4 template batch: same guarantee for Grid Modern and
+# Ledger.
+def test_new_slice4_templates_pass_the_real_audit_gate():
+    _assert_templates_pass_real_audit_gate({"Ledger": "Dentist", "Grid Modern": "Plumber"})
+
+
+# 2026-08-22, Opus 5 review: Ledger's page-section numbering was real
+# but broken -- counter-increment lived on EVERY .ledger-section
+# (including ones with no .section-head/kicker to display a number in
+# at all, like p2/stats-band/location/about/FAQ), so real pages skipped
+# numbers -- with no service areas (the common case), the page's only
+# visible number was a lone "02" with no "01" anywhere. CSS counters are
+# rendered by the browser, not present in raw HTML, so this can't be
+# proven by parsing generated output the way most of this file's other
+# checks work -- pins the fix at the CSS-source level instead: counter-
+# increment must live on .section-head (which only exists where a real
+# kicker/number is actually shown), never on the broader .ledger-section
+# wrapper every section gets regardless.
+def test_ledger_section_numbering_increments_only_where_a_number_is_shown():
+    section_rule = _css_rule(ledger.CSS_BASE, "section.ledger-section")
+    assert "counter-increment" not in section_rule, (
+        "counter-increment on section.ledger-section fires for every section, including "
+        "ones with no .section-head to render a number in -- real pages then skip numbers "
+        "(a lone '02' with no '01') whenever an optional section like service areas is absent"
+    )
+    head_rule = _css_rule(ledger.CSS_BASE, ".section-head")
+    assert "counter-increment:ledger-num" in head_rule.replace(" ", ""), (
+        ".section-head must own the counter-increment so only sections that actually "
+        "render a number consume one -- numbers stay sequential starting at 01"
+    )
+
+
 # 2026-08-21, Site Generator Slice 3: real, licensing-free hero-background
 # pattern wired into 7 of the 9 templates -- deliberately skipped for
 # Boutique Editorial (narrow single-column magazine layout, no full-bleed
 # hero box to put a background image behind) and Compact Utility (its own
 # documented design intent is zero accent-color background fill anywhere,
 # "safe by construction" -- a decorative pattern would contradict that).
+#
+# 2026-08-22, Slice 4 template batch: Grid Modern wired in (a real,
+# centered hero box fits the pattern the same way Editorial Minimal's
+# does); Ledger deliberately skipped, matching Compact Utility's own
+# precedent -- its whole design intent is a decoration-free "document"
+# register.
 _HERO_BG_WIRED_TEMPLATES = {
     "Editorial Minimal": "Dentist", "Split Modern": "Plumber", "Bold Cinematic": "Electrician",
     "Trust Panel": "Attorney", "Framed Gallery": "Restaurant", "Directory Listing": "HVACBusiness",
-    "Timeline Flow": "Dentist",
+    "Timeline Flow": "Dentist", "Grid Modern": "Plumber",
 }
-_HERO_BG_SKIPPED_TEMPLATES = {"Boutique Editorial": "Hair Salon", "Compact Utility": "GeneralContractor"}
+_HERO_BG_SKIPPED_TEMPLATES = {
+    "Boutique Editorial": "Hair Salon", "Compact Utility": "GeneralContractor",
+    "Ledger": "Dentist",
+}
 
 
 def _find_facts_for_template(target, subtype):
@@ -1221,7 +1350,7 @@ def _hero_selector_and_rule(css: str, template_name: str) -> tuple:
     return None, None
 
 
-def test_hero_bg_asset_is_wired_into_the_7_templates_that_should_use_it():
+def test_hero_bg_asset_is_wired_into_the_templates_that_should_use_it():
     marker = "background-image:url('assets/hero-bg.svg')"
     for target, subtype in _HERO_BG_WIRED_TEMPLATES.items():
         f = _find_facts_for_template(target, subtype)
@@ -1242,7 +1371,7 @@ def test_hero_bg_asset_is_wired_into_the_7_templates_that_should_use_it():
                 f"{target}: {selector!r} is declared in CSS but that class never appears in the rendered body"
 
 
-def test_hero_bg_is_not_wired_into_the_2_templates_that_deliberately_skip_it():
+def test_hero_bg_is_not_wired_into_the_templates_that_deliberately_skip_it():
     marker = "background-image:url('assets/hero-bg.svg')"
     for target, subtype in _HERO_BG_SKIPPED_TEMPLATES.items():
         f = _find_facts_for_template(target, subtype)

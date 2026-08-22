@@ -6,6 +6,7 @@ from . import typography
 from .templates import (
     editorial_minimal, split_modern, bold_cinematic, trust_panel, boutique_editorial,
     framed_gallery, directory_listing, timeline_flow, compact_utility,
+    grid_modern, ledger,
 )
 
 Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "hero_style"])
@@ -27,6 +28,14 @@ Theme = collections.namedtuple("Theme", ["template", "palette", "typography", "h
 # CSS-counter-driven numbering; Compact Utility is a tight, restrained
 # "spec sheet" density none of the other eight (all spacious/decorative)
 # attempt.
+#
+# 2026-08-22, Slice 4 template batch: grew from 9 to 11. Grid Modern
+# renders services/areas as a real CSS-grid of bordered cards (a true
+# multi-column card grid, distinct from every existing single-column
+# list/chip/row/timeline layout); Ledger numbers whole PAGE SECTIONS via
+# a CSS counter (Timeline Flow only numbers services within one section
+# -- a materially different scope), a restrained serif "annual report"
+# register none of the other ten attempt.
 TEMPLATES = [
     editorial_minimal.TemplateEditorialMinimal,
     split_modern.TemplateSplitModern,
@@ -37,6 +46,8 @@ TEMPLATES = [
     directory_listing.TemplateDirectoryListing,
     timeline_flow.TemplateTimelineFlow,
     compact_utility.TemplateCompactUtility,
+    grid_modern.TemplateGridModern,
+    ledger.TemplateLedger,
 ]
 
 def compute_seed(facts: Any) -> int:
@@ -92,25 +103,44 @@ def compute_seed(facts: Any) -> int:
 # family, not only the `else` fallback (confirmed by inspection): the
 # only single-family template is Directory Listing (Home Services only),
 # justified above.
+#
+# 2026-08-22, Slice 4 template batch: each family grew from 4 to 5,
+# mirroring the exact "+1 real option per named family" pattern the
+# palette registry already established (palettes.py's own Slice 4
+# growth). New member appended, not inserted, per family:
+#   - Ledger's numbered-section, serif "annual report" register fits
+#     info-dense, trust/process-led decisions -- Dental/Medical and
+#     Legal/Finance (the same two families Timeline Flow and Trust
+#     Panel were assigned to, for the same underlying reason).
+#   - Grid Modern's spacious, card-grid, modern-marketing-page feel
+#     fits Home Services (confident, contemporary trade branding),
+#     Beauty/Salon (contemporary spa/salon marketing), and Food/
+#     Restaurant (a card grid is a natural fit for a menu-adjacent
+#     services layout).
 DENTAL_MEDICAL_TEMPLATES = [
     trust_panel.TemplateTrustPanel, timeline_flow.TemplateTimelineFlow,
     editorial_minimal.TemplateEditorialMinimal, split_modern.TemplateSplitModern,
+    ledger.TemplateLedger,
 ]
 HOME_SERVICES_TEMPLATES = [
     directory_listing.TemplateDirectoryListing, compact_utility.TemplateCompactUtility,
     bold_cinematic.TemplateBoldCinematic, split_modern.TemplateSplitModern,
+    grid_modern.TemplateGridModern,
 ]
 LEGAL_FINANCE_TEMPLATES = [
     trust_panel.TemplateTrustPanel, timeline_flow.TemplateTimelineFlow,
     compact_utility.TemplateCompactUtility, editorial_minimal.TemplateEditorialMinimal,
+    ledger.TemplateLedger,
 ]
 BEAUTY_SALON_TEMPLATES = [
     boutique_editorial.TemplateBoutiqueEditorial, framed_gallery.TemplateFramedGallery,
     bold_cinematic.TemplateBoldCinematic, editorial_minimal.TemplateEditorialMinimal,
+    grid_modern.TemplateGridModern,
 ]
 FOOD_RESTAURANT_TEMPLATES = [
     boutique_editorial.TemplateBoutiqueEditorial, framed_gallery.TemplateFramedGallery,
     bold_cinematic.TemplateBoldCinematic, split_modern.TemplateSplitModern,
+    grid_modern.TemplateGridModern,
 ]
 
 def _template_seed(seed: int) -> int:
