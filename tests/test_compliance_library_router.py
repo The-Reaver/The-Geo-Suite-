@@ -116,7 +116,30 @@ def test_library_carries_real_vendored_note_counts():
     assert by_file["02-ftc-health-products-compliance-guidance.md"]["note_count"] == 16
     assert by_file["10-ftc-ai-claims-guidance.md"]["note_count"] == 0, \
         "file 10's own header predicts zero notes from it -- must not fabricate any"
-    assert by_file["17-ftc-v-workado-complaint.md"]["sample_notes"], "a file with real notes must return sample text"
+    samples = by_file["17-ftc-v-workado-complaint.md"]["sample_notes"]
+    assert samples, "a file with real notes must return sample text"
+
+
+def test_library_sample_notes_carry_real_ids_and_status():
+    # 2026-08-22, mini-slice 3: sample_notes must carry each note's real id
+    # (so the frontend can build a ratify/reject control) and its real
+    # current status (draft by default -- "no row" still means draft,
+    # same overlay semantics as everywhere else). Not just non-empty text.
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        resp = client.get("/compliance/library")
+    finally:
+        app.dependency_overrides.clear()
+    data = resp.json()
+    samples = next(
+        s["sample_notes"] for d in data["domains"] for s in d["sources"]
+        if s["file"] == "17-ftc-v-workado-complaint.md"
+    )
+    assert samples
+    for note in samples:
+        assert isinstance(note["id"], str) and len(note["id"]) == 32, note
+        assert isinstance(note["body"], str) and note["body"]
+        assert note["status"] == "draft", "no ratification has happened for these notes in this test"
 
 
 def test_ratify_requires_auth():
@@ -256,6 +279,29 @@ def test_reason_length_is_bounded():
     assert resp.status_code == 422
 
 
+def test_library_sample_note_status_reflects_a_real_ratification():
+    # Proves sample_notes' status field is actually wired to the real
+    # overlay repository, not a hardcoded "draft" -- ratify one of file
+    # 17's own real sample notes, confirm the SAME id's status flips in
+    # the next GET.
+    target_note = "5843d77055494e67a62874faffdc63fa"
+    app.dependency_overrides[require_lawyer] = _fake_lawyer
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        ratify_resp = client.post(f"/compliance/library/notes/{target_note}/ratify", json={})
+        assert ratify_resp.status_code == 200, ratify_resp.text
+        resp = client.get("/compliance/library")
+    finally:
+        app.dependency_overrides.clear()
+    data = resp.json()
+    samples = next(
+        s["sample_notes"] for d in data["domains"] for s in d["sources"]
+        if s["file"] == "17-ftc-v-workado-complaint.md"
+    )
+    by_id = {n["id"]: n for n in samples}
+    assert by_id[target_note]["status"] == "ratified"
+
+
 def test_library_reflects_a_real_ratification():
     # End-to-end proof the two routes actually talk to the same repository
     # GET /compliance/library reads from -- not two disconnected paths that
@@ -277,6 +323,8 @@ if __name__ == "__main__":
     tests = [test_library_requires_auth, test_library_returns_all_20_sources_across_four_domains,
               test_library_carries_real_detection_status_per_domain,
               test_library_carries_real_vendored_note_counts,
+              test_library_sample_notes_carry_real_ids_and_status,
+              test_library_sample_note_status_reflects_a_real_ratification,
               test_ratify_requires_auth, test_sales_agent_alone_cannot_ratify,
               test_lawyer_can_ratify_a_real_note_and_reviewed_by_comes_from_the_token,
               test_owner_can_also_ratify, test_admin_can_also_ratify,

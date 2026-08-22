@@ -229,9 +229,20 @@ def compliance_library(payload: dict = Depends(require_sales_agent)):
     """Every raw_law/ source, grouped by domain, with its real citation
     metadata and real draft note count/sample. Every entry carries the same
     honest caveat every source file itself carries: not yet lawyer-reviewed
-    -- these are draft notes, not a ratified legal opinion."""
+    -- these are draft notes, not a ratified legal opinion.
+
+    2026-08-22, mini-slice 3: sample_notes changed shape from a bare list
+    of body strings to a list of {id, body, status} objects -- the
+    frontend can't build a real ratify/reject control for a note it has
+    no id for, and can't show a real status badge without knowing the
+    overlay's current verdict on that specific note (draft is the
+    default, same as everywhere else -- "no row" still means draft).
+    Only this one route/frontend page consumes this shape (confirmed via
+    grep before changing it), so this is a safe, contained change, not a
+    versioned API break."""
     notes_data = _load_atomic_notes()
     notes_by_file = notes_data.get("notes_by_file", {})
+    statuses_by_id = {row["note_id"]: row["status"] for row in get_compliance_notes_repo().list_statuses()}
 
     domains = []
     total = 0
@@ -247,7 +258,10 @@ def compliance_library(payload: dict = Depends(require_sales_agent)):
                 "relevance": c["relevance"],
                 "verification_status": "Not yet lawyer-reviewed",
                 "note_count": len(file_notes),
-                "sample_notes": [n["body"] for n in file_notes[:3]],
+                "sample_notes": [
+                    {"id": n["id"], "body": n["body"], "status": statuses_by_id.get(n["id"], "draft")}
+                    for n in file_notes[:3]
+                ],
             })
         total += len(sources)
         domains.append({
@@ -256,9 +270,7 @@ def compliance_library(payload: dict = Depends(require_sales_agent)):
             "detection_status": _DETECTION_STATUS.get(label),
         })
 
-    ratified_count = sum(
-        1 for row in get_compliance_notes_repo().list_statuses() if row["status"] == "ratified"
-    )
+    ratified_count = sum(1 for status in statuses_by_id.values() if status == "ratified")
 
     return {
         "domains": domains,

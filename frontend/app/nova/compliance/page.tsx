@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchComplianceLibrary } from "./actions";
+import { NoteReview } from "./NoteReview";
 
 // Compliance Library — 2026-08-20. Replaces NovaShell.tsx's sidebar nav item,
 // which was a plain unclickable <div> with a hardcoded, fake "3 pending"
@@ -9,10 +10,12 @@ import { fetchComplianceLibrary } from "./actions";
 // cites, grouped by domain, plus the real draft atomic notes vendored into
 // knowledge_core/feeds/regulatory/raw_law/atomic_notes.json.
 //
-// Read/browse only, by design: no lawyer-review workflow (promoting a note
-// from draft to ratified) lives here — that's the lawyer's own follow-on
-// work once this page shows them what actually exists today, not something
-// to build ahead of that session.
+// 2026-08-22, mini-slice 3: real approve/reject controls (NoteReview.tsx)
+// per sample note, wired to mini-slice 2's ratify/reject routes. Visible
+// to any signed-in Nova user (this page's own auth gate is
+// require_sales_agent, unchanged), but only actionable for a lawyer/
+// owner/admin -- see actions.ts's canReview for why that check reads the
+// real JWT app_metadata.role claim, not GET /auth/me.
 export const metadata: Metadata = {
   title: "Compliance Library — GEO Suite",
   description: "The real law sources and draft notes the compliance checker cites against.",
@@ -61,7 +64,11 @@ export default async function ComplianceLibraryPage() {
             <div style={{ display: "flex", gap: 24, marginBottom: 36, flexWrap: "wrap" }}>
               <Stat label="Sources" value={result.totalSources} />
               <Stat label="Draft notes" value={result.totalDraftNotes} />
-              <Stat label="Lawyer-ratified" value={0} note="none yet" />
+              <Stat
+                label="Lawyer-ratified"
+                value={result.lawyerRatifiedCount}
+                note={result.lawyerRatifiedCount === 0 ? "none yet" : undefined}
+              />
               {result.orphanedNotesCount > 0 ? (
                 <Stat label="Notes pending a source file" value={result.orphanedNotesCount} note="see MANIFEST.md" />
               ) : null}
@@ -174,13 +181,17 @@ export default async function ComplianceLibraryPage() {
                       {source.sample_notes.length ? (
                         <details>
                           <summary style={{ cursor: "pointer", fontSize: 12.5, color: "var(--nv-accent)" }}>
-                            Sample draft notes ({source.note_count})
+                            Sample notes ({source.note_count})
                           </summary>
-                          <ul style={{ margin: "10px 0 0", paddingLeft: 18 }}>
-                            {source.sample_notes.map((note, i) => (
-                              <li key={i} style={{ fontSize: 13, color: "var(--nv-text2)", lineHeight: 1.5, marginBottom: 8 }}>
-                                &ldquo;{note}&rdquo;
-                              </li>
+                          <ul style={{ margin: "10px 0 0", paddingLeft: 0 }}>
+                            {source.sample_notes.map((note) => (
+                              <NoteReview
+                                key={note.id}
+                                noteId={note.id}
+                                body={note.body}
+                                initialStatus={note.status}
+                                canReview={result.canReview}
+                              />
                             ))}
                           </ul>
                         </details>
