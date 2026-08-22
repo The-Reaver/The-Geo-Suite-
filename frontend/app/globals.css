@@ -1000,14 +1000,27 @@ code {
   background: var(--nv-bg); color: var(--nv-text); font-family: var(--nv-sans); position: relative; }
 .nova-app .nv-num { font-variant-numeric: tabular-nums; }
 
+/* 2026-08-22: real bug the operator found live -- the sidebar footer
+   (Sign Out, Presenter Mode, Restart demo, Sync for the field) was only
+   reachable by zooming the whole page out to 67%. Root cause: nav below
+   had `flex: 1; overflow-y: auto` with no `min-height: 0` -- the classic
+   flexbox bug where a flex item won't shrink below its own content's
+   natural height, so nav never actually yielded room to nv-foot, which
+   sat below it with nowhere to scroll (the outer .nova-app is pinned to
+   `height: 100vh; overflow: hidden`). Fixed at the root (nav's own
+   min-height below) AND with this overflow-y as a structural safety net,
+   since nv-foot's content list only grows over time (this session just
+   added a whole new button to it) and a single flexbox property being
+   correct today is not a guarantee it stays sufficient as more gets
+   added -- the sidebar itself must always be scrollable no matter what. */
 .nova-app aside { background: var(--nv-ink2); border-right: 1px solid var(--nv-line);
-  display: flex; flex-direction: column; padding: 22px 0; }
+  display: flex; flex-direction: column; padding: 22px 0; overflow-y: auto; }
 .nova-app .nv-brand { padding: 6px 26px 18px; display: flex; align-items: center; gap: 12px; }
 .nova-app .nv-mark { font-family: var(--nv-serif); font-size: 27px; letter-spacing: 1.5px; }
 .nova-app .nv-mark b { color: var(--nv-metal); }
 .nova-app .nv-sub { font-size: 8.5px; letter-spacing: 4px; text-transform: uppercase; color: var(--nv-text3); }
 .nova-app .nv-rule { height: 1px; margin: 0 26px 16px; background: var(--nv-line); }
-.nova-app nav { flex: 1; overflow-y: auto; padding: 0 14px; }
+.nova-app nav { flex: 1; overflow-y: auto; padding: 0 14px; min-height: 0; }
 .nova-app .nv-sec { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--nv-text3); padding: 16px 12px 8px; }
 .nova-app .nv-item { display: flex; align-items: center; gap: 13px; height: var(--nv-navh); padding: 0 12px;
   border-radius: 9px; color: var(--nv-text2); cursor: pointer; position: relative;
