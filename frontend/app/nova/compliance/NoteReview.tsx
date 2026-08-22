@@ -25,8 +25,8 @@ const STATUS_LABEL: Record<NoteStatus, string> = {
 
 const STATUS_COLOR: Record<NoteStatus, string> = {
   draft: "var(--nv-text3)",
-  ratified: "var(--nv-ok, #1a7f37)",
-  rejected: "var(--nv-warn, #b91c1c)",
+  ratified: "var(--nv-pos)",
+  rejected: "var(--nv-warn)",
 };
 
 export function NoteReview({
@@ -55,13 +55,29 @@ export function NoteReview({
     if (result.ok) {
       setStatus(result.status);
       setShowReason(false);
+      // 2026-08-22, mini-slice-3 review F2: without this, a reason typed
+      // for one action (e.g. a rejection's rationale) silently carries
+      // over and attaches to the NEXT action on this same note (e.g. a
+      // later ratification), falsifying the legal audit-trail record this
+      // control exists to build honestly.
+      setReason("");
     } else {
       setError(result.reason);
     }
   }
 
+  // 2026-08-22, mini-slice-3 review F7: a page can show 20-40 of these
+  // Ratify/Reject pairs at once, all identically labeled to the naked eye
+  // -- a screen-reader user has no way to tell which note a given button
+  // acts on without this. Truncated, not the full body: an aria-label
+  // needs to be a short identifier, not a second copy of a long quote.
+  const shortBody = body.length > 60 ? `${body.slice(0, 60)}…` : body;
+
   return (
-    <li style={{ fontSize: 13, color: "var(--nv-text2)", lineHeight: 1.5, marginBottom: 12, listStyle: "none" }}>
+    <li
+      style={{ fontSize: 13, color: "var(--nv-text2)", lineHeight: 1.5, marginBottom: 12, listStyle: "none" }}
+      aria-busy={pending !== null}
+    >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <span
           style={{
@@ -89,6 +105,7 @@ export function NoteReview({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Reason (optional)"
+              aria-label={`Reason for ratify/reject decision on note: ${shortBody}`}
               maxLength={2000}
               style={{
                 fontSize: 12,
@@ -107,12 +124,13 @@ export function NoteReview({
               type="button"
               onClick={() => act("ratify")}
               disabled={pending !== null}
+              aria-label={`Ratify note: ${shortBody}`}
               style={{
                 fontSize: 11.5,
                 fontWeight: 600,
-                color: "var(--nv-ok, #1a7f37)",
+                color: "var(--nv-pos)",
                 background: "none",
-                border: "1px solid var(--nv-ok, #1a7f37)",
+                border: "1px solid var(--nv-pos)",
                 borderRadius: 6,
                 padding: "3px 10px",
                 cursor: pending ? "wait" : "pointer",
@@ -124,12 +142,13 @@ export function NoteReview({
               type="button"
               onClick={() => act("reject")}
               disabled={pending !== null}
+              aria-label={`Reject note: ${shortBody}`}
               style={{
                 fontSize: 11.5,
                 fontWeight: 600,
-                color: "var(--nv-warn, #b91c1c)",
+                color: "var(--nv-warn)",
                 background: "none",
-                border: "1px solid var(--nv-warn, #b91c1c)",
+                border: "1px solid var(--nv-warn)",
                 borderRadius: 6,
                 padding: "3px 10px",
                 cursor: pending ? "wait" : "pointer",
@@ -140,13 +159,14 @@ export function NoteReview({
             <button
               type="button"
               onClick={() => setShowReason((v) => !v)}
+              aria-label={showReason ? `Hide reason field for note: ${shortBody}` : `Add reason for note: ${shortBody}`}
               style={{ fontSize: 11, color: "var(--nv-text3)", background: "none", border: "none", cursor: "pointer" }}
             >
               {showReason ? "Hide reason" : "Add reason"}
             </button>
           </div>
           {error ? (
-            <div style={{ fontSize: 11.5, color: "var(--nv-warn, #b91c1c)", marginTop: 4 }}>{error}</div>
+            <div role="alert" style={{ fontSize: 11.5, color: "var(--nv-warn)", marginTop: 4 }}>{error}</div>
           ) : null}
         </div>
       ) : null}

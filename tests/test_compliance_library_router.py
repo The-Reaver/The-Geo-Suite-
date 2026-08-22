@@ -24,6 +24,7 @@ for key, value in PLACEHOLDER_ENV.items():
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app.core.permissions import require_sales_agent, require_lawyer, verify_token  # noqa: E402
+from app.routers import compliance as compliance_router  # noqa: E402
 
 client = TestClient(app)
 
@@ -53,6 +54,10 @@ def test_library_requires_auth():
 
 
 def test_library_returns_all_20_sources_across_four_domains():
+    # verification_status now derives from the real overlay (F5 follow-on,
+    # see test_library_carries_real_vendored_note_counts above) -- reset
+    # first so "Not yet lawyer-reviewed" holds regardless of run order.
+    compliance_router._COMPLIANCE_NOTES_REPO._notes.clear()
     app.dependency_overrides[require_sales_agent] = _fake_sales_agent
     try:
         resp = client.get("/compliance/library")
@@ -103,6 +108,16 @@ def test_library_carries_real_detection_status_per_domain():
 def test_library_carries_real_vendored_note_counts():
     # 2026-08-20: proves the vendored atomic_notes.json actually reaches the
     # API, not just that the endpoint returns a well-formed empty shape.
+    #
+    # 2026-08-22, mini-slice-3 review F5 follow-on: total_draft_notes and
+    # per-file note_count now derive from the real overlay status (see
+    # compliance.py), not a static "matched_notes" literal -- so this
+    # test's exact-88 assertion is only true when nothing has ratified/
+    # rejected anything yet. Reset the module-level singleton first so this
+    # holds regardless of what ran before it in the same process, instead
+    # of relying on file-definition order (the same order-dependency class
+    # already found and fixed once in this file -- see F4 above).
+    compliance_router._COMPLIANCE_NOTES_REPO._notes.clear()
     app.dependency_overrides[require_sales_agent] = _fake_sales_agent
     try:
         resp = client.get("/compliance/library")
@@ -125,6 +140,18 @@ def test_library_sample_notes_carry_real_ids_and_status():
     # (so the frontend can build a ratify/reject control) and its real
     # current status (draft by default -- "no row" still means draft,
     # same overlay semantics as everywhere else). Not just non-empty text.
+    #
+    # 2026-08-22, mini-slice-3 review F4: deliberately checks
+    # 18-ftc-v-workado-decision-and-order.md, NOT 17-ftc-v-workado-
+    # complaint.md -- the latter's first sample note is the exact target
+    # test_library_sample_note_status_reflects_a_real_ratification() below
+    # ratifies. Sharing a file there made this test's "still draft"
+    # assertion order-dependent on that other test never having run first,
+    # violating this file's own header discipline (distinct ids per test,
+    # so the module-level singleton repo can't leak state across tests).
+    # 18- is a real, different file from the same corpus (untouched by any
+    # ratify/reject call anywhere in this file) -- same thematic FTC v.
+    # Workado matter, no shared note ids.
     app.dependency_overrides[require_sales_agent] = _fake_sales_agent
     try:
         resp = client.get("/compliance/library")
@@ -133,7 +160,7 @@ def test_library_sample_notes_carry_real_ids_and_status():
     data = resp.json()
     samples = next(
         s["sample_notes"] for d in data["domains"] for s in d["sources"]
-        if s["file"] == "17-ftc-v-workado-complaint.md"
+        if s["file"] == "18-ftc-v-workado-decision-and-order.md"
     )
     assert samples
     for note in samples:
@@ -302,6 +329,34 @@ def test_library_sample_note_status_reflects_a_real_ratification():
     assert by_id[target_note]["status"] == "ratified"
 
 
+def test_library_note_count_and_verification_status_reflect_a_real_ratification():
+    # 2026-08-22, mini-slice-3 review F5: note_count and verification_status
+    # used to be static literals (len(file_notes) / a hardcoded "Not yet
+    # lawyer-reviewed" string) -- neither ever changed no matter how many
+    # real ratifications happened. This is distinct from
+    # test_library_sample_note_status_reflects_a_real_ratification above,
+    # which only proves sample_notes' own per-note status field is wired
+    # up -- it never touched note_count/verification_status, so that
+    # regression could return without any test catching it.
+    target = "3d6312376ceb4cdbaf48213724535ff1"  # 04-fda-hbot-consumer-update.md, note 1 of 5
+    app.dependency_overrides[require_lawyer] = _fake_lawyer
+    app.dependency_overrides[require_sales_agent] = _fake_sales_agent
+    try:
+        ratify_resp = client.post(f"/compliance/library/notes/{target}/ratify", json={})
+        assert ratify_resp.status_code == 200, ratify_resp.text
+        resp = client.get("/compliance/library")
+    finally:
+        app.dependency_overrides.clear()
+    data = resp.json()
+    source = next(
+        s for d in data["domains"] for s in d["sources"]
+        if s["file"] == "04-fda-hbot-consumer-update.md"
+    )
+    assert source["note_count"] == 4, f"expected 1 of 5 notes ratified (4 still draft), got {source['note_count']}"
+    assert source["verification_status"] != "Not yet lawyer-reviewed", source["verification_status"]
+    assert "1 ratified" in source["verification_status"], source["verification_status"]
+
+
 def test_library_reflects_a_real_ratification():
     # End-to-end proof the two routes actually talk to the same repository
     # GET /compliance/library reads from -- not two disconnected paths that
@@ -330,7 +385,9 @@ if __name__ == "__main__":
               test_owner_can_also_ratify, test_admin_can_also_ratify,
               test_missing_sub_claim_is_rejected, test_ratify_with_no_body_uses_the_default_empty_reason,
               test_unknown_note_id_is_rejected,
-              test_reason_length_is_bounded, test_library_reflects_a_real_ratification]
+              test_reason_length_is_bounded,
+              test_library_note_count_and_verification_status_reflect_a_real_ratification,
+              test_library_reflects_a_real_ratification]
     passed = 0
     for t in tests:
         try:

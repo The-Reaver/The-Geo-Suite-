@@ -28,9 +28,11 @@
  * shows or hides.
  */
 
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { fetchWithTimeout, isTimeoutError } from "../lib/fetchWithTimeout";
+import { extractErrorDetail } from "../lib/errorDetail";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -91,8 +93,20 @@ async function getSupabaseSession() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll() {
-        /* read-only in this action */
+      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+        // 2026-08-22, mini-slice-3 review F1: this helper originally only
+        // ever backed fetchComplianceLibrary() (a render-time read, where
+        // Next.js forbids writing cookies -- a no-op was correct). It now
+        // also backs the ratify/reject Server Actions below, which CAN and
+        // should persist a refreshed access/refresh token pair. Without a
+        // real write, a lawyer working through many notes over ~1hr would
+        // silently lose their session in the middle of a review queue.
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        } catch {
+          /* called during a Server Component render -- writes are
+             forbidden there; the client refreshes on the next navigation. */
+        }
       },
     },
   });
@@ -158,10 +172,15 @@ async function reviewNote(noteId: string, action: "ratify" | "reject", reason: s
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      const detail = data?.detail;
-      return { ok: false, reason: typeof detail === "string" && detail ? detail : `backend-${res.status}` };
+      return { ok: false, reason: extractErrorDetail(data, res.status) };
     }
     const data = await res.json();
+    // 2026-08-22, mini-slice-3 review F5: without this, the page's stats/
+    // badges/note_count/verification_status all stay stale after a real
+    // ratification -- even on a full manual reload, since those fields
+    // are read fresh from the server on every request. revalidatePath
+    // forces the next render of this page to actually refetch.
+    revalidatePath("/nova/compliance");
     return { ok: true, status: data.status };
   } catch (err) {
     return { ok: false, reason: isTimeoutError(err) ? "timeout" : "unreachable" };

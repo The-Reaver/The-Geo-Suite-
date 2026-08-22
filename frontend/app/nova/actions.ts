@@ -16,6 +16,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { fetchWithTimeout, isTimeoutError } from "./lib/fetchWithTimeout";
+import { extractErrorDetail } from "./lib/errorDetail";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -419,15 +420,6 @@ export type GenerateSitePreviewResult = {
 // original version passed the entire res.text() straight into the UI, so
 // a real backend error blob (potentially containing other request/response
 // internals) could land on screen mid-demo.
-function extractErrorDetail(data: unknown, status: number): string {
-  const detail = (data as { detail?: unknown } | null)?.detail;
-  if (typeof detail === "string" && detail.trim()) return detail.slice(0, 200);
-  if (Array.isArray(detail) && detail.length && typeof detail[0]?.msg === "string") {
-    return detail[0].msg.slice(0, 200);
-  }
-  return `backend-${status}`;
-}
-
 /**
  * Site Generator, Slice D: an in-app preview instead of a raw new-tab
  * navigation. Mirrors the exact real-facts-vs-illustrative-fallback logic

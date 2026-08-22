@@ -111,13 +111,13 @@ export default async function ComplianceLibraryPage() {
                         padding: "2px 7px",
                         marginTop: 1,
                         color: domain.detection_status.wired_into_publish_gate
-                          ? "var(--nv-ok, #1a7f37)"
+                          ? "var(--nv-pos)"
                           : domain.detection_status.has_check
                           ? "var(--nv-metal)"
                           : "var(--nv-text3)",
                         border: `1px solid ${
                           domain.detection_status.wired_into_publish_gate
-                            ? "var(--nv-ok, #1a7f37)"
+                            ? "var(--nv-pos)"
                             : domain.detection_status.has_check
                             ? "var(--nv-metal-dim)"
                             : "var(--nv-line)"
@@ -185,8 +185,18 @@ export default async function ComplianceLibraryPage() {
                           </summary>
                           <ul style={{ margin: "10px 0 0", paddingLeft: 0 }}>
                             {source.sample_notes.map((note) => (
+                              // 2026-08-22, mini-slice-3 review F5: NoteReview
+                              // seeds its local status from initialStatus via
+                              // useState, which does NOT re-run on a re-render
+                              // under the same key -- so revalidatePath()
+                              // (actions.ts, ratify/reject) alone wouldn't
+                              // actually update an already-mounted card's own
+                              // badge after a *different* reviewer's action
+                              // changed this note's status server-side.
+                              // Folding status into the key forces React to
+                              // treat a status change as a fresh mount.
                               <NoteReview
-                                key={note.id}
+                                key={`${note.id}:${note.status}`}
                                 noteId={note.id}
                                 body={note.body}
                                 initialStatus={note.status}

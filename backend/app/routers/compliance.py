@@ -246,18 +246,42 @@ def compliance_library(payload: dict = Depends(require_sales_agent)):
 
     domains = []
     total = 0
+    total_draft_notes = 0
     for label, citations in _DOMAINS:
         sources = []
         for c in citations:
             file_notes = notes_by_file.get(c["file"], [])
+            # 2026-08-22, mini-slice-3 review F5: note_count/verification_status
+            # used to be static -- note_count was every matched note for the
+            # file regardless of status (so the UI's own "N draft notes"
+            # label kept saying "3 draft notes" even after all 3 were
+            # ratified), and verification_status was a hardcoded literal
+            # that could never change no matter how many real ratifications
+            # happened. Both now derive from statuses_by_id, the same
+            # overlay already used for sample_notes' per-note status.
+            ratified = sum(1 for n in file_notes if statuses_by_id.get(n["id"], "draft") == "ratified")
+            rejected = sum(1 for n in file_notes if statuses_by_id.get(n["id"], "draft") == "rejected")
+            draft_count = len(file_notes) - ratified - rejected
+            total_draft_notes += draft_count
+            if ratified or rejected:
+                parts = []
+                if ratified:
+                    parts.append(f"{ratified} ratified")
+                if rejected:
+                    parts.append(f"{rejected} rejected")
+                if draft_count:
+                    parts.append(f"{draft_count} pending")
+                verification_status = "Lawyer-reviewed: " + ", ".join(parts)
+            else:
+                verification_status = "Not yet lawyer-reviewed"
             sources.append({
                 "law": c["law"],
                 "citation": c["citation"],
                 "file": c["file"],
                 "source_url": c.get("source_url"),
                 "relevance": c["relevance"],
-                "verification_status": "Not yet lawyer-reviewed",
-                "note_count": len(file_notes),
+                "verification_status": verification_status,
+                "note_count": draft_count,
                 "sample_notes": [
                     {"id": n["id"], "body": n["body"], "status": statuses_by_id.get(n["id"], "draft")}
                     for n in file_notes[:3]
@@ -276,6 +300,6 @@ def compliance_library(payload: dict = Depends(require_sales_agent)):
         "domains": domains,
         "total_sources": total,
         "lawyer_ratified_count": ratified_count,
-        "total_draft_notes": notes_data.get("matched_notes", 0),
+        "total_draft_notes": total_draft_notes,
         "orphaned_notes_count": len(notes_data.get("orphaned_notes", [])),
     }
