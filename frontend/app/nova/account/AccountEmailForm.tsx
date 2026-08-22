@@ -65,9 +65,14 @@ export function AccountEmailForm({ currentEmail }: { currentEmail: string }) {
     if (!validate()) return;
 
     setSubmitting(true);
+    // 2026-08-22: redirects through the new server-side /auth/confirm
+    // route instead of straight to /nova/account -- see that route's own
+    // header for why (a real bug found live: an already-open account tab
+    // never learns about a change confirmed in a different tab/context
+    // without a server-side code exchange setting fresh cookies first).
     const { error } = await getSupabaseBrowserClient().auth.updateUser(
       { email: newEmail },
-      { emailRedirectTo: `${window.location.origin}/nova/account` }
+      { emailRedirectTo: `${window.location.origin}/auth/confirm` }
     );
     setSubmitting(false);
 
