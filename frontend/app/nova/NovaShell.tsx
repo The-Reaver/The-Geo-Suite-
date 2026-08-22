@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { discoverProspects, auditSite, saveLead, saveToPipeline, generateSitePreview, type DiscoverResult, type ProspectRow } from "./actions";
 import { syncForTheField, drainOutbox } from "./lib/fieldSync";
-import { getBrowserAccessToken } from "./lib/supabaseBrowser";
+import { getBrowserAccessToken, getBrowserSessionUser, signOutBrowser, type BrowserSessionUser } from "./lib/supabaseBrowser";
 import { fetchPricingTiers, type PricingTier } from "./lib/pricing";
 import {
   putProspects, getAllCachedProspects, putSalesKit, type CachedProspect,
@@ -228,6 +228,12 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
   // e.g. local dev with no env: the existing sample-data demo fallback
   // stays exactly as-is for that one).
   const [authStatus, setAuthStatus] = useState<"checking" | "signed-in" | "signed-out" | "unconfigured">("checking");
+  // 2026-08-22: real signed-in identity for the sidebar user block and the
+  // new Sign Out control below -- see supabaseBrowser.ts's own comment for
+  // why this replaced a hardcoded name/role that every signed-in user saw
+  // regardless of who they actually were. null while checking/signed-out.
+  const [sessionUser, setSessionUser] = useState<BrowserSessionUser | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const AUDIT_REASONS: Record<string, string> = {
     "not-signed-in": "Your session expired. Sign in again to run a live audit.",
@@ -544,9 +550,29 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
       return;
     }
     getBrowserAccessToken()
-      .then((token) => setAuthStatus(token ? "signed-in" : "signed-out"))
+      .then((token) => {
+        setAuthStatus(token ? "signed-in" : "signed-out");
+        if (!token) return;
+        getBrowserSessionUser()
+          .then(setSessionUser)
+          .catch(() => setSessionUser(null));
+      })
       .catch(() => setAuthStatus("signed-out"));
   }, []);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOutBrowser();
+    } finally {
+      // Hard redirect regardless of whether signOut() itself succeeded --
+      // an unreachable Supabase call must never leave the user stuck
+      // believing Sign Out did nothing. /login is the same honest landing
+      // spot the "session expired" gate below already sends people to.
+      window.location.href = "/login";
+    }
+  }
 
   // Auto-advance timer — resets on every step change so a manual advance
   // (click/keypress, below) gets the doctor a full fresh interval too.
@@ -902,10 +928,15 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
             </span>
             <span className="nv-switch" />
           </button>
-          <div className="nv-user">
-            <div className="nv-avatar">A</div>
-            <div><div className="nv-nm">Abad Morel</div><div className="nv-rl">Operator · Sales</div></div>
-          </div>
+          {sessionUser ? (
+            <div className="nv-user">
+              <div className="nv-avatar">{sessionUser.email.charAt(0).toUpperCase()}</div>
+              <div>
+                <div className="nv-nm">{sessionUser.email}</div>
+                <div className="nv-rl">{sessionUser.role ?? "No role assigned"}</div>
+              </div>
+            </div>
+          ) : null}
           <div className="nv-online" role="status">
             <span className={`nv-online-dot${isOnline ? " on" : ""}`} />
             {isOnline ? "Online" : "Offline — showing synced data"}
@@ -943,6 +974,12 @@ export default function NovaShell({ initial }: { initial: DiscoverResult }) {
             <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 1 3 6.7" /><path d="M3 12V7M3 12h5" /></svg>
             Restart demo
           </button>
+          {authStatus === "signed-in" ? (
+            <button className="nv-restart" onClick={handleSignOut} type="button" disabled={signingOut}>
+              <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
+          ) : null}
         </div>
       </aside>
 
