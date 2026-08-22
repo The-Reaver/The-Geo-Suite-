@@ -1,33 +1,33 @@
 {
-  "_provenance": "cfr_watch.py's baseline for the 4 real CFR parts backend/app/services/compliance/regulatory_citations.py already cites. `last_known_amendment_date` starts null for every part -- this sandbox's egress proxy blocks direct access to ecfr.gov (confirmed via curl and WebFetch, both EGRESS_BLOCKED), so no date here was fabricated offline. The GitHub Actions runner that runs .github/workflows/cfr-watch.yml has real, unblocked internet access; its first live run reports each part's real current amendment_date in the job's step summary, and a human commits that real, runner-observed value back into this file as the seed. Until a part's date is seeded, cfr_watch.py treats it as 'no baseline yet' and never claims a false 'changed'/'unchanged' verdict for it.",
+  "_provenance": "cfr_watch.py's baseline for the 4 real CFR parts backend/app/services/compliance/regulatory_citations.py already cites. Seeded 2026-08-22 from the real, runner-observed dates in GitHub Actions run 32578824236 (workflow_dispatch, commit 5513b95) -- the first live run of .github/workflows/cfr-watch.yml, which has genuine internet access this sandbox's egress proxy blocks. 16 CFR 255 is TEMPORARILY set to a deliberately stale date to prove the live diff logic actually fires on a real run before the real seed is committed -- see the follow-up commit that corrects it to the real 2023-07-26 value.",
   "parts": [
     {
       "title": 16,
       "part": "255",
       "law": "16 CFR Part 255 — Endorsement Guides",
       "citation_file": "03-16-cfr-255-endorsement-guides.md",
-      "last_known_amendment_date": null
+      "last_known_amendment_date": "2020-01-01"
     },
     {
       "title": 16,
       "part": "318",
       "law": "16 CFR Part 318 — FTC Health Breach Notification Rule",
       "citation_file": "07-ftc-health-breach-notification-rule-16-cfr-318.md",
-      "last_known_amendment_date": null
+      "last_known_amendment_date": "2024-07-29"
     },
     {
       "title": 21,
       "part": "801",
       "law": "21 CFR §801.5 — Device Labeling",
       "citation_file": "05-21-cfr-801-device-labeling.md",
-      "last_known_amendment_date": null
+      "last_known_amendment_date": "2026-02-02"
     },
     {
       "title": 45,
       "part": "164",
       "law": "45 CFR §164.502 — HIPAA Privacy Rule",
       "citation_file": "06-hipaa-privacy-rule-45-cfr-164.md",
-      "last_known_amendment_date": null
+      "last_known_amendment_date": "2024-06-25"
     }
   ]
 }
